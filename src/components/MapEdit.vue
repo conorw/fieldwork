@@ -1,0 +1,1429 @@
+<template>
+  <div class="plot-editor h-full flex flex-col">
+    <!-- Header - Only show in edit mode -->
+    <div v-if="!isPhotoMode" class="bg-primary-600 text-white px-4 py-3 rounded-t-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">{{ title }}</h3>
+        <button @click="closeEditor" class="text-white hover:text-gray-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div :class="isPhotoMode ? 'p-0 flex flex-col h-full min-h-0' : 'p-4'">
+      <!-- Instructions - Only show in edit mode, not photo mode -->
+      <div v-if="!isPhotoMode" class="bg-gray-100 rounded-lg p-4 mb-4">
+        <p class="text-sm text-gray-600 mb-2">{{ instructions }}</p>
+        <ul class="text-sm text-gray-600 space-y-1">
+          <li>• <strong>Click on the blue polygon</strong> to select it for editing</li>
+          <li>• <strong>Drag the polygon</strong> to move it to the correct location</li>
+          <li>• <strong>Drag the rotation handle</strong> (circular arrow) to rotate the plot</li>
+          <li v-if="!allowCustomSizing">• <strong>Plot size is fixed</strong> at {{ selectedPlotSize?.width || 8 }}×{{
+            selectedPlotSize?.height || 4 }}ft and cannot be changed</li>
+          <li v-else>• <strong>Drag the resize handles</strong> to change the plot size</li>
+        </ul>
+      </div>
+
+      <!-- Map Container -->
+      <div
+        :class="isPhotoMode ? 'flex-1 bg-gray-200 rounded-lg relative overflow-hidden min-h-0' : 'h-full bg-gray-200 rounded-lg relative overflow-hidden mb-4'"
+        style="height: 450px;">
+        <!-- Loading State -->
+        <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 z-10">
+          <div class="text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+            <p class="text-sm text-gray-600">Loading map...</p>
+          </div>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="error" class="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 z-10">
+          <div class="text-center p-4">
+            <svg class="w-8 h-8 text-red-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <p class="text-sm text-red-600 mb-2">{{ error }}</p>
+            <button @click="retryInitialization" class="btn-secondary text-sm">
+              Try Again
+            </button>
+          </div>
+        </div>
+
+        <div ref="mapElement" class="w-full h-full"></div>
+
+        <!-- Location Indicator -->
+        <LocationIndicator v-if="map && showLocationIndicator" :map="map" :location="currentLocation"
+          :direction="userDirection" :accuracy="currentLocation?.accuracy" :show-accuracy-circle="true"
+          :show-direction="true" :show-indicator="showLocationIndicator" />
+      </div>
+
+      <!-- Plot Information Display -->
+      <div v-if="showPlotInfo" class="bg-gray-50 rounded-lg p-4 mb-4">
+        <h4 class="font-medium mb-2">Plot Information</h4>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span class="font-medium">Size:</span> {{ plotInfo.size }}
+          </div>
+          <div>
+            <span class="font-medium">Location:</span> {{ plotInfo.location }}
+          </div>
+          <div>
+            <span class="font-medium">Direction:</span> {{ plotInfo.direction }}
+          </div>
+          <div>
+            <span class="font-medium">Date:</span> {{ plotInfo.date }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
+import { useSettingsStore } from '../stores/settings'
+import { useMapStore } from '../stores/map'
+import { createBestTileSource } from '../utils/tileSource'
+import { createMapView } from '../utils/mapView'
+import { useLocationsStore } from '../stores/locations'
+import LocationIndicator from './LocationIndicator.vue'
+import { useDeviceOrientation } from '../composables/useDeviceOrientation'
+
+// Static imports for OpenLayers
+import Map from 'ol/Map'
+import Feature from 'ol/Feature'
+import Polygon from 'ol/geom/Polygon'
+import Point from 'ol/geom/Point'
+import VectorLayer from 'ol/layer/Vector'
+import VectorSource from 'ol/source/Vector'
+import Style from 'ol/style/Style'
+import Fill from 'ol/style/Fill'
+import Stroke from 'ol/style/Stroke'
+import Zoom from 'ol/control/Zoom'
+import Modify from 'ol/interaction/Modify'
+import Select from 'ol/interaction/Select'
+import Collection from 'ol/Collection'
+import { fromLonLat, toLonLat } from 'ol/proj'
+
+// Get stores
+const settingsStore = useSettingsStore()
+const mapStore = useMapStore()
+const locationsStore = useLocationsStore()
+
+// Props
+const props = defineProps({
+  isVisible: {
+    type: Boolean,
+    default: false
+  },
+  location: {
+    type: Object,
+    default: () => ({ latitude: 55.204, longitude: -6.238 }) // Default to Ballycastle
+  },
+  zoom: {
+    type: Number,
+    default: 16
+  },
+  maxZoom: {
+    type: Number,
+    default: 23
+  },
+  minZoom: {
+    type: Number,
+    default: 17
+  },
+  extent: {
+    type: Array,
+    default: null // [minX, minY, maxX, maxY] in same coordinate system as center
+  },
+  restrictExtent: {
+    type: Boolean,
+    default: true
+  },
+  isPhotoMode: {
+    type: Boolean,
+    default: false
+  },
+  existingPlot: {
+    type: Object,
+    default: null
+  },
+  selectedPlotSize: {
+    type: Object,
+    default: () => ({ width: 8, height: 4 })
+  },
+  userDirection: {
+    type: Number,
+    default: 0
+  },
+  allowCustomSizing: {
+    type: Boolean,
+    default: false
+  },
+  showLocationIndicator: {
+    type: Boolean,
+    default: true
+  },
+  title: {
+    type: String,
+    default: 'Map Editor'
+  },
+  instructions: {
+    type: String,
+    default: 'Position and adjust the plot on the map.'
+  },
+  existingPlots: {
+    type: Array,
+    default: () => []
+  }
+})
+
+const emit = defineEmits(['close', 'error', 'ready'])
+
+// Computed properties to use settings store values when props are not provided
+const effectiveZoom = computed(() => props.zoom || settingsStore.defaultZoom)
+const effectiveMaxZoom = computed(() => props.maxZoom || settingsStore.maxZoom)
+const effectiveMinZoom = computed(() => props.minZoom || settingsStore.minZoom)
+
+// State
+const mapElement = ref(null)
+const map = ref(null)
+const currentEditingFeature = ref(null)
+const initializationTimeout = ref(null)
+const isLoading = ref(false)
+const error = ref(null)
+const isInitializing = ref(false)
+const showPlotInfo = ref(false)
+const plotInfo = ref({
+  size: '',
+  location: '',
+  direction: '',
+  date: ''
+})
+
+// Location tracking state
+const currentLocation = ref(null)
+// Use device orientation composable
+const { userDirection, startOrientationListener, stopOrientationListener } = useDeviceOrientation()
+
+// Methods
+const initializeMap = async () => {
+  console.log('MapEdit: ===== initializeMap CALLED =====')
+  console.log('MapEdit: Starting map initialization...')
+  console.log('MapEdit: props.isPhotoMode:', props.isPhotoMode)
+  console.log('MapEdit: props.existingPlot:', props.existingPlot)
+
+  // Debug: Log all received props
+  console.log('🔍 MapEdit: All received props:', {
+    maxZoom: props.maxZoom,
+    minZoom: props.minZoom,
+    zoom: props.zoom,
+    isPhotoMode: props.isPhotoMode,
+    existingPlot: props.existingPlot,
+    location: props.location,
+    allowCustomSizing: props.allowCustomSizing
+  })
+
+  // MapEdit should be independent - don't update mapStore configuration
+  console.log('MapEdit: Using effective zoom configuration:', {
+    maxZoom: effectiveMaxZoom.value,
+    minZoom: effectiveMinZoom.value,
+    zoom: effectiveZoom.value
+  })
+
+  // Prevent multiple simultaneous initializations
+  if (isInitializing.value) {
+    console.log('MapEdit: Map initialization already in progress, skipping...')
+    return
+  }
+
+  isInitializing.value = true
+  isLoading.value = true
+  error.value = null
+
+  // Set a timeout to ensure we always emit something
+  initializationTimeout.value = setTimeout(() => {
+    console.error('MapEdit: Initialization timeout - forcing ready signal')
+    isLoading.value = false
+    error.value = 'Initialization timeout'
+    isInitializing.value = false
+    emit('ready')
+  }, 8000) // 8 second timeout
+
+  if (!mapElement.value) {
+    console.error('MapEdit: Map element not found')
+    // Wait a bit and try again, or emit ready if we can't proceed
+    setTimeout(() => {
+      if (!mapElement.value) {
+        console.error('MapEdit: Map element still not found after timeout')
+        clearTimeout(initializationTimeout.value)
+        isLoading.value = false
+        error.value = 'Map element not found'
+        emit('error', { message: 'Map element not found' })
+      } else {
+        console.log('MapEdit: Map element found after delay, retrying initialization')
+        initializeMap()
+      }
+    }, 100)
+    return
+  }
+
+  try {
+    // For existing plots, use the plot's location data
+    let location = null
+
+    if (props.existingPlot && props.existingPlot.location) {
+      console.log('✅ MapEdit: Using existing plot location:', props.existingPlot.location)
+      location = props.existingPlot.location
+    } else if (props.location && props.location.latitude && props.location.longitude) {
+      console.log('✅ MapEdit: Using passed location prop:', props.location)
+      console.log('✅ MapEdit: Location coordinates:', {
+        latitude: props.location.latitude,
+        longitude: props.location.longitude,
+        accuracy: props.location.accuracy
+      })
+      location = props.location
+    } else {
+      console.log('⚠️ MapEdit: Falling back to default location (Ballycastle)')
+      console.log('⚠️ MapEdit: props.location was null or invalid:', props.location)
+      location = { longitude: -6.2389, latitude: 55.2044 } // Default to Ballycastle
+    }
+
+    if (!location) {
+      console.error('MapEdit: No location available')
+      // Instead of emitting error, create a default map centered on a known location
+      console.log('MapEdit: Creating map with default location (Ballycastle, Northern Ireland)')
+      location = { longitude: -6.2389, latitude: 55.2044 } // Default to Ballycastle
+    }
+
+    // Debug: Log the exact values being used for map creation
+    console.log('🔍 MapEdit: Map creation values:', {
+      center: [location.longitude, location.latitude],
+      zoom: props.zoom,
+      maxZoom: props.maxZoom,
+      minZoom: props.minZoom,
+      propsType: {
+        zoom: typeof props.zoom,
+        maxZoom: typeof props.maxZoom,
+        minZoom: typeof props.minZoom
+      }
+    })
+
+
+    // Create tile source with fallback
+    const tileSource = await createBestTileSource(locationsStore.selectedLocation, 'MapEdit')
+
+    // Create view with zoom enforcement
+    const view = await createMapView({
+      center: [location.longitude, location.latitude],
+      zoom: effectiveZoom.value,
+      maxZoom: effectiveMaxZoom.value,
+      minZoom: effectiveMinZoom.value,
+      viewName: 'MapEdit',
+      isLatLng: true,
+      extent: props.extent,
+      restrictExtent: props.restrictExtent
+    })
+
+    map.value = new Map({
+      target: mapElement.value,
+      layers: [
+        tileSource
+      ],
+      view: view,
+      controls: [
+        new Zoom({
+          maxDelta: 1,
+          duration: 250
+        })
+      ]
+    })
+
+    // Add plot to map based on mode
+    console.log('MapEdit: Checking plot mode...')
+    console.log('MapEdit: props.isPhotoMode:', props.isPhotoMode)
+    console.log('MapEdit: props.existingPlot:', props.existingPlot)
+
+    if (props.isPhotoMode) {
+      console.log('MapEdit: ===== PHOTO MODE DETECTED =====')
+      console.log('MapEdit: Adding photo plot to map')
+      await addPhotoPlotToMap()
+    } else if (props.existingPlot) {
+      console.log('MapEdit: ===== EXISTING PLOT MODE DETECTED =====')
+      console.log('MapEdit: Adding existing plot to map')
+      await addExistingPlotToMap()
+    } else {
+      console.log('MapEdit: ===== NO PLOT MODE DETECTED =====')
+      console.log('MapEdit: No plot will be added to map')
+    }
+
+    console.log('MapEdit: Map initialization completed successfully')
+    console.log('MapEdit: Map layers after initialization:', map.value.getLayers().getArray().map(layer => ({
+      className: layer.getClassName(),
+      visible: layer.getVisible(),
+      opacity: layer.getOpacity()
+    })))
+
+    // Clear the initialization timeout
+    if (initializationTimeout.value) {
+      clearTimeout(initializationTimeout.value)
+      initializationTimeout.value = null
+    }
+
+    isLoading.value = false
+    isInitializing.value = false
+
+    // Initialize location tracking
+    await initializeLocationTracking()
+
+    // Add existing plots to the map
+    await addExistingPlotsToMap()
+
+    // Signal that the editor is ready
+    emit('ready')
+
+  } catch (error) {
+    console.error('MapEdit: Error initializing map:', error)
+
+    // Clear the initialization timeout
+    if (initializationTimeout.value) {
+      clearTimeout(initializationTimeout.value)
+      initializationTimeout.value = null
+    }
+
+    isLoading.value = false
+    error.value = error.message || 'Failed to initialize map'
+    isInitializing.value = false
+    // Emit error to parent component
+    emit('error', { message: 'Failed to initialize map', error })
+  }
+}
+
+// Initialize location tracking
+const initializeLocationTracking = async () => {
+  try {
+    // Use the location prop passed from parent component
+    if (props.location && props.location.latitude && props.location.longitude) {
+      currentLocation.value = props.location
+      console.log('MapEdit: Using location from props:', currentLocation.value)
+    } else {
+      // Fallback to map store if no location prop
+      if (mapStore.currentLocation) {
+        currentLocation.value = mapStore.currentLocation
+        console.log('MapEdit: Using existing location from map store:', currentLocation.value)
+      } else {
+        // Try to get current location
+        const location = await mapStore.getCurrentLocation()
+        if (location) {
+          currentLocation.value = location
+          console.log('MapEdit: Got current location from map store:', currentLocation.value)
+        }
+      }
+    }
+
+    // Device orientation is handled by parent component (PlotCreationWizard)
+    console.log('MapEdit: Using user direction from props:', props.userDirection)
+
+    // Start tracking device orientation
+    await startOrientationListener()
+  } catch (error) {
+    console.error('MapEdit: Error initializing location tracking:', error)
+  }
+}
+
+
+const addPhotoPlotToMap = async () => {
+  console.log('MapEdit: ===== addPhotoPlotToMap CALLED =====')
+  console.log('MapEdit: Starting addPhotoPlotToMap...')
+  console.log('MapEdit: Map available:', !!map.value)
+  console.log('MapEdit: selectedPlotSize:', props.selectedPlotSize)
+  console.log('MapEdit: props.location:', props.location)
+
+  if (!map.value || !props.selectedPlotSize) {
+    console.error('MapEdit: Missing map or selectedPlotSize:', {
+      hasMap: !!map.value,
+      hasSelectedPlotSize: !!props.selectedPlotSize
+    })
+    emit('error', { message: 'Missing map or selected plot size' })
+    return
+  }
+
+  try {
+
+    // Use the passed location prop instead of mapStore.currentLocation
+    let location = null
+    console.log('🔍 MapEdit: Checking location sources for photo plot...')
+    console.log('🔍 MapEdit: props.location:', props.location)
+    console.log('🔍 MapEdit: props.location type:', typeof props.location)
+    console.log('🔍 MapEdit: props.location keys:', props.location ? Object.keys(props.location) : 'null')
+    console.log('🔍 MapEdit: mapStore.currentLocation:', mapStore.currentLocation)
+
+    if (props.location && props.location.latitude && props.location.longitude) {
+      console.log('✅ MapEdit: Using passed location prop for photo plot:', props.location)
+      console.log('✅ MapEdit: Location coordinates:', {
+        latitude: props.location.latitude,
+        longitude: props.location.longitude,
+        accuracy: props.location.accuracy
+      })
+      location = props.location
+    } else {
+      console.log('⚠️ MapEdit: Falling back to default location for photo plot')
+      location = { longitude: -6.2389, latitude: 55.2044 } // Default to Ballycastle
+    }
+
+    console.log('MapEdit: Final location for photo plot:', location)
+
+    if (!location) {
+      console.error('MapEdit: No location available for photo plot')
+
+      // Try to get location from map's current view center
+      if (map.value) {
+        const view = map.value.getView()
+        const center = view.getCenter()
+        if (center) {
+          console.log('MapEdit: Using map center as location:', center)
+          // Convert from map coordinates to lat/lng
+          const [lon, lat] = toLonLat(center)
+          const mapCenterLocation = { longitude: lon, latitude: lat }
+          await createPolygonWithLocation(mapCenterLocation, Feature, Polygon, VectorLayer, VectorSource, fromLonLat, Style, Fill, Stroke)
+          return
+        }
+      }
+
+      console.log('MapEdit: Using fallback location (Ballycastle)')
+      // Use fallback location if current location is not available
+      const fallbackLocation = { longitude: -6.2389, latitude: 55.2044 }
+      await createPolygonWithLocation(fallbackLocation, Feature, Polygon, VectorLayer, VectorSource, fromLonLat, Style, Fill, Stroke)
+      return
+    }
+
+    await createPolygonWithLocation(location, Feature, Polygon, VectorLayer, VectorSource, fromLonLat, Style, Fill, Stroke)
+
+  } catch (error) {
+    console.error('MapEdit: Error adding photo plot to map:', error)
+    // Emit error to parent component
+    emit('error', { message: 'Failed to add photo plot to map', error })
+  }
+}
+
+const createPolygonWithLocation = async (location, Feature, Polygon, VectorLayer, VectorSource, fromLonLat, Style, Fill, Stroke) => {
+  console.log('MapEdit: ===== createPolygonWithLocation CALLED =====')
+  console.log('MapEdit: Location passed:', location)
+  console.log('MapEdit: props.isPhotoMode:', props.isPhotoMode)
+  console.log('MapEdit: props.allowCustomSizing:', props.allowCustomSizing)
+
+  console.log('MapEdit: Creating polygon with size from selectedPlotSize:', props.selectedPlotSize)
+  console.log('MapEdit: Using location:', location)
+  console.log('MapEdit: User direction:', props.userDirection)
+
+  // Get plot size from selectedPlotSize or use defaults
+  const plotSize = props.selectedPlotSize || { width: 8, height: 4 }
+  const widthFeet = plotSize.width  // Long side (head to foot) - should go in direction you're facing
+  const heightFeet = plotSize.height // Short side (left to right) - should go perpendicular to direction
+
+  console.log('MapEdit: Plot dimensions:', { widthFeet, heightFeet })
+
+  // Convert feet to meters
+  const widthMeters = widthFeet * 0.3048
+  const heightMeters = heightFeet * 0.3048
+
+  console.log('MapEdit: Dimensions in meters:', { widthMeters, heightMeters })
+
+  // Create a simple rectangle centered on current location
+  const center = fromLonLat([location.longitude, location.latitude])
+
+  // Get the center point in lat/lng for distance calculations
+  const [centerLon, centerLat] = toLonLat(center)
+
+  // Calculate the offset in degrees that represents our desired distance
+  // For small distances, we can approximate using the Earth's radius
+  const earthRadius = 6371000 // Earth's radius in meters
+
+  // Calculate offsets for a rectangle aligned with North-South/East-West axes
+  // For plots: long side (width) goes North-South, short side (height) goes East-West
+  const halfLongSideDegrees = (widthMeters / 2) / earthRadius * (180 / Math.PI)  // North-South (latitude)
+  const halfShortSideDegrees = (heightMeters / 2) / earthRadius * (180 / Math.PI) // East-West (longitude)
+
+  // Adjust longitude offset for latitude (longitude lines get closer at higher latitudes)
+  const halfShortSideLonDegrees = halfShortSideDegrees / Math.cos(centerLat * Math.PI / 180)
+
+  // Store the original direction
+  const originalDirection = userDirection.value !== null ? userDirection.value : 0
+  console.log('MapEdit: Original user direction:', originalDirection, 'degrees')
+
+  // Convert device orientation to OpenLayers rotation
+  // Device orientation: 0° = North, 90° = East (clockwise)
+  // Our rectangle is created as North-South by default
+  // To point it in the device direction, we need to rotate it
+  // Formula: rotation = -device_angle + 180
+  const openlayersDirection = (360 - originalDirection + 180) % 360
+  const directionRad = (openlayersDirection * Math.PI) / 180
+
+  console.log('MapEdit: Device direction:', originalDirection, '→ OpenLayers rotation:', openlayersDirection, 'degrees (initial)')
+
+  // Also need the original direction in radians for shift calculations
+  const originalDirectionRad = (originalDirection * Math.PI) / 180
+
+  // Create a rectangle where the user is positioned at the FOOT of the grave
+  // First create a rectangle centered on the user location
+  const north = centerLat + halfLongSideDegrees
+  const south = centerLat - halfLongSideDegrees
+  const east = centerLon + halfShortSideLonDegrees
+  const west = centerLon - halfShortSideLonDegrees
+
+  // Create the four corner points of the unrotated rectangle
+  const corners = [
+    [west, north],   // Top-left
+    [east, north],   // Top-right
+    [east, south],    // Bottom-right
+    [west, south],   // Bottom-left
+    [west, north]     // Close the polygon
+  ]
+
+  // If there's a rotation, apply it to each corner
+  let rotatedCorners = corners
+  if (originalDirection !== 0) {
+    console.log('MapEdit: Applying OpenLayers rotation of', openlayersDirection, 'degrees (device direction:', originalDirection, 'degrees)')
+
+    // Convert corners to map coordinates and apply rotation
+    rotatedCorners = corners.map(([lon, lat]) => {
+      // Convert to map coordinates
+      const [x, y] = fromLonLat([lon, lat])
+
+      // Translate to origin (center point)
+      const [centerX, centerY] = center
+      const translatedX = x - centerX
+      const translatedY = y - centerY
+
+      // Apply rotation
+      const rotatedX = translatedX * Math.cos(directionRad) - translatedY * Math.sin(directionRad)
+      const rotatedY = translatedX * Math.sin(directionRad) + translatedY * Math.cos(directionRad)
+
+      // Translate back
+      const finalX = rotatedX + centerX
+      const finalY = rotatedY + centerY
+
+      return [finalX, finalY]
+    })
+  } else {
+    // Convert lat/lng corners to map coordinates when no rotation
+    rotatedCorners = corners.map(([lon, lat]) => fromLonLat([lon, lat]))
+  }
+
+  // Shift the rectangle so the user is positioned at the FOOT of the grave
+  // The foot is the edge closest to the user's facing direction
+  console.log('MapEdit: Shifting rectangle so user is at foot of grave')
+
+  // Calculate the shift needed to position user at foot
+  // User should be at the center of the foot edge (short side)
+  const shiftDistance = halfLongSideDegrees  // Distance from center to foot edge
+
+  // Calculate shift components based on ORIGINAL user direction (not corrected)
+  // We want to move the polygon away from the user in the direction they're facing
+  const shiftLat = shiftDistance * Math.cos(originalDirectionRad)  // North-South shift
+  const shiftLon = shiftDistance * Math.sin(originalDirectionRad) / Math.cos(centerLat * Math.PI / 180)  // East-West shift (adjusted for latitude)
+
+  console.log('MapEdit: Shift components:', { shiftLat, shiftLon, originalDirection, degrees: originalDirection })
+
+  // Apply shift to all corners
+  const shiftedCorners = rotatedCorners.map(([x, y]) => {
+    // Convert back to lat/lng for shifting
+    const [lon, lat] = toLonLat([x, y])
+
+    // Apply shift - ADD to move the polygon away from the user in their facing direction
+    const shiftedLat = lat + shiftLat
+    const shiftedLon = lon + shiftLon
+
+    // Convert back to map coordinates
+    return fromLonLat([shiftedLon, shiftedLat])
+  })
+
+  // Create polygon coordinates
+  const coordinates = shiftedCorners
+
+  console.log('MapEdit: Center coordinates:', center)
+  console.log('MapEdit: User direction (degrees):', originalDirection)
+  console.log('MapEdit: Rectangle dimensions (degrees):', {
+    longSide: halfLongSideDegrees * 2,
+    shortSide: halfShortSideLonDegrees * 2
+  })
+  console.log('MapEdit: Polygon coordinates created:', coordinates)
+
+  const polygonFeature = new Feature({
+    geometry: new Polygon([coordinates])
+  })
+
+  const style = new Style({
+    fill: new Fill({
+      color: 'rgba(59, 130, 246, 0.3)'
+    }),
+    stroke: new Stroke({
+      color: '#3b82f6',
+      width: 2
+    })
+  })
+
+  polygonFeature.setStyle(style)
+
+  const vectorLayer = new VectorLayer({
+    source: new VectorSource({
+      features: [polygonFeature]
+    })
+  })
+
+  // Add a name to the layer for debugging
+  vectorLayer.set('name', 'editing-polygon')
+
+  console.log('MapEdit: Adding vector layer to map...')
+  map.value.addLayer(vectorLayer)
+  currentEditingFeature.value = polygonFeature
+
+  console.log('MapEdit: Plot added to map successfully')
+  console.log('MapEdit: Map layers count:', map.value.getLayers().getLength())
+  console.log('MapEdit: Vector layer added:', vectorLayer.get('name'))
+  console.log('MapEdit: Polygon feature:', polygonFeature)
+  console.log('MapEdit: Polygon geometry:', polygonFeature.getGeometry())
+  console.log('MapEdit: Polygon style:', polygonFeature.getStyle())
+
+  // Debug: Check if the polygon is actually in the layer
+  const layerFeatures = vectorLayer.getSource().getFeatures()
+  console.log('MapEdit: Features in vector layer:', layerFeatures.length)
+  console.log('MapEdit: Polygon feature in layer:', layerFeatures.includes(polygonFeature))
+
+  // Debug: Check polygon bounds
+  const extent = polygonFeature.getGeometry().getExtent()
+  console.log('MapEdit: Polygon extent:', extent)
+  console.log('MapEdit: Polygon center:', [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2])
+
+  // Debug: Check if the polygon is actually visible
+  console.log('MapEdit: Map view center before fit:', map.value.getView().getCenter())
+  console.log('MapEdit: Map view zoom before fit:', map.value.getView().getZoom())
+
+  // Fit the map view to show the polygon with appropriate padding
+  map.value.getView().fit(extent, {
+    padding: [20, 20, 20, 20],
+    maxZoom: props.maxZoom
+  })
+  console.log('MapEdit: Map view fitted to polygon')
+
+  // Debug: Check map view after fit
+  setTimeout(() => {
+    console.log('MapEdit: Map view center after fit:', map.value.getView().getCenter())
+    console.log('MapEdit: Map view zoom after fit:', map.value.getView().getZoom())
+    console.log('MapEdit: Polygon feature visible:', polygonFeature.getGeometry().intersectsExtent(map.value.getView().calculateExtent()))
+  }, 100)
+
+  // In photo mode, don't add editing interactions - just show the plot
+  console.log('MapEdit: ===== CHECKING PHOTO MODE =====')
+  console.log('MapEdit: props.isPhotoMode value:', props.isPhotoMode)
+  console.log('MapEdit: typeof props.isPhotoMode:', typeof props.isPhotoMode)
+
+  if (props.isPhotoMode) {
+    console.log('MapEdit: ===== ABOUT TO CALL addEditingInteractions =====')
+    console.log('MapEdit: Photo mode - adding editing interactions for positioning')
+    console.log('MapEdit: Polygon feature to pass:', polygonFeature)
+    // In photo mode, we still want to allow editing for positioning the plot
+    try {
+      await addEditingInteractions(polygonFeature)
+      console.log('MapEdit: addEditingInteractions completed successfully')
+    } catch (error) {
+      console.error('MapEdit: Error in addEditingInteractions:', error)
+    }
+  } else {
+    console.log('MapEdit: NOT in photo mode, skipping editing interactions')
+  }
+}
+
+const addExistingPlotToMap = async () => {
+  console.log('MapEdit: Starting addExistingPlotToMap...')
+  if (!map.value || !props.existingPlot) {
+    console.error('MapEdit: Missing map or existingPlot:', {
+      hasMap: !!map.value,
+      hasExistingPlot: !!props.existingPlot
+    })
+    emit('error', { message: 'Missing map or existing plot data' })
+    return
+  }
+
+  try {
+
+    // Parse existing plot geometry
+    const geometry = JSON.parse(props.existingPlot.geometry)
+    const coordinates = geometry.coordinates[0]
+
+    // Check if coordinates are in lat/lng format (small numbers) or map projection format (large numbers)
+    // Lat/lng coordinates are typically between -180 to 180 for longitude and -90 to 90 for latitude
+    // Map projection coordinates are typically very large numbers (millions)
+    const isLatLngFormat = coordinates.some(coord =>
+      Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90
+    )
+
+    let mapCoordinates
+    if (isLatLngFormat) {
+      // Convert from lat/lng to map coordinates
+      console.log('MapEdit: Converting coordinates from lat/lng to map projection')
+      mapCoordinates = coordinates.map(coord => fromLonLat(coord))
+    } else {
+      // Coordinates are already in map projection format
+      console.log('MapEdit: Coordinates already in map projection format')
+      mapCoordinates = coordinates
+    }
+
+    const polygonFeature = new Feature({
+      geometry: new Polygon([mapCoordinates]),
+      plot: props.existingPlot
+    })
+
+    const style = new Style({
+      fill: new Fill({
+        color: 'rgba(59, 130, 246, 0.3)'
+      }),
+      stroke: new Stroke({
+        color: '#3b82f6',
+        width: 2
+      })
+    })
+
+    polygonFeature.setStyle(style)
+
+    const vectorLayer = new VectorLayer({
+      source: new VectorSource({
+        features: [polygonFeature]
+      })
+    })
+
+    map.value.addLayer(vectorLayer)
+    currentEditingFeature.value = polygonFeature
+
+    // Center map on the plot (only if we didn't already center on plot location)
+    if (!props.existingPlot?.location) {
+      const extent = polygonFeature.getGeometry().getExtent()
+      map.value.getView().fit(extent, {
+        padding: [20, 20, 20, 20],
+        maxZoom: props.maxZoom
+      })
+    }
+
+    // Add editing interactions
+    await addEditingInteractions(polygonFeature)
+
+    console.log('MapEdit: Existing plot setup completed successfully')
+
+  } catch (error) {
+    console.error('MapEdit: Error adding existing plot to map:', error)
+    emit('error', { message: 'Failed to add existing plot to map', error })
+  }
+}
+
+const addEditingInteractions = async (polygonFeature) => {
+  console.log('MapEdit: ===== addEditingInteractions CALLED =====')
+  console.log('MapEdit: Polygon feature passed:', polygonFeature)
+  console.log('MapEdit: Map available:', !!map.value)
+  console.log('MapEdit: MapElement available:', !!mapElement.value)
+
+  console.log('MapEdit: Starting addEditingInteractions...')
+  console.log('MapEdit: Static imports available - Modify:', !!Modify, 'Select:', !!Select, 'Collection:', !!Collection)
+  try {
+    // Try to import ol-ext Transform for advanced editing
+    let Transform
+    try {
+      console.log('MapEdit: Attempting to import ol-ext Transform...')
+      Transform = (await import('ol-ext/interaction/Transform')).default
+      console.log('MapEdit: ol-ext Transform imported successfully')
+    } catch (e) {
+      console.log('MapEdit: ol-ext not available, using basic modify interaction:', e.message)
+      // Fallback to basic modify interaction (position only, no resizing)
+      console.log('MapEdit: Using basic Modify interaction (position only)')
+      console.log('MapEdit: About to create Modify interaction with static imports')
+      console.log('MapEdit: Modify constructor:', Modify)
+      console.log('MapEdit: Collection constructor:', Collection)
+
+      const modifyInteraction = new Modify({
+        features: new Collection([polygonFeature])
+      })
+
+      map.value.addInteraction(modifyInteraction)
+      console.log('MapEdit: Basic Modify interaction added successfully')
+
+      // In photo mode, the basic modify interaction is immediately active
+      if (props.isPhotoMode) {
+        console.log('MapEdit: Photo mode - basic Modify interaction is immediately active')
+      }
+
+      return
+    }
+
+    // Use ol-ext Transform for advanced editing (position and rotation only, no resizing)
+    console.log('MapEdit: Setting up ol-ext Transform interactions (position and rotation only)...')
+    try {
+
+      // Create a collection containing the polygon feature
+      const featureCollection = new Collection([polygonFeature])
+
+      // Create select interaction (without pre-populating features for manual selection)
+      const selectInteraction = new Select({
+        // Don't pre-populate features to allow manual clicking
+      })
+
+      console.log('MapEdit: Select interaction created:', selectInteraction)
+      console.log('MapEdit: Select interaction features collection:', selectInteraction.getFeatures())
+      console.log('MapEdit: Select interaction active:', selectInteraction.getActive())
+
+      // Create transform interaction with rotation enabled but scaling disabled
+      const transformInteraction = new Transform({
+        features: selectInteraction.getFeatures(), // Use select interaction's features collection
+        enableRotation: true,
+        scale: props.allowCustomSizing, // Allow scaling only if custom sizing is enabled
+        rotate: true,
+        translate: true,
+        stretch: props.allowCustomSizing // Allow stretching only if custom sizing is enabled
+      })
+
+      console.log('MapEdit: Transform interaction configured with:', {
+        enableRotation: true,
+        scale: props.allowCustomSizing,
+        rotate: true,
+        translate: true,
+        stretch: props.allowCustomSizing
+      })
+
+      // Add event listeners for debugging
+      selectInteraction.on('select', (event) => {
+        console.log('MapEdit: Select event triggered:', event)
+        console.log('MapEdit: Selected features:', event.selected)
+        console.log('MapEdit: Deselected features:', event.deselected)
+      })
+
+      // Add both interactions to the map
+      map.value.addInteraction(selectInteraction)
+      map.value.addInteraction(transformInteraction)
+
+      console.log('MapEdit: Interactions added to map')
+      console.log('MapEdit: Map interactions count:', map.value.getInteractions().getLength())
+
+      // Debug: List all interactions
+      const interactions = map.value.getInteractions().getArray()
+      console.log('MapEdit: All map interactions:', interactions.map(i => i.constructor.name))
+
+      // Debug: Check if interactions are active
+      console.log('MapEdit: Select interaction active:', selectInteraction.getActive())
+      console.log('MapEdit: Transform interaction active:', transformInteraction.getActive())
+
+      // Debug: Add click listener to map element to see if clicks are being detected
+      mapElement.value.addEventListener('click', (event) => {
+        console.log('MapEdit: Raw click event detected on map element:', event)
+        console.log('MapEdit: Click coordinates:', event.clientX, event.clientY)
+      })
+
+      // In photo mode, automatically select the polygon so it's immediately editable
+      if (props.isPhotoMode) {
+        console.log('MapEdit: Photo mode - automatically selecting polygon for immediate editing')
+
+        // Direct approach: add the polygon to the select collection
+        setTimeout(() => {
+          try {
+            // Add our polygon to the select collection
+            selectInteraction.getFeatures().push(polygonFeature)
+
+            console.log('MapEdit: Polygon added to selection')
+            console.log('MapEdit: Selected features count:', selectInteraction.getFeatures().getLength())
+            console.log('MapEdit: Transform active:', transformInteraction.getActive())
+
+          } catch (error) {
+            console.error('MapEdit: Error in automatic selection:', error)
+          }
+        }, 300) // Increased timeout to ensure everything is ready
+      }
+
+      console.log('MapEdit: Advanced editing interactions added successfully (position and rotation only)')
+    } catch (transformError) {
+      console.error('MapEdit: Failed to setup Transform interactions:', transformError)
+      console.log('MapEdit: Falling back to basic interactions')
+    }
+
+  } catch (error) {
+    console.error('MapEdit: Error adding editing interactions:', error)
+    // Emit error to parent component
+    emit('error', { message: 'Failed to add editing interactions', error })
+  }
+}
+
+
+const closeEditor = () => {
+  emit('close')
+}
+
+const retryInitialization = () => {
+  console.log('MapEdit: Retrying map initialization...')
+  error.value = null
+  initializeMap().catch(error => {
+    console.error('MapEdit: Failed to initialize map after retry:', error)
+    emit('error', { message: 'Failed to initialize map after retry', error })
+  })
+}
+
+// Helper function to get direction name from degrees
+const getDirectionName = (degrees) => {
+  const normalizedDegrees = ((degrees % 360) + 360) % 360
+
+  if (normalizedDegrees >= 337.5 || normalizedDegrees < 22.5) return 'North'
+  if (normalizedDegrees >= 22.5 && normalizedDegrees < 67.5) return 'Northeast'
+  if (normalizedDegrees >= 67.5 && normalizedDegrees < 112.5) return 'East'
+  if (normalizedDegrees >= 112.5 && normalizedDegrees < 157.5) return 'Southeast'
+  if (normalizedDegrees >= 157.5 && normalizedDegrees < 202.5) return 'South'
+  if (normalizedDegrees >= 202.5 && normalizedDegrees < 247.5) return 'Southwest'
+  if (normalizedDegrees >= 247.5 && normalizedDegrees < 292.5) return 'West'
+  if (normalizedDegrees >= 292.5 && normalizedDegrees < 337.5) return 'Northwest'
+
+  return 'North'
+}
+
+// Function to enforce zoom limits using proper event handling
+const enforceZoomLimits = (view) => {
+  const currentZoom = view.getZoom()
+  const maxZoom = props.maxZoom
+  const minZoom = props.minZoom
+
+  console.log('MapEdit: Checking zoom limits:', {
+    currentZoom,
+    maxZoom,
+    minZoom,
+    propsMaxZoom: props.maxZoom,
+    propsMinZoom: props.minZoom
+  })
+
+  if (maxZoom !== undefined && currentZoom > maxZoom) {
+    console.log('MapEdit: Enforcing maxZoom limit:', maxZoom)
+    view.setZoom(maxZoom)
+  } else if (minZoom !== undefined && currentZoom < minZoom) {
+    console.log('MapEdit: Enforcing minZoom limit:', minZoom)
+    view.setZoom(minZoom)
+  }
+}
+
+// Add existing plots to the map
+const addExistingPlotsToMap = async () => {
+  if (!map.value || !props.existingPlots || props.existingPlots.length === 0) {
+    console.log('MapEdit: No existing plots to display or map not ready')
+    return
+  }
+
+  try {
+    console.log('MapEdit: Adding existing plots to map:', props.existingPlots.length)
+
+
+    // Create features for all existing plots
+    const features = []
+
+    for (const plot of props.existingPlots) {
+      if (!plot.geometry) {
+        console.warn('MapEdit: Plot missing geometry:', plot.id)
+        continue
+      }
+
+      try {
+        // Parse geometry
+        const geometry = JSON.parse(plot.geometry)
+        const coordinates = geometry.coordinates[0]
+
+        // Convert coordinates to map projection
+        const mapCoordinates = coordinates.map((coord) => fromLonLat(coord))
+
+        // Create polygon feature
+        const polygonFeature = new Feature({
+          geometry: new Polygon([mapCoordinates]),
+          plot: plot
+        })
+
+        // Create style for existing plots (different from editing plot)
+        const existingPlotStyle = new Style({
+          fill: new Fill({
+            color: 'rgba(34, 197, 94, 0.3)' // Green with transparency
+          }),
+          stroke: new Stroke({
+            color: '#22c55e', // Green border
+            width: 2
+          })
+        })
+
+        polygonFeature.setStyle(existingPlotStyle)
+        features.push(polygonFeature)
+
+        console.log('MapEdit: Added existing plot feature:', plot.id)
+      } catch (error) {
+        console.error('MapEdit: Error processing plot geometry:', plot.id, error)
+      }
+    }
+
+    if (features.length > 0) {
+      // Create vector layer for existing plots
+      const existingPlotsLayer = new VectorLayer({
+        source: new VectorSource({
+          features: features
+        }),
+        zIndex: 500 // Lower than editing plot but above base map
+      })
+
+      // Add name to identify this layer
+      existingPlotsLayer.set('name', 'existing-plots')
+
+      // Add layer to map
+      map.value.addLayer(existingPlotsLayer)
+
+      console.log('MapEdit: Successfully added existing plots layer with', features.length, 'plots')
+    } else {
+      console.log('MapEdit: No valid plot features to add')
+    }
+
+  } catch (error) {
+    console.error('MapEdit: Error adding existing plots to map:', error)
+  }
+}
+
+// Watch for changes in existing plots
+watch(() => props.existingPlots, (newPlots) => {
+  if (map.value && newPlots && newPlots.length > 0) {
+    console.log('MapEdit: Existing plots changed, refreshing map display')
+    addExistingPlotsToMap()
+  }
+}, { deep: true })
+
+// Lifecycle
+onMounted(() => {
+  console.log('MapEdit: Component mounted, isVisible:', props.isVisible)
+  if (props.isVisible) {
+    console.log('MapEdit: Component is visible on mount, initializing map...')
+    nextTick(() => {
+      console.log('MapEdit: Next tick, starting map initialization...')
+      initializeMap().catch(error => {
+        console.error('MapEdit: Failed to initialize map in lifecycle:', error)
+        emit('error', { message: 'Failed to initialize map', error })
+      })
+    })
+  } else {
+    console.log('MapEdit: Component mounted but not visible, waiting...')
+  }
+})
+
+// Watch for visibility changes
+watch(() => props.isVisible, (isVisible) => {
+  console.log('MapEdit: isVisible changed to:', isVisible)
+  if (isVisible && !map.value && !isInitializing.value) {
+    console.log('MapEdit: Component became visible, initializing map...')
+
+    nextTick(() => {
+      console.log('MapEdit: Next tick after visibility change, starting map initialization...')
+      initializeMap().catch(error => {
+        console.error('MapEdit: Failed to initialize map after visibility change:', error)
+        emit('error', { message: 'Failed to initialize map', error })
+      })
+    })
+  } else if (isVisible && map.value) {
+    // If map already exists, ensure it has the correct zoom settings
+    console.log('MapEdit: Component became visible with existing map, updating zoom settings...')
+
+    const view = map.value.getView()
+    console.log('MapEdit: Current view settings:', {
+      currentZoom: view.getZoom(),
+      currentMaxZoom: view.getMaxZoom(),
+      currentMinZoom: view.getMinZoom()
+    })
+    console.log('MapEdit: Props settings:', {
+      propsZoom: props.zoom,
+      propsMaxZoom: props.maxZoom,
+      propsMinZoom: props.minZoom
+    })
+
+    // Update the view with current props
+    if (props.maxZoom !== undefined) view.setMaxZoom(props.maxZoom)
+    if (props.minZoom !== undefined) view.setMinZoom(props.minZoom)
+    if (props.zoom !== undefined) view.setZoom(props.zoom)
+
+    console.log('MapEdit: Updated view settings:', {
+      newZoom: view.getZoom(),
+      newMaxZoom: view.getMaxZoom(),
+      newMinZoom: view.getMinZoom()
+    })
+  }
+}, { immediate: true })
+
+// Watch for userDirection prop changes
+watch(() => props.userDirection, (newDirection) => {
+  if (newDirection !== undefined && newDirection !== null) {
+    userDirection.value = newDirection
+    console.log('MapEdit: Updated userDirection from props:', newDirection)
+  }
+})
+
+// Watch for local userDirection changes and update polygon geometry
+watch(userDirection, async (newDirection, oldDirection) => {
+  console.log('MapEdit: userDirection watcher triggered:', { newDirection, oldDirection, isPhotoMode: props.isPhotoMode, hasEditingFeature: !!currentEditingFeature.value, hasMap: !!map.value, hasLocation: !!currentLocation.value })
+
+  // Only update if we're in photo mode and have an editing feature
+  if (props.isPhotoMode && currentEditingFeature.value && map.value && currentLocation.value) {
+    console.log('MapEdit: Direction changed from', oldDirection, 'to', newDirection, '- updating polygon geometry')
+
+    try {
+      // Get plot size
+      const plotSize = props.selectedPlotSize || { width: 8, height: 4 }
+      const widthFeet = plotSize.width
+      const heightFeet = plotSize.height
+      const widthMeters = widthFeet * 0.3048
+      const heightMeters = heightFeet * 0.3048
+
+      // Get the user's location (foot of the grave)
+      const userLocationPoint = fromLonLat([currentLocation.value.longitude, currentLocation.value.latitude])
+
+      // Calculate dimensions
+      const earthRadius = 6371000
+      const halfShortSideDegrees = (heightMeters / 2) / earthRadius * (180 / Math.PI)  // Short side (width) - perpendicular
+      const halfLongSideDegrees = (widthMeters / 2) / earthRadius * (180 / Math.PI)    // Long side (length) - in facing direction
+
+      // Get the user location in lat/lng
+      const [userLon, userLat] = toLonLat(userLocationPoint)
+
+      // Adjust longitude offset for latitude (longitude lines get closer at higher latitudes)
+      const halfShortSideLonDegrees = halfShortSideDegrees / Math.cos(userLat * Math.PI / 180)
+
+      // Calculate the center of the polygon (half the long side away from the user in their facing direction)
+      const originalDirection = newDirection !== null ? newDirection : 0
+      const originalDirectionRad = (originalDirection * Math.PI) / 180
+      const shiftToCenter = halfLongSideDegrees
+
+      // Calculate shift components to move from foot to center
+      const shiftToCenterLat = shiftToCenter * Math.cos(originalDirectionRad)
+      const shiftToCenterLon = shiftToCenter * Math.sin(originalDirectionRad) / Math.cos(userLat * Math.PI / 180)
+
+      // Center location is at the midpoint of the grave
+      const centerLat = userLat + shiftToCenterLat
+      const centerLon = userLon + shiftToCenterLon
+
+      // Create corners relative to the center point
+      const north = centerLat + halfLongSideDegrees
+      const south = centerLat - halfLongSideDegrees
+      const east = centerLon + halfShortSideLonDegrees
+      const west = centerLon - halfShortSideLonDegrees
+
+      const corners = [
+        [west, north], [east, north], [east, south], [west, south], [west, north]
+      ]
+
+      // Apply rotation
+      // Device orientation: 0° = North, 90° = East (clockwise)
+      // Our rectangle is created as North-South by default
+      // To point it in the device direction, we need to rotate it
+      // Device North (0°) → rectangle already points North → rotate 0° (but we need +90° for map coordinates)
+      // Device East (90°) → need rectangle to point East → rotate +90° from North = +90° for map
+      // Formula: rotation = -device_angle + 90 + 90 = -device_angle + 180
+      const openlayersDirection = (360 - originalDirection + 180) % 360
+      const directionRad = (openlayersDirection * Math.PI) / 180
+
+      console.log('MapEdit: Device direction:', originalDirection, '→ OpenLayers rotation:', openlayersDirection, 'degrees')
+
+      let rotatedCorners
+      const centerMapCoords = fromLonLat([centerLon, centerLat])
+
+      if (originalDirection !== 0) {
+        rotatedCorners = corners.map(([lon, lat]) => {
+          const [x, y] = fromLonLat([lon, lat])
+          const [centerX, centerY] = centerMapCoords
+          const translatedX = x - centerX
+          const translatedY = y - centerY
+          const rotatedX = translatedX * Math.cos(directionRad) - translatedY * Math.sin(directionRad)
+          const rotatedY = translatedX * Math.sin(directionRad) + translatedY * Math.cos(directionRad)
+          return [rotatedX + centerX, rotatedY + centerY]
+        })
+      } else {
+        rotatedCorners = corners.map(([lon, lat]) => fromLonLat([lon, lat]))
+      }
+
+      const finalCorners = rotatedCorners
+
+      // Update the existing feature's geometry
+      const newGeometry = new Polygon([finalCorners])
+      currentEditingFeature.value.setGeometry(newGeometry)
+
+      console.log('MapEdit: Polygon geometry updated with new direction')
+    } catch (error) {
+      console.error('MapEdit: Error updating polygon geometry:', error)
+    }
+  }
+}, { immediate: false })
+
+// Watch for location prop changes
+watch(() => props.location, async (newLocation, oldLocation) => {
+  console.log('🔍 MapEdit: Location prop changed:', { newLocation, oldLocation })
+  console.log('🔍 MapEdit: New location details:', newLocation ? {
+    latitude: newLocation.latitude,
+    longitude: newLocation.longitude,
+    accuracy: newLocation.accuracy
+  } : 'null')
+
+  // Update currentLocation ref so LocationIndicator moves
+  if (newLocation && newLocation.latitude && newLocation.longitude) {
+    currentLocation.value = newLocation
+    console.log('🔍 MapEdit: Updated currentLocation for LocationIndicator:', currentLocation.value)
+  }
+
+  // If we're in photo mode and have a map, redraw the polygon with the new location
+  if (props.isPhotoMode && map.value && currentEditingFeature.value && newLocation) {
+    console.log('🔍 MapEdit: Location changed in photo mode, redrawing polygon...')
+
+    try {
+      // Remove the current polygon
+      const layers = map.value.getLayers()
+      const vectorLayers = layers.getArray().filter(layer =>
+        layer.getSource && layer.getSource().getFeatures &&
+        layer.getSource().getFeatures().some(f => f === currentEditingFeature.value)
+      )
+
+      vectorLayers.forEach(layer => {
+        map.value.removeLayer(layer)
+      })
+
+      // Redraw the polygon with new location
+      await createPolygonWithLocation(newLocation, Feature, Polygon, VectorLayer, VectorSource, fromLonLat, Style, Fill, Stroke)
+
+      console.log('✅ MapEdit: Polygon redrawn with new location successfully')
+    } catch (error) {
+      console.error('❌ MapEdit: Error redrawing polygon with new location:', error)
+    }
+  }
+}, { immediate: false })
+
+// Watch for selectedPlotSize changes to redraw polygon when size changes
+watch(() => props.selectedPlotSize, async (newPlotData, oldPlotData) => {
+  console.log('🔍 MapEdit: selectedPlotSize changed:', { newPlotData, oldPlotData })
+  console.log('🔍 MapEdit: Watcher conditions check:', {
+    hasNewPlotData: !!newPlotData,
+    hasOldPlotData: !!oldPlotData,
+    isPhotoMode: props.isPhotoMode,
+    hasMap: !!map.value,
+    hasCurrentEditingFeature: !!currentEditingFeature.value,
+    widthChanged: newPlotData && oldPlotData ? newPlotData.width !== oldPlotData.width : 'N/A',
+    heightChanged: newPlotData && oldPlotData ? newPlotData.height !== oldPlotData.height : 'N/A'
+  })
+
+  if (newPlotData &&
+    (!oldPlotData || newPlotData.width !== oldPlotData.width || newPlotData.height !== oldPlotData.height)) {
+    console.log('🔍 MapEdit: Plot size changed, redrawing polygon...')
+    console.log('🔍 MapEdit: Old size:', { width: oldPlotData?.width, height: oldPlotData?.height })
+    console.log('🔍 MapEdit: New size:', { width: newPlotData.width, height: newPlotData.height })
+
+    // Only redraw if we're in photo mode and have a map
+    if (props.isPhotoMode && map.value && currentEditingFeature.value) {
+      try {
+        // Remove the current polygon
+        const layers = map.value.getLayers()
+        const vectorLayers = layers.getArray().filter(layer =>
+          layer.getSource && layer.getSource().getFeatures &&
+          layer.getSource().getFeatures().some(f => f === currentEditingFeature.value)
+        )
+
+        vectorLayers.forEach(layer => {
+          map.value.removeLayer(layer)
+        })
+
+        // Get current location from the existing feature or map center
+        let location
+        if (props.location) {
+          location = props.location
+        } else {
+          // Get location from map center
+          const view = map.value.getView()
+          const center = view.getCenter()
+          const [lon, lat] = toLonLat(center)
+          location = { longitude: lon, latitude: lat }
+        }
+
+        // Redraw the polygon with new size
+        await createPolygonWithLocation(location, Feature, Polygon, VectorLayer, VectorSource, fromLonLat, Style, Fill, Stroke)
+
+        console.log('✅ MapEdit: Polygon redrawn with new size successfully')
+      } catch (error) {
+        console.error('❌ MapEdit: Error redrawing polygon:', error)
+      }
+    }
+  }
+}, { immediate: false })
+
+// Watch for zoom prop changes and settings store changes
+watch([effectiveMaxZoom, effectiveMinZoom, effectiveZoom], (newValues, oldValues) => {
+  console.log('🔍 MapEdit: Effective zoom values changed:', {
+    newValues: {
+      maxZoom: newValues[0],
+      minZoom: newValues[1],
+      zoom: newValues[2]
+    },
+    oldValues: {
+      maxZoom: oldValues[0],
+      minZoom: oldValues[1],
+      zoom: oldValues[2]
+    }
+  })
+
+  // If map exists, update the view with new zoom settings
+  if (map.value) {
+    const view = map.value.getView()
+    console.log('🔍 MapEdit: Updating map view with new effective zoom settings:', {
+      maxZoom: newValues[0],
+      minZoom: newValues[1],
+      zoom: newValues[2]
+    })
+
+    if (newValues[0] !== undefined) view.setMaxZoom(newValues[0])
+    if (newValues[1] !== undefined) view.setMinZoom(newValues[1])
+    if (newValues[2] !== undefined) view.setZoom(newValues[2])
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  console.log('MapEdit: Component unmounting, cleaning up map...')
+
+  // Clear orientation listener
+  stopOrientationListener()
+
+  // Clear initialization timeout
+  if (initializationTimeout.value) {
+    clearTimeout(initializationTimeout.value)
+    initializationTimeout.value = null
+  }
+
+  // Clear zoom enforcement interval
+  // zoomEnforcementInterval.value = null // This line is removed
+
+  if (map.value) {
+    try {
+      map.value.setTarget(undefined)
+      map.value = null
+      console.log('MapEdit: Map cleanup completed')
+    } catch (error) {
+      console.error('MapEdit: Error during map cleanup:', error)
+    }
+  }
+})
+
+// Expose method to get current geometry and feature data
+const getCurrentPlotData = () => {
+  if (currentEditingFeature.value) {
+    const geometry = currentEditingFeature.value.getGeometry()
+    const coordinates = geometry.getCoordinates()[0]
+
+    return {
+      geometry: coordinates,
+      feature: currentEditingFeature.value,
+      location: currentLocation.value,
+      direction: userDirection.value
+    }
+  }
+  return null
+}
+
+defineExpose({
+  getCurrentPlotData
+})
+</script>

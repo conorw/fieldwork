@@ -1,0 +1,18 @@
+{
+  "name": "@fieldwork/database",
+  "version": "1.0.0",
+  "description": "Database migrations and schema for Fieldwork application",
+  "private": true,
+  "scripts": {
+    "migrate": "echo 'Migrations are handled by SST'",
+    "migrate:create": "echo 'Create new migration files manually'"
+  },
+  "keywords": [
+    "database",
+    "migrations",
+    "postgresql",
+    "fieldwork"
+  ],
+  "author": "Fieldwork Team",
+  "license": "MIT"
+} 

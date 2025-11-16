@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#1f2937"/>
+  
+  <!-- Headstone base -->
+  <rect x="160" y="320" width="192" height="64" rx="12" fill="#6b7280"/>
+  
+  <!-- Headstone main body -->
+  <rect x="176" y="160" width="160" height="160" rx="20" fill="#f9fafb"/>
+  
+  <!-- Headstone top arch -->
+  <path d="M176 160 Q256 120 336 160" stroke="#f9fafb" stroke-width="16" fill="none" stroke-linecap="round"/>
+  
+  <!-- Grass/ground -->
+  <path d="M100 384 Q160 376 220 384 Q280 376 340 384 Q400 376 420 384" stroke="#16a34a" stroke-width="8" fill="none"/>
+  <path d="M120 400 Q180 392 240 400 Q300 392 360 400 Q400 392 400 400" stroke="#16a34a" stroke-width="6" fill="none"/>
+</svg>

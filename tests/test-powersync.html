@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PowerSync Test</title>
+</head>
+<body>
+    <h1>PowerSync Test</h1>
+    <div id="output"></div>
+    
+    <script type="module">
+        const output = document.getElementById('output');
+        
+        try {
+            console.log('Testing PowerSync import...');
+            const { PowerSyncDatabase } = await import('@powersync/web');
+            console.log('PowerSync imported successfully:', PowerSyncDatabase);
+            output.innerHTML += '<p>✅ PowerSync imported successfully</p>';
+            
+            // Test basic schema
+            const { column, Schema, Table } = await import('@powersync/web');
+            console.log('PowerSync components:', { column, Schema, Table });
+            output.innerHTML += '<p>✅ PowerSync components imported</p>';
+            
+            // Test schema creation
+            const testTable = new Table({
+                id: column.text,
+                name: column.text
+            });
+            
+            const testSchema = new Schema({
+                test: testTable
+            });
+            
+            console.log('Test schema created:', testSchema);
+            output.innerHTML += '<p>✅ Test schema created</p>';
+            
+            // Test database creation
+            const db = new PowerSyncDatabase({
+                schema: testSchema,
+                database: {
+                    dbFilename: 'test-powersync.db'
+                }
+            });
+            
+            console.log('Test database created:', db);
+            output.innerHTML += '<p>✅ Test database created</p>';
+            
+            // Test initialization
+            await db.init();
+            console.log('Test database initialized');
+            output.innerHTML += '<p>✅ Test database initialized</p>';
+            
+        } catch (error) {
+            console.error('PowerSync test failed:', error);
+            output.innerHTML += `<p>❌ PowerSync test failed: ${error.message}</p>`;
+            output.innerHTML += `<p>Stack: ${error.stack}</p>`;
+        }
+    </script>
+</body>
+</html>

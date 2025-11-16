@@ -1,0 +1,8 @@
+# Modern browsers that support top-level await
+last 2 versions
+not dead
+not ie 11
+chrome >= 89
+firefox >= 89
+safari >= 14.1
+edge >= 89 

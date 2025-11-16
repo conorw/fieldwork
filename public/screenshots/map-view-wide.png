@@ -1,0 +1,26 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#f9fafb"/>
+  
+  <!-- Header -->
+  <rect x="0" y="0" width="1280" height="80" fill="#1f2937"/>
+  <text x="40" y="50" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">FieldWork - Cemetery Plot Management</text>
+  
+  <!-- Map Area -->
+  <rect x="40" y="100" width="1200" height="500" fill="#e5e7eb" stroke="#9ca3af" stroke-width="2" stroke-dasharray="5,5"/>
+  <text x="640" y="350" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="18">Interactive Map View</text>
+  
+  <!-- Plot markers -->
+  <circle cx="300" cy="250" r="8" fill="#ef4444"/>
+  <circle cx="500" cy="300" r="8" fill="#ef4444"/>
+  <circle cx="700" cy="200" r="8" fill="#ef4444"/>
+  <circle cx="900" cy="350" r="8" fill="#ef4444"/>
+  
+  <!-- Toolbar -->
+  <rect x="40" y="620" width="1200" height="60" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+  <text x="60" y="650" fill="#374151" font-family="Arial, sans-serif" font-size="14">Plot Management Tools</text>
+  
+  <!-- Navigation -->
+  <rect x="1000" y="20" width="200" height="40" fill="#3b82f6" rx="4"/>
+  <text x="1100" y="45" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="14">Settings</text>
+</svg>
