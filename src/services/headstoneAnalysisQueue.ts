@@ -167,8 +167,6 @@ class HeadstoneAnalysisQueueService implements QueueService {
    * Process a single task
    */
   private async processTask(task: QueuedAnalysisTask): Promise<void> {
-    console.log(`🔍 HeadstoneAnalysisQueue: Processing task ${task.id} for plot ${task.plotId}`)
-
     if (!task.plotId) {
       throw new Error('Task has no plot ID')
     }
@@ -177,38 +175,22 @@ class HeadstoneAnalysisQueueService implements QueueService {
     const imageFile = this.base64ToFile(task.photoData, task.fileName, task.fileType)
 
     // Import and analyze the image
-    console.log(`🔍 HeadstoneAnalysisQueue: Importing headstoneAnalysisService...`)
     const { headstoneAnalysisService } = await import('../utils/headstoneAnalysisService')
-
-    console.log(`🔍 HeadstoneAnalysisQueue: About to analyze image for plot ${task.plotId}`)
     const result = await headstoneAnalysisService.analyzeHeadstoneImage(imageFile, task.plotId)
 
-    console.log(`🔍 HeadstoneAnalysisQueue: Analysis result for task ${task.id}:`, {
-      success: result.success,
-      personsCount: result.persons?.length || 0,
-      error: result.error
-    })
-
     if (result.success && result.persons.length > 0) {
-      console.log(`✅ HeadstoneAnalysisQueue: Successfully analyzed task ${task.id} - found ${result.persons.length} person(s)`)
-
       // Show success toast notification
       toastService.headstoneAnalysisComplete(task.plotId!, result.persons.length)
-
       // Task completed successfully, mark for removal
       task.attempts = this.MAX_RETRIES
     } else if (result.success && result.persons.length === 0) {
-      console.log(`✅ HeadstoneAnalysisQueue: Successfully analyzed task ${task.id} - no persons found`)
-
       // Show info toast notification for no persons found
       toastService.headstoneAnalysisComplete(task.plotId!, 0)
-
       // Task completed successfully, mark for removal
       task.attempts = this.MAX_RETRIES
     } else {
       // Show error toast notification
       toastService.headstoneAnalysisFailed(result.error)
-
       throw new Error(result.error || 'Analysis failed')
     }
   }

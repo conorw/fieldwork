@@ -185,7 +185,6 @@ const selectedLocationData = computed(() => {
 
 // Create default 2km x 2km rectangle
 const createDefaultRectangle = async () => {
-  console.log('createDefaultRectangle called')
   try {
     const olGeom = await import('ol/geom')
     const ol = await import('ol')
@@ -206,11 +205,9 @@ const createDefaultRectangle = async () => {
     const getArea = olSphere.getArea
 
     const map = mapComponent.value.map
-    console.log('Map instance in createDefaultRectangle:', map)
 
     // Create a 1km x 1km rectangle centered on the map center
     const center = mapCenter.value
-    console.log('Creating rectangle at center:', center)
 
     // Calculate the exact degrees for 1km at this latitude
     // 1 degree of latitude ≈ 111km, so 1km ≈ 0.009 degrees
@@ -220,8 +217,6 @@ const createDefaultRectangle = async () => {
 
     const halfLat = latDegrees / 2
     const halfLon = lonDegrees / 2
-
-    console.log('Rectangle dimensions in degrees:', { latDegrees, lonDegrees, halfLat, halfLon })
 
     const rectangleCoords = [
       [
@@ -233,18 +228,13 @@ const createDefaultRectangle = async () => {
       ]
     ]
 
-    console.log('Rectangle coordinates (lat/lng):', rectangleCoords)
-
     // Convert to map projection coordinates
     const projectedCoords = rectangleCoords[0].map(coord => fromLonLat(coord))
-    console.log('Projected coordinates:', projectedCoords)
 
     const rectangleGeometry = new Polygon([projectedCoords])
-    console.log('Rectangle geometry created:', rectangleGeometry)
 
     // Create feature
     const feature = new Feature(rectangleGeometry)
-    console.log('Feature created:', feature)
 
     // Create vector source and layer
     vectorSource.value = new VectorSource()

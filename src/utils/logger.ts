@@ -67,12 +67,13 @@ export const createLogger = (prefix: string, level: LogLevel = LogLevel.INFO): L
 }
 
 // Pre-configured loggers for common components
-export const mapLogger = createLogger('MapEdit', LogLevel.DEBUG)
-export const powerSyncLogger = createLogger('PowerSync', LogLevel.DEBUG)
-export const mapViewLogger = createLogger('MapView', LogLevel.DEBUG)
-export const mapComponentLogger = createLogger('MapComponent', LogLevel.DEBUG)
-export const wizardLogger = createLogger('PlotCreationWizard', LogLevel.DEBUG)
-export const locationLogger = createLogger('LocationIndicator', LogLevel.DEBUG)
-export const analysisLogger = createLogger('HeadstoneAnalysis', LogLevel.DEBUG)
-export const cameraLogger = createLogger('CapacitorCamera', LogLevel.DEBUG)
-export const storeLogger = createLogger('Store', LogLevel.DEBUG)
+// Set to INFO level to reduce verbosity (change to DEBUG for detailed logging)
+export const mapLogger = createLogger('MapEdit', LogLevel.INFO)
+export const powerSyncLogger = createLogger('PowerSync', LogLevel.INFO)
+export const mapViewLogger = createLogger('MapView', LogLevel.INFO)
+export const mapComponentLogger = createLogger('MapComponent', LogLevel.INFO)
+export const wizardLogger = createLogger('PlotCreationWizard', LogLevel.INFO)
+export const locationLogger = createLogger('LocationIndicator', LogLevel.INFO)
+export const analysisLogger = createLogger('HeadstoneAnalysis', LogLevel.INFO)
+export const cameraLogger = createLogger('CapacitorCamera', LogLevel.INFO)
+export const storeLogger = createLogger('Store', LogLevel.INFO)

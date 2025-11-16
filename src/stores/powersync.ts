@@ -23,42 +23,32 @@ export const usePowerSyncStore = defineStore('powersync', () => {
   // Configure the logger to use the default console output
   logger.useDefaults();
 
-  // Set the minimum log level to DEBUG to see all log messages
-  // Available levels: DEBUG, INFO, WARN, ERROR, TRACE, OFF
-  logger.setLevel(LogLevel.DEBUG);
+  // Set the minimum log level to INFO to reduce verbosity
+  // Change to DEBUG for detailed logging during development
+  logger.setLevel(LogLevel.INFO);
 
   let db: PowerSyncDatabase | null = null
   let initializationPromise: Promise<PowerSyncDatabase | null> | null = null
 
   try {
-    const dbCreationStart = performance.now()
-    console.log(`[${new Date().toISOString()}] PowerSync: Creating database instance...`)
-    console.log('PowerSync: PowerSyncDatabase constructor:', PowerSyncDatabase)
-    console.log('PowerSync: AppSchema for database:', AppSchema)
-
     db = new PowerSyncDatabase({
       schema: AppSchema,
       database: {
         dbFilename: 'fieldwork-powersync.db',
-        debugMode: true
+        debugMode: false // Reduced verbosity
       },
       flags: {
         // Use WebWorker for background sync operations https://docs.powersync.com/resources/troubleshooting
         enableMultiTabs: false,
-        broadcastLogs: true
+        broadcastLogs: false // Reduced verbosity
       }
     });
-    const dbCreationEnd = performance.now()
     // Add ability to clear database on schema mismatch
     // Uncomment the next line to reset the database and clear the schema mismatch warning
     // db.close({ clearData: true }).then(() => {
     //   console.log('Database cleared due to schema mismatch')
     //   window.location.reload()
     // })
-    console.log(`PowerSync: Database instance created in ${(dbCreationEnd - dbCreationStart).toFixed(2)}ms`)
-    console.log('PowerSync: Database instance created successfully:', db)
-    console.log('PowerSync: Database ready state:', db.ready)
-    console.log('PowerSync: Database closed state:', db.closed)
   } catch (dbError) {
     console.error('PowerSync: Failed to create database instance:', dbError)
     console.error('PowerSync: Error details:', {
@@ -109,72 +99,24 @@ export const usePowerSyncStore = defineStore('powersync', () => {
       const initStart = performance.now()
       console.log(`[${new Date().toISOString()}] Initializing PowerSync store...`)
       console.log('PowerSync: AppSchema:', AppSchema)
-      console.log('PowerSync: Database instance before init:', db)
       // Initialize the database first
-      console.log('PowerSync: Starting database initialization...')
-
-      const connectorStart = performance.now()
       const connector = new SupabaseConnector();
-      const connectorEnd = performance.now()
-      console.log(`PowerSync: SupabaseConnector created in ${(connectorEnd - connectorStart).toFixed(2)}ms`, {
-        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-        powersyncUrl: import.meta.env.VITE_POWERSYNC_URL,
-        hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY
-      });
-      const connectStart = performance.now()
-      console.log(`[${new Date().toISOString()}] PowerSync: Connecting to Supabase...`);
       await db.connect(connector);
-      const connectEnd = performance.now()
-      console.log(`[${new Date().toISOString()}] PowerSync: Connected to Supabase successfully in ${(connectEnd - connectStart).toFixed(2)}ms`);
-      console.log(`PowerSync: Connection breakdown - Total: ${(connectEnd - initStart).toFixed(2)}ms (Connector: ${(connectorEnd - connectorStart).toFixed(2)}ms, Connect: ${(connectEnd - connectStart).toFixed(2)}ms)`);
       
-      // Add global error handler for JWT expiration
-      // Note: PowerSyncDatabase doesn't have addEventListener, but the connector handles errors
-      console.log('🔄 PowerSync: JWT refresh handling enabled via connector');
-      
-      // await db.init();
-      // Check database ready state
-      console.log('PowerSync: Database ready state check:', {
-        db: !!db,
-        ready: db?.ready,
-        closed: db?.closed
-      });
-      // Create PowerSync database instance
-      console.log('PowerSync: Creating database with schema:', AppSchema)
-      console.log('PowerSync: Database instance created:', db)
-      // Check if Supabase environment variables are available (but don't connect yet)
-      const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL &&
-        import.meta.env.VITE_SUPABASE_ANON_KEY &&
-        import.meta.env.VITE_POWERSYNC_URL;
-
-      if (hasSupabaseConfig) {
-        console.log('PowerSync: Supabase configuration available but not connecting yet')
-      } else {
-        console.log('PowerSync: Supabase configuration not available, running in offline mode only')
-      }
-
-      const finalCheckStart = performance.now()
       powerSync.value = db
       isInitialized.value = true
       lastSyncTime.value = new Date().toISOString()
-      const finalCheckEnd = performance.now()
 
       // Pre-warm wa-sqlite with a simple query to avoid first-query penalty
       // This initializes the WASM module and IndexedDB connection
       try {
-        const warmupStart = performance.now()
-        console.log('🔥 [PowerSync] Pre-warming wa-sqlite with simple query...')
         await db.execute('SELECT 1')
-        const warmupEnd = performance.now()
-        console.log(`🔥 [PowerSync] wa-sqlite pre-warmed in ${(warmupEnd - warmupStart).toFixed(2)}ms`)
       } catch (warmupError) {
-        console.warn('⚠️ [PowerSync] Pre-warm query failed (non-critical):', warmupError)
+        // Pre-warm failed, but non-critical
       }
 
       const totalTime = performance.now() - initStart
-      console.log(`PowerSync: Final state setup took ${(finalCheckEnd - finalCheckStart).toFixed(2)}ms`)
-      console.log(`[${new Date().toISOString()}] PowerSync store initialized successfully in ${totalTime.toFixed(2)}ms`)
-      console.log(`PowerSync: Init breakdown - Connector: ${(connectorEnd - connectorStart).toFixed(2)}ms, Connect: ${(connectEnd - connectStart).toFixed(2)}ms, Final: ${(finalCheckEnd - finalCheckStart).toFixed(2)}ms, Total: ${totalTime.toFixed(2)}ms`)
+      console.log(`PowerSync initialized in ${totalTime.toFixed(0)}ms`)
       return db
     } catch (err) {
       console.error('Failed to initialize PowerSync store:', err)
@@ -1049,28 +991,11 @@ export const useReactivePowerSyncQuery = (query: Ref<string> | ComputedRef<strin
       const result = await powerSyncStore.powerSync.getAll(queryString, actualParams)
       const queryExecutionEnd = performance.now()
       
-      const queryEnd = performance.now()
       const queryExecutionTime = queryExecutionEnd - queryExecutionStart
-      const totalTime = queryEnd - queryStart
       
-      console.log(`📊 [PowerSync Query] Query execution: ${queryExecutionTime.toFixed(2)}ms, Total: ${totalTime.toFixed(2)}ms, Results: ${result.length}`)
-      
-      // wa-sqlite overhead analysis
-      if (queryExecutionTime > 200 && !isMobile) {
-        console.warn(`📊 [PowerSync Query] ⚠️ Slow query execution (${queryExecutionTime.toFixed(2)}ms)`)
-        console.warn(`📊 [PowerSync Query] Breakdown: wa-sqlite (WASM SQLite) + IndexedDB + PowerSync reactive layer`)
-        console.warn(`📊 [PowerSync Query] This is normal for PowerSync but indicates IndexedDB/wa-sqlite overhead`)
-        
-        // Check if this is likely wa-sqlite initialization (first query)
-        if (queryExecutionTime > 500 && result.length > 0) {
-          console.warn(`📊 [PowerSync Query] 💡 Tip: First queries after app load are slower due to wa-sqlite WASM initialization`)
-        }
-      }
-      
+      // Only log warnings for slow queries (>1s) or errors
       if (queryExecutionTime > 1000) {
-        console.error(`📊 [PowerSync Query] ❌ VERY slow query (${queryExecutionTime.toFixed(2)}ms)`)
-        console.error(`📊 [PowerSync Query] Possible causes: IndexedDB lock, sync conflict, or wa-sqlite initialization`)
-        console.error(`📊 [PowerSync Query] DB state:`, dbState)
+        console.warn(`[PowerSync Query] Slow query: ${queryExecutionTime.toFixed(2)}ms - possible IndexedDB lock or sync conflict`)
       }
       
       data.value = result

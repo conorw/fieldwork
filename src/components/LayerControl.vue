@@ -220,56 +220,30 @@ const initializeLayerVisibility = () => {
 // Watch for map instance changes
 const watchMapInstance = () => {
   if (props.mapInstance) {
-    console.log('🔍 LayerControl: Map instance available, initializing...')
     initializeLayerVisibility()
   }
 }
 
 onMounted(() => {
-  console.log('🔍 LayerControl: Component mounted')
-  console.log('🔍 LayerControl: Component is visible:', true)
-  console.log('🔍 LayerControl: Initial map instance:', !!props.mapInstance)
   watchMapInstance()
 })
 
 // Watch for map instance prop changes
 watch(() => props.mapInstance, (newMapInstance, oldMapInstance) => {
-  console.log('🔍 LayerControl: Map instance changed:', {
-    hadOld: !!oldMapInstance,
-    hasNew: !!newMapInstance
-  })
-  
   if (newMapInstance && !oldMapInstance) {
-    console.log('🔍 LayerControl: Map instance became available')
     initializeLayerVisibility()
   }
 })
 
-// Debug function to check layer state
+// Debug function to check layer state (only logs in development)
 const debugLayerState = async () => {
-  console.log('🔍 LayerControl: Debug Layer State')
-  console.log('🔍 LayerControl: Map instance:', !!props.mapInstance)
-  console.log('🔍 LayerControl: Layer visibility state:', layerVisibility.value)
-  console.log('🔍 LayerControl: Base layer visible:', baseLayerVisible.value)
-  
-  if (props.mapInstance) {
-    const layers = props.mapInstance.getLayers()
-    console.log(`🔍 LayerControl: Map has ${layers.getLength()} layers`)
-    
-    layers.forEach((layer, index) => {
-      console.log(`🔍 LayerControl: Layer ${index}:`, {
-        type: layer.constructor.name,
-        visible: layer.getVisible(),
-        opacity: layer.getOpacity(),
-        source: layer.getSource()?.constructor.name,
-        hasStyle: !!layer.getStyle()
-      })
-    })
+  if (import.meta.env.DEV) {
+    console.log('🔍 LayerControl: Debug Layer State')
+    if (props.mapInstance) {
+      const layers = props.mapInstance.getLayers()
+      console.log(`🔍 LayerControl: Map has ${layers.getLength()} layers`)
+    }
   }
-  
-  // Test global state
-
-  console.log('🔍 LayerControl: Global layer visibility:', getLayerVisibility())
 }
 
 // Expose methods for parent components

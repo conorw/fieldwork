@@ -48,7 +48,6 @@ export const useLocationsStore = defineStore('locations', () => {
     }
     
     if (locations.value.length > 0) {
-      console.log('📍 [LocationsStore] Locations already loaded, skipping')
       return
     }
     
@@ -57,11 +56,6 @@ export const useLocationsStore = defineStore('locations', () => {
       const isConnecting = powerSyncStore.isConnecting || (powerSyncStore as any).isInitialized === false
       
       if (isConnecting || !powerSyncStore.isInitialized) {
-        console.log('📍 [LocationsStore] PowerSync not ready yet, waiting...', {
-          isConnecting,
-          isInitialized: powerSyncStore.isInitialized,
-          hasPowerSync: !!powerSyncStore.powerSync
-        })
         // Wait up to 10 seconds for PowerSync to initialize
         let waitCount = 0
         while ((isConnecting || !powerSyncStore.isInitialized) && !powerSyncStore.powerSync && waitCount < 100) {
@@ -69,16 +63,11 @@ export const useLocationsStore = defineStore('locations', () => {
           waitCount++
           if (powerSyncStore.powerSync) break
         }
-        console.log(`📍 [LocationsStore] Finished waiting after ${waitCount * 100}ms, PowerSync ready:`, !!powerSyncStore.powerSync)
       }
     }
     
     if (!powerSyncStore.powerSync) {
-      console.error('📍 [LocationsStore] PowerSync client not initialized after waiting')
-      console.error('PowerSync state:', {
-        isInitialized: powerSyncStore.isInitialized,
-        hasPowerSync: !!powerSyncStore.powerSync
-      })
+      console.error('LocationsStore: PowerSync client not initialized')
       error.value = 'PowerSync client not initialized'
       return
     }
