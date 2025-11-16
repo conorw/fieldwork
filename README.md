@@ -228,12 +228,7 @@ fieldwork/
 
 ### Additional Guides
 
-- [PMTiles Caching](./PMTILES_CACHING.md) - Offline map tile storage (legacy)
-- [Image Handling Guide](./IMAGE_HANDLING_GUIDE.md) - Image processing details (legacy)
-- [Headstone Analysis Guide](./HEADSTONE_ANALYSIS_GUIDE.md) - AI analysis workflow (legacy)
-- [OpenAI Quota Guide](./OPENAI_QUOTA_GUIDE.md) - API usage optimization
-- [Storage Migration](./STORAGE_MIGRATION.md) - Database migrations
-- [TypeScript Migration](./TYPESCRIPT_MIGRATION.md) - Type safety setup
+- [Database Migrations](./packages/database/README.md) - Database schema and migrations
 
 ## 🛠️ Development
 
