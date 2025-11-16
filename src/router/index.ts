@@ -4,7 +4,6 @@ import PlotsView from '../views/PlotsView.vue'
 import PlotDetail from '../views/PlotDetail.vue'
 import LocationsView from '../views/Locations.vue'
 import Settings from '../views/Settings.vue'
-import SyncView from '../views/SyncView.vue'
 
 const routes = [
   {
@@ -32,11 +31,6 @@ const routes = [
     path: '/settings',
     name: 'Settings',
     component: Settings
-  },
-  {
-    path: '/sync',
-    name: 'Sync',
-    component: SyncView
   }
 ]
 
