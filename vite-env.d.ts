@@ -1,5 +1,13 @@
 /// <reference types="vite/client" />
 
+// Buffer polyfill for Node.js compatibility
+declare global {
+  interface Window {
+    Buffer: typeof import('buffer').Buffer
+  }
+  var Buffer: typeof import('buffer').Buffer
+}
+
 interface ImportMetaEnv {
   readonly VITE_ZERO_SERVER: string
   readonly VITE_POWERSYNC_URL: string

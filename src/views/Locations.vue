@@ -106,6 +106,26 @@ import { useLocationsStore } from '../stores/locations'
 import { usePowerSyncStore } from '../stores/powersync'
 import MapComponent from '../components/MapComponent.vue'
 
+// Static imports for OpenLayers (already in bundle via manualChunks)
+import Polygon from 'ol/geom/Polygon'
+import Feature from 'ol/Feature'
+import Style from 'ol/style/Style'
+import Fill from 'ol/style/Fill'
+import Stroke from 'ol/style/Stroke'
+import VectorLayer from 'ol/layer/Vector'
+import VectorSource from 'ol/source/Vector'
+import { fromLonLat, toLonLat } from 'ol/proj'
+import { getArea } from 'ol/sphere'
+import Modify from 'ol/interaction/Modify'
+import Select from 'ol/interaction/Select'
+import Translate from 'ol/interaction/Translate'
+import Point from 'ol/geom/Point'
+import MultiPoint from 'ol/geom/MultiPoint'
+import Circle from 'ol/style/Circle'
+import RegularShape from 'ol/style/RegularShape'
+import { getCenter, getWidth, getHeight } from 'ol/extent'
+import { primaryAction, platformModifierKeyOnly, never } from 'ol/events/condition'
+
 const router = useRouter()
 const mapStore = useMapStore()
 const settingsStore = useSettingsStore()
@@ -186,23 +206,6 @@ const selectedLocationData = computed(() => {
 // Create default 2km x 2km rectangle
 const createDefaultRectangle = async () => {
   try {
-    const olGeom = await import('ol/geom')
-    const ol = await import('ol')
-    const olStyle = await import('ol/style')
-    const olLayer = await import('ol/layer')
-    const olSource = await import('ol/source')
-    const olProj = await import('ol/proj')
-    const olSphere = await import('ol/sphere')
-
-    const Polygon = olGeom.Polygon
-    const Feature = ol.Feature
-    const Style = olStyle.Style
-    const Fill = olStyle.Fill
-    const Stroke = olStyle.Stroke
-    const VectorLayer = olLayer.Vector
-    const VectorSource = olSource.Vector
-    const fromLonLat = olProj.fromLonLat
-    const getArea = olSphere.getArea
 
     const map = mapComponent.value.map
 
@@ -335,22 +338,6 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 // Add modify interaction for resizing
 const addModifyInteraction = async (feature, source) => {
   try {
-    const olInteraction = await import('ol/interaction')
-    const olSphere = await import('ol/sphere')
-    const olProj = await import('ol/proj')
-    const olGeom = await import('ol/geom')
-    const olStyle = await import('ol/style')
-
-    const Modify = olInteraction.Modify
-    const Select = olInteraction.Select
-    const getArea = olSphere.getArea
-    const toLonLat = olProj.toLonLat
-    const fromLonLat = olProj.fromLonLat
-    const Polygon = olGeom.Polygon
-    const Style = olStyle.Style
-    const Fill = olStyle.Fill
-    const Stroke = olStyle.Stroke
-    const Circle = olStyle.Circle
 
     const map = mapComponent.value.map
 
@@ -551,34 +538,6 @@ const addModifyInteraction = async (feature, source) => {
 // Add rectangle interactions for moving and resizing
 const addRectangleInteractions = async (feature, source) => {
   try {
-    const olInteraction = await import('ol/interaction')
-    const olSphere = await import('ol/sphere')
-    const olProj = await import('ol/proj')
-    const olGeom = await import('ol/geom')
-    const olStyle = await import('ol/style')
-    const olExtent = await import('ol/extent')
-    const olEvents = await import('ol/events/condition')
-
-    const Select = olInteraction.Select
-    const Translate = olInteraction.Translate
-    const Modify = olInteraction.Modify
-    const getArea = olSphere.getArea
-    const toLonLat = olProj.toLonLat
-    const fromLonLat = olProj.fromLonLat
-    const Polygon = olGeom.Polygon
-    const Point = olGeom.Point
-    const MultiPoint = olGeom.MultiPoint
-    const Style = olStyle.Style
-    const Fill = olStyle.Fill
-    const Stroke = olStyle.Stroke
-    const RegularShape = olStyle.RegularShape
-    const getCenter = olExtent.getCenter
-    const getWidth = olExtent.getWidth
-    const getHeight = olExtent.getHeight
-    const primaryAction = olEvents.primaryAction
-    const platformModifierKeyOnly = olEvents.platformModifierKeyOnly
-    const never = olEvents.never
-
     const map = mapComponent.value.map
 
     console.log('Setting up rectangle interactions for moving and resizing...')
@@ -928,7 +887,6 @@ const calculatePolygonDimensions = async (extent) => {
   const [minX, minY, maxX, maxY] = extent
 
   // Convert to lat/lng for distance calculation
-  const { toLonLat } = await import('ol/proj')
   const minCoord = toLonLat([minX, minY])
   const maxCoord = toLonLat([maxX, maxY])
 
@@ -992,7 +950,6 @@ const handleSetExtent = async () => {
     const extent = geometry.getExtent()
 
     // Convert to lat/lng
-    const { toLonLat } = await import('ol/proj')
     const sw = toLonLat([extent[0], extent[1]])
     const ne = toLonLat([extent[2], extent[3]])
     const bbox = [sw[0], sw[1], ne[0], ne[1]] // [minLon, minLat, maxLon, maxLat]

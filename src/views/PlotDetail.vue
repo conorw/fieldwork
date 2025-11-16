@@ -452,6 +452,17 @@ import { base64ToBlob } from '../powersync-schema'
 import { progressiveImageLoader } from '../utils/imageDisplayUtils'
 import ThumbnailViewer from '../components/ThumbnailViewer.vue'
 
+// Static imports for OpenLayers (already in bundle via manualChunks)
+import Map from 'ol/Map'
+import View from 'ol/View'
+import TileLayer from 'ol/layer/Tile'
+import XYZ from 'ol/source/XYZ'
+import Feature from 'ol/Feature'
+import Polygon from 'ol/geom/Polygon'
+import VectorLayer from 'ol/layer/Vector'
+import VectorSource from 'ol/source/Vector'
+import { fromLonLat } from 'ol/proj'
+
 const props = defineProps({
   id: {
     type: String,
@@ -960,28 +971,6 @@ watch(effectivePlot, async (newPlot) => {
   }
 
   try {
-    const [
-      { default: Map },
-      { default: View },
-      { default: TileLayer },
-      { default: XYZ },
-      { default: Feature },
-      { default: Polygon },
-      { default: VectorLayer },
-      { default: VectorSource },
-      { fromLonLat }
-    ] = await Promise.all([
-      import('ol/Map'),
-      import('ol/View'),
-      import('ol/layer/Tile'),
-      import('ol/source/XYZ'),
-      import('ol/Feature'),
-      import('ol/geom/Polygon'),
-      import('ol/layer/Vector'),
-      import('ol/source/Vector'),
-      import('ol/proj')
-    ])
-
     // Parse geometry
     let coordinates = []
     try {

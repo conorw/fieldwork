@@ -1,3 +1,8 @@
+// Polyfill Buffer for PowerSync (Node.js compatibility)
+import { Buffer } from 'buffer'
+window.Buffer = Buffer
+globalThis.Buffer = Buffer
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

@@ -953,9 +953,8 @@ export const useMapStore = defineStore('map', () => {
     console.log('MapStore: Created feature collection with', featureCollection.getLength(), 'features')
     console.log('MapStore: Feature collection features:', featureCollection.getArray().map(f => f.get('plot')?.id))
 
-    // Import Transform interaction for scaling and rotating
+    // Import Transform interaction for scaling and rotating (ol-ext is optional, keep lazy)
     const { default: Transform } = await import('ol-ext/interaction/Transform') as any
-    const { default: Select } = await import('ol/interaction/Select') as any
     
     // Create a Select interaction to manage feature selection for Transform
     // Transform interaction works best when paired with a Select interaction
@@ -968,7 +967,7 @@ export const useMapStore = defineStore('map', () => {
     console.log('MapStore: Created Select interaction with', selectInteraction.getFeatures().getLength(), 'features')
     
     // Store the Select interaction so we can remove it later
-    currentSelectInteraction.value = selectInteraction
+    currentSelectInteraction.value = selectInteraction as any
     
     // Get the features collection from Select (this is what Transform will use)
     const transformFeaturesCollection = selectInteraction.getFeatures()
@@ -1092,7 +1091,6 @@ export const useMapStore = defineStore('map', () => {
 
       // Convert coordinates back to lat/lng (WGS84)
       // toLonLat returns [longitude, latitude] which is correct for GeoJSON
-      const { toLonLat } = await import('ol/proj')
       const coordinates = transformedGeometry.getCoordinates()[0]
       const latLngCoordinates = coordinates.map((coord: number[]) => {
         const [lon, lat] = toLonLat(coord)

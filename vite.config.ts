@@ -15,8 +15,16 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': '/src'
-    }
+      '@': '/src',
+      // Polyfill for Node.js Buffer (required by PowerSync)
+      'buffer': 'buffer'
+    },
+    // Handle CommonJS modules from event-iterator
+    mainFields: ['browser', 'module', 'main']
+  },
+  define: {
+    // Make Buffer available globally
+    'global': 'globalThis',
   },
   build: {
     target: 'esnext',
@@ -30,8 +38,12 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['ol', 'ol-ext', "@powersync/web > js-logger"],
-    exclude: ["@journeyapps/wa-sqlite", "@powersync/web"]
+    include: ['ol', 'ol-ext', "@powersync/web > js-logger", 'buffer', 'event-iterator'],
+    exclude: ["@journeyapps/wa-sqlite", "@powersync/web"],
+    esbuildOptions: {
+      // Handle CommonJS modules from event-iterator
+      mainFields: ['browser', 'module', 'main']
+    }
   },
   worker: {
     format: "es",
