@@ -15,7 +15,7 @@ export const createOnlinePMTilesTileSource = (sourceName = 'Unknown') => {
 const createVectorTile = (url: string) => {
   const source = new PMTilesVectorSource({
     url: url,
-    attributions: ["© PMTiles"],
+    attributions: ["© OpenStreetMap contributors"],
   })
 
   // Add debug logging
