@@ -283,7 +283,26 @@ npm run lint
 
 ## 📝 License
 
-MIT
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
+### What does GPL mean?
+
+The GPL (GNU General Public License) is a "copyleft" license that ensures software remains free and open. Here's what it means in simple terms:
+
+**✅ You can:**
+- Use this software for any purpose (personal, commercial, etc.)
+- Study how it works by examining the source code
+- Modify the code to suit your needs
+- Share the original software with others
+- Distribute your modified versions
+
+**📋 You must:**
+- Keep the same GPL license when you share or distribute the software
+- Make your source code available if you distribute modified versions
+- Include the original license and copyright notices
+- Document any significant changes you make
+
+**💡 In essence:** GPL ensures that this software and any improvements to it remain free and open for everyone. If you build upon this project, your contributions must also be open source under the same license.
 
 ---
 
