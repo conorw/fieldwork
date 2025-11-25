@@ -51,11 +51,8 @@ export const useMapStore = defineStore('map', () => {
   const initializePlotsLayer = (): void => {
     if (!map.value) return
 
-    console.log('🔄 MapStore: Initializing plots layer...')
-
     // Remove existing plots layer if it exists
     if (plotsLayer.value) {
-      console.log('🗑️ MapStore: Removing existing plots layer')
       map.value.removeLayer(plotsLayer.value as any)
     }
 
@@ -72,8 +69,6 @@ export const useMapStore = defineStore('map', () => {
 
     // Add to map
     map.value.addLayer(plotsLayer.value as any)
-
-    console.log('✅ MapStore: Initialized single plots layer')
   }
 
 
@@ -210,14 +205,12 @@ export const useMapStore = defineStore('map', () => {
       if (saved) {
         const zoom = parseFloat(saved)
         if (!isNaN(zoom) && zoom >= MIN_ZOOM && zoom <= MAX_ZOOM) {
-          console.log('MapStore: Loaded saved zoom level:', zoom)
           return zoom
         }
       }
     } catch (error) {
       console.warn('MapStore: Failed to load zoom level:', error)
     }
-    console.log('MapStore: Using default zoom level:', DEFAULT_ZOOM)
     return DEFAULT_ZOOM
   }
 
@@ -234,7 +227,6 @@ export const useMapStore = defineStore('map', () => {
 
     const clampedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
     map.value.getView().setZoom(clampedZoom)
-    console.log('MapStore: Zoom level set to:', clampedZoom)
   }
 
   // Restore saved zoom level (useful when returning to map view)
@@ -243,7 +235,6 @@ export const useMapStore = defineStore('map', () => {
 
     const savedZoom = loadZoomLevel()
     setZoomLevel(savedZoom)
-    console.log('MapStore: Restored zoom level to:', savedZoom)
   }
 
   // Reset zoom level to default
@@ -252,7 +243,6 @@ export const useMapStore = defineStore('map', () => {
 
     setZoomLevel(DEFAULT_ZOOM)
     saveZoomLevel(DEFAULT_ZOOM)
-    console.log('MapStore: Reset zoom level to default:', DEFAULT_ZOOM)
   }
 
   // GPS tracking
@@ -278,7 +268,6 @@ export const useMapStore = defineStore('map', () => {
           accuracy: accuracy || 5,
           timestamp: Date.now()
         }
-        //console.log('Location updated:', currentLocation.value)
       } else {
         console.warn('Invalid GPS coordinates received:', coords.value)
       }
@@ -315,7 +304,6 @@ export const useMapStore = defineStore('map', () => {
   // Start extent configuration mode
   const startExtentConfiguration = () => {
     isConfiguringExtent.value = true
-    console.log('Starting map extent configuration')
   }
 
   // Finish extent configuration
@@ -323,14 +311,12 @@ export const useMapStore = defineStore('map', () => {
     try {
       await locationsStore.updateLocation(locationsStore.selectedLocationId, { bbox: extent })
       isConfiguringExtent.value = false
-      console.log('Map extent configuration completed:', extent)
     } catch (error) {
       console.error('Error finishing extent configuration:', error, JSON.stringify(error))
       // Check if this is just a sync error - if so, don't fail the operation
       if (typeof error === 'object' && error !== null) {
         const err: any = error
         if (err.type === 'sync_failed' && err.localSaveSuccessful) {
-          console.log('Sync failed but local save was successful - continuing...')
           isConfiguringExtent.value = false
           return // Don't throw the error
         }
@@ -343,7 +329,6 @@ export const useMapStore = defineStore('map', () => {
   // Cancel extent configuration
   const cancelExtentConfiguration = () => {
     isConfiguringExtent.value = false
-    console.log('Map extent configuration cancelled')
   }
 
   // Clear extent configuration
@@ -365,12 +350,10 @@ export const useMapStore = defineStore('map', () => {
       if (existingSettings2 && existingSettings2.length > 0) {
         const existingSetting = existingSettings2[0] as any
         await powerSyncStore.powerSync.execute('DELETE FROM settings WHERE id = ?', [existingSetting.id])
-        console.log('Map extent settings deleted from Zero.dev')
 
         // Trigger sync to save changes (optional - don't fail if sync fails)
         try {
           // PowerSync handles sync automatically
-          console.log('Map extent deletion synced to server successfully')
         } catch (syncError) {
           console.warn('Map extent deleted locally but server sync failed:', syncError)
           // Don't throw the error - local deletion was successful
@@ -380,8 +363,6 @@ export const useMapStore = defineStore('map', () => {
       // Update local state
       mapExtent.value = null
       isExtentConfigured.value = false
-
-      console.log('Map extent configuration cleared')
     } catch (error) {
       console.error('Error clearing map extent configuration:', error, JSON.stringify(error))
       throw error
@@ -416,12 +397,9 @@ export const useMapStore = defineStore('map', () => {
   }> => {
     return new Promise(async (resolve, reject) => {
       try {
-        console.log('MapStore: Getting high accuracy GPS location via Capacitor...')
-        
         // Check permissions first
         const permissions = await capacitorGeolocation.checkPermissions()
         if (permissions.location !== 'granted') {
-          console.log('MapStore: Requesting geolocation permissions...')
           const newPermissions = await capacitorGeolocation.requestPermissions()
           if (newPermissions.location !== 'granted') {
             reject(new Error('Geolocation permission denied'))
@@ -441,13 +419,11 @@ export const useMapStore = defineStore('map', () => {
 
         // Update current location
         currentLocation.value = result
-        console.log('MapStore: High accuracy GPS location obtained via Capacitor:', result)
         resolve(result)
       } catch (error) {
         console.error('MapStore: Capacitor GPS location error:', error)
         
         // Fallback to web geolocation API
-        console.log('MapStore: Falling back to web geolocation API...')
         if (!navigator.geolocation) {
           reject(new Error('Geolocation not supported'))
           return
@@ -465,7 +441,6 @@ export const useMapStore = defineStore('map', () => {
 
             // Update current location
             currentLocation.value = location
-            console.log('MapStore: Fallback GPS location obtained:', location)
             resolve(location)
           },
           (error) => {
@@ -492,7 +467,6 @@ export const useMapStore = defineStore('map', () => {
     // If we have a recent location (less than 5 minutes old), use it
     if (currentLocation.value &&
       (Date.now() - currentLocation.value.timestamp) < 300000) {
-      console.log('Using cached GPS location:', currentLocation.value)
       return currentLocation.value
     }
 
@@ -504,7 +478,6 @@ export const useMapStore = defineStore('map', () => {
       console.error('Failed to get GPS location:', error)
       // Return cached location if available, even if old
       if (currentLocation.value) {
-        console.log('Using old cached GPS location:', currentLocation.value)
         return currentLocation.value
       }
       throw error
@@ -558,7 +531,6 @@ export const useMapStore = defineStore('map', () => {
           try {
             const persons = await personsStore.loadPersonsByPlot(plot.id)
             selectedPlotPersons.value = persons
-            console.log('Persons loaded for plot:', persons.length, 'persons')
           } catch (error) {
             console.error('Error loading persons for plot:', error)
             selectedPlotPersons.value = []
@@ -598,8 +570,6 @@ export const useMapStore = defineStore('map', () => {
         const coordinate = event.coordinate
         const [longitude, latitude] = toLonLat(coordinate)
 
-        console.log('Map clicked at:', coordinate)
-        console.log('Features at click:', mapInstance.getFeaturesAtPixel(event.pixel))
 
         // Emit click event for other components
         window.dispatchEvent(new CustomEvent('map-click', {
@@ -618,8 +588,6 @@ export const useMapStore = defineStore('map', () => {
         refreshPlotStyles()
       })
 
-      console.log('Map instance set and event listeners attached')
-      console.log('MapStore: Restored zoom level to:', savedZoom)
     }
   }
 
@@ -637,7 +605,6 @@ export const useMapStore = defineStore('map', () => {
         map.value.getView().setZoom(18) // Fallback zoom level
       }
 
-      console.log('Map centered on current location:', currentLocation.value, 'at zoom level:', currentZoom)
     } else {
       console.warn('Cannot center on location: map or location not available')
     }
@@ -646,30 +613,22 @@ export const useMapStore = defineStore('map', () => {
   // Drawing mode management
   const toggleDrawingMode = (): void => {
     drawingMode.value = !drawingMode.value
-    if (drawingMode.value) {
-      console.log('Drawing mode enabled')
-    } else {
-      console.log('Drawing mode disabled')
-    }
   }
 
   const cancelDrawing = (): void => {
     drawingMode.value = false
     isDrawing.value = false
-    console.log('Drawing cancelled')
   }
 
   // Plot editing management
   const enablePlotEditing = (plot: any): void => {
     editingMode.value = true
     selectedPlot.value = plot
-    console.log('Plot editing enabled for:', plot)
   }
 
   const disablePlotEditing = async (): Promise<void> => {
     editingMode.value = false
     selectedPlot.value = null
-    console.log('Plot editing disabled')
   }
 
   const updatePlot = (updatedPlot: any): void => {
@@ -690,15 +649,12 @@ export const useMapStore = defineStore('map', () => {
       // Parse geometry
       const geometry = JSON.parse(plot.geometry) as { coordinates: number[][][] }
       const coordinates: number[][] = geometry.coordinates[0]
-      console.log('MapStore: Parsed coordinates:', coordinates)
 
       // Check if coordinates are already in map projection or need conversion
       // Map projection coordinates (EPSG:3857) are typically much larger than lat/lng
       const isMapProjection = coordinates.some((coord: number[]) =>
         Math.abs(coord[0]) > 1000000 || Math.abs(coord[1]) > 1000000
       )
-      console.log('MapStore: Is map projection:', isMapProjection)
-      console.log('MapStore: Sample coordinate:', coordinates[0])
 
       let mapCoordinates
       if (isMapProjection) {
@@ -706,35 +662,24 @@ export const useMapStore = defineStore('map', () => {
       } else {
         mapCoordinates = coordinates.map((coord: number[]) => fromLonLat(coord as [number, number]))
       }
-      console.log('MapStore: Map coordinates:', mapCoordinates)
 
       // Create a temporary polygon to get its extent
       const tempPolygon = new Polygon([mapCoordinates])
       const extent = tempPolygon.getExtent()
-      console.log('MapStore: Plot extent:', extent)
 
       // Fit the map view to the plot extent with some padding
-      console.log('MapStore: Fitting map view to plot extent...')
-      console.log('MapStore: Current map center before fit:', map.value.getView().getCenter())
-      console.log('MapStore: Current map zoom before fit:', map.value.getView().getZoom())
-
       map.value.getView().fit(extent, {
         padding: [50, 50, 50, 50],
         duration: 500 // Reduced from 1000ms to 500ms for faster response
       })
 
-      console.log('MapStore: Map center after fit:', map.value.getView().getCenter())
-      console.log('MapStore: Map zoom after fit:', map.value.getView().getZoom())
-
       // Select the plot to show the popup
-      console.log('MapStore: Setting selected plot to:', plot.id)
       selectedPlot.value = plot
 
       // Load persons for the selected plot
       try {
         const persons = await personsStore.loadPersonsByPlot(plot.id)
         selectedPlotPersons.value = persons
-        console.log('MapStore: Persons loaded for plot:', persons.length, 'persons')
       } catch (error) {
         console.error('MapStore: Error loading persons for plot:', error)
         selectedPlotPersons.value = []
@@ -749,8 +694,6 @@ export const useMapStore = defineStore('map', () => {
       // Force a small delay to ensure reactive queries update
       // This helps when a plot is just created and data might not be immediately available
       await new Promise(resolve => setTimeout(resolve, 200))
-
-      console.log('MapStore: Successfully zoomed to plot and selected:', plot.id)
     } catch (error) {
       console.error('MapStore: Error zooming to plot:', error)
     }
@@ -866,16 +809,12 @@ export const useMapStore = defineStore('map', () => {
       
       if (plotFeature) {
         source.removeFeature(plotFeature)
-        console.log(`✅ MapStore: Removed plot ${plotId} from map`)
-        
         
         // Clear selection if this plot was selected
         if (selectedPlot.value?.id === plotId) {
           selectedPlot.value = null
           selectedPlotPersons.value = []
         }
-      } else {
-        console.log(`⚠️ MapStore: Plot ${plotId} not found in map`)
       }
     } catch (error) {
       console.error('Error removing plot marker:', error)
@@ -885,8 +824,6 @@ export const useMapStore = defineStore('map', () => {
   // Enable in-place plot editing using Modify interaction
   const enableInPlacePlotEditing = async (plot: any) => {
     if (!map.value) return
-
-    console.log('MapStore: Enabling in-place editing for plot:', plot.id)
 
     // Remove any existing modify interaction
     if (currentModifyInteraction.value) {
@@ -898,7 +835,6 @@ export const useMapStore = defineStore('map', () => {
 
     // Find the plot feature
     const layers = map.value.getLayers().getArray()
-    console.log('MapStore: Available layers:', layers.map(l => l.get('name')))
     let plotFeature = null
     let allFeatures: any[] = []
 
@@ -908,15 +844,11 @@ export const useMapStore = defineStore('map', () => {
         const source = vectorLayer.getSource()
         const features = source.getFeatures()
         allFeatures = features // Store for error logging
-        console.log('MapStore: Found plots layer with', features.length, 'features')
-        console.log('MapStore: Looking for plot with id:', plot.id)
         plotFeature = features.find((f: any) => {
           const plotData = f.get('plot')
-          console.log('MapStore: Checking feature with plot id:', plotData?.id)
           return plotData?.id === plot.id
         })
         if (plotFeature) {
-          console.log('MapStore: Found matching plot feature')
           break
         }
       }
@@ -942,16 +874,11 @@ export const useMapStore = defineStore('map', () => {
     selectInteractions.forEach(interaction => {
       if (interaction.setActive) {
         interaction.setActive(false)
-        console.log('MapStore: Disabled Select interaction:', interaction.constructor.name)
       }
     })
-    
-    console.log('MapStore: Disabled Select interactions to prevent interference with Transform')
 
     // Create a Collection with the single feature
     const featureCollection = new Collection([plotFeature])
-    console.log('MapStore: Created feature collection with', featureCollection.getLength(), 'features')
-    console.log('MapStore: Feature collection features:', featureCollection.getArray().map(f => f.get('plot')?.id))
 
     // Import Transform interaction for scaling and rotating (ol-ext is optional, keep lazy)
     const { default: Transform } = await import('ol-ext/interaction/Transform') as any
@@ -964,14 +891,12 @@ export const useMapStore = defineStore('map', () => {
     
     // Add the feature to Select's features collection BEFORE creating Transform
     selectInteraction.getFeatures().push(plotFeature)
-    console.log('MapStore: Created Select interaction with', selectInteraction.getFeatures().getLength(), 'features')
     
     // Store the Select interaction so we can remove it later
     currentSelectInteraction.value = selectInteraction as any
     
     // Get the features collection from Select (this is what Transform will use)
     const transformFeaturesCollection = selectInteraction.getFeatures()
-    console.log('MapStore: Transform features collection has', transformFeaturesCollection.getLength(), 'features')
     
     // Create Transform interaction using Select's features collection
     // This is the recommended pattern for ol-ext Transform
@@ -988,103 +913,21 @@ export const useMapStore = defineStore('map', () => {
       noFlip: false                 // Allow flipping
     })
     
-    console.log('MapStore: Created Transform interaction with Select features collection')
-    console.log('MapStore: Transform features count after creation:', transformInteraction.getFeatures().getLength())
-    console.log('MapStore: Select features count:', selectInteraction.getFeatures().getLength())
-    console.log('MapStore: Features collection reference match:', transformInteraction.getFeatures() === transformFeaturesCollection)
-    
     // If Transform didn't get the features, add them directly to Transform's collection
     if (transformInteraction.getFeatures().getLength() === 0) {
-      console.log('MapStore: Transform features collection is empty, adding feature directly')
       transformInteraction.getFeatures().push(plotFeature)
-      console.log('MapStore: Transform features count after manual add:', transformInteraction.getFeatures().getLength())
     }
-    
-    console.log('MapStore: Transform interaction for scaling, rotating, and moving')
-    
-    // Check if the feature is properly configured for modification
-    console.log('MapStore: Feature geometry type:', plotFeature.getGeometry().getType())
-    console.log('MapStore: Feature is ready for modification')
-    
-    // Add event listeners to debug
-    transformInteraction.on('translatestart', (_event: any) => {
-      console.log('MapStore: Transform interaction started')
-    })
-    
-    transformInteraction.on('translateend', (_event: any) => {
-      console.log('MapStore: Transform interaction ended')
-    })
-    
-    transformInteraction.on('rotatestart', (_event: any) => {
-      console.log('MapStore: Transform rotation started')
-    })
-    
-    transformInteraction.on('rotateend', (_event: any) => {
-      console.log('MapStore: Transform rotation ended')
-    })
-    
-    transformInteraction.on('scalestart', (_event: any) => {
-      console.log('MapStore: Transform scaling started')
-    })
-    
-    transformInteraction.on('scaleend', (_event: any) => {
-      console.log('MapStore: Transform scaling ended')
-    })
-    
-    // Add pointer event listeners to see if interaction is responding
-    transformInteraction.on('pointerdown', (event: any) => {
-      console.log('MapStore: Transform pointer down event', event)
-    })
-    
-    transformInteraction.on('pointermove', (event: any) => {
-      console.log('MapStore: Transform pointer move event', event)
-    })
-    
-    transformInteraction.on('pointerup', (event: any) => {
-      console.log('MapStore: Transform pointer up event', event)
-    })
-    
-    // Add any other event listeners that might help
-    transformInteraction.on('change:active', (event: any) => {
-      console.log('MapStore: Transform active state changed:', event.target.getActive())
-    })
-    
-    // Try to force the interaction to show handles
-    transformInteraction.on('change:features', (event: any) => {
-      console.log('MapStore: Transform features changed:', event.target.getFeatures().getLength())
-    })
     
     // Ensure the Transform interaction is active
     setTimeout(() => {
-      console.log('MapStore: Activating Transform interaction')
-      console.log('MapStore: Transform interaction active before:', transformInteraction.getActive())
-      
-      // Force the interaction to be active
       transformInteraction.setActive(true)
-      console.log('MapStore: Transform interaction active after:', transformInteraction.getActive())
-      
-      // Check if the feature is properly configured
-      console.log('MapStore: Feature geometry type:', plotFeature.getGeometry().getType())
-      console.log('MapStore: Feature coordinates:', plotFeature.getGeometry().getCoordinates())
-      
-      // Check Transform features
-      const features = transformInteraction.getFeatures()
-      console.log('MapStore: Transform features count:', features.getLength())
-      console.log('MapStore: Transform features:', features.getArray().map((f: any) => f.get('plot')?.id))
-      
-      // Try to trigger a render
       if (map.value) {
         map.value.render()
       }
-      
-      console.log('MapStore: Transform interaction should now be active with the feature')
-      console.log('MapStore: Try clicking on the plot rectangle - scale/rotate/move handles should appear')
     }, 100)
 
     // Handle transform completion
     transformInteraction.on('transformend', async (event: any) => {
-      console.log('MapStore: Transform completed - auto-saving changes')
-
       // Get the transformed feature
       const transformedFeature = event.features.item(0)
       const transformedGeometry = transformedFeature.getGeometry()
@@ -1096,9 +939,6 @@ export const useMapStore = defineStore('map', () => {
         const [lon, lat] = toLonLat(coord)
         return [lon, lat] // Ensure [lon, lat] format for GeoJSON
       })
-
-      console.log('MapStore: Transformed coordinates (first point):', latLngCoordinates[0])
-      console.log('MapStore: Total coordinates:', latLngCoordinates.length)
 
       // Save the updated coordinates
       await saveInPlacePlotCoordinates(latLngCoordinates, plot.id)
@@ -1112,12 +952,7 @@ export const useMapStore = defineStore('map', () => {
           coordinates: [latLngCoordinates]
         })
         transformedFeature.set('plot', plotData)
-        console.log('MapStore: Updated plot data in feature to match new geometry')
       }
-
-      // Note: We don't automatically disable editing here anymore
-      // The user must click the green lock button to finish editing
-      console.log('MapStore: Transform changes saved, editing mode remains active')
     })
 
     // Update editing state
@@ -1130,58 +965,21 @@ export const useMapStore = defineStore('map', () => {
     // Select interaction is needed for Transform to work properly
     map.value.addInteraction(selectInteraction)
     map.value.addInteraction(transformInteraction)
-    console.log('MapStore: Added Select and Transform interactions to map')
-    console.log('MapStore: Added Transform interaction to map. Total interactions:', map.value.getInteractions().getLength())
-    
-    // Debug: List all interactions
-    const allInteractions = map.value.getInteractions().getArray()
-    console.log('MapStore: All interactions:', allInteractions.map(i => i.constructor.name))
-    
-    // Check if Transform interaction is in the map
-    const transformInMap = allInteractions.find(i => 
-      i.constructor.name === 'Transform' || 
-      i.constructor.name === 'olinteractionTransform' ||
-      i === transformInteraction
-    )
-    console.log('MapStore: Transform interaction found in map:', !!transformInMap)
-    console.log('MapStore: Transform interaction type:', transformInMap?.constructor.name)
     
     // Ensure the feature is selected and visible
-    const featureGeometry = plotFeature.getGeometry()
-    console.log('MapStore: Feature geometry type:', featureGeometry.getType())
-    console.log('MapStore: Feature coordinates:', featureGeometry.getCoordinates())
-    
-    // Try to ensure the feature is properly selected
     transformInteraction.setActive(true)
-    console.log('MapStore: Transform interaction active:', transformInteraction.getActive())
-    
-    // Check if the feature collection is properly set
-    console.log('MapStore: Feature collection count:', featureCollection.getLength())
-    console.log('MapStore: Feature collection features:', featureCollection.getArray())
-
-    // Try to trigger the interaction by simulating a click on the feature
-    const featureExtent = plotFeature.getGeometry().getExtent()
-    const center = [(featureExtent[0] + featureExtent[2]) / 2, (featureExtent[1] + featureExtent[3]) / 2]
-    console.log('MapStore: Feature center coordinates:', center)
     
     // Force a map render to ensure the interaction is visible
     map.value.render()
     
     // Try to zoom to the feature to make sure it's visible
+    const featureExtent = plotFeature.getGeometry().getExtent()
     const view = map.value.getView()
     view.fit(featureExtent, { padding: [50, 50, 50, 50], duration: 500 })
-    
-    console.log('MapStore: In-place plot editing enabled')
-    console.log('MapStore: Try clicking on the plot rectangle to see resize handles')
-    console.log('MapStore: The plot should now show resize handles - try clicking on the edges or corners')
-    console.log('MapStore: If no handles appear, try clicking directly on the plot rectangle')
   }
 
   // Save plot coordinates after in-place editing
   const saveInPlacePlotCoordinates = async (newCoordinates: number[][], plotId: string): Promise<void> => {
-    console.log('MapStore: Saving in-place plot coordinates for plot:', plotId)
-    console.log('MapStore: New coordinates (lat/lng):', newCoordinates)
-
     try {
       // Import required modules
       const { usePowerSyncStore } = await import('./powersync')
@@ -1194,13 +992,10 @@ export const useMapStore = defineStore('map', () => {
       }
 
       const geometryString = JSON.stringify(geometry)
-      console.log('MapStore: Geometry to save:', geometryString)
 
       // Update the plot in the database
       const powerSyncStore = usePowerSyncStore()
       await powerSyncStore.updatePlotGeometry(plotId, geometryString)
-
-      console.log('✅ MapStore: In-place plot coordinates saved successfully')
     } catch (error) {
       console.error('❌ MapStore: Error saving in-place plot coordinates:', error)
       throw error
@@ -1209,8 +1004,6 @@ export const useMapStore = defineStore('map', () => {
 
   // Disable in-place plot editing
   const disableInPlacePlotEditing = async (): Promise<void> => {
-    console.log('MapStore: Disabling in-place plot editing')
-
     if (map.value) {
       // Remove Transform interaction
       if (currentModifyInteraction.value) {
@@ -1222,7 +1015,6 @@ export const useMapStore = defineStore('map', () => {
       if (currentSelectInteraction.value) {
         map.value.removeInteraction(currentSelectInteraction.value)
         currentSelectInteraction.value = null
-        console.log('MapStore: Removed Select interaction added for Transform')
       }
     }
 
@@ -1231,29 +1023,21 @@ export const useMapStore = defineStore('map', () => {
       originalInteractions.value.forEach(interaction => {
         if (interaction.setActive) {
           interaction.setActive(true)
-          console.log('MapStore: Re-enabled Select interaction:', interaction.constructor.name)
         }
       })
-      console.log('MapStore: Re-enabled Select interactions')
     }
 
     // Reset editing state
     editingPlot.value = null
     editingMode.value = false
     originalInteractions.value = []
-
-    console.log('MapStore: In-place plot editing disabled')
-    console.log('MapStore: editingMode after disable:', editingMode.value)
   }
 
   // Refresh a specific plot layer after geometry update
   const refreshPlotLayer = async (plotId: string): Promise<void> => {
     if (!plotsLayer.value) {
-      console.log('❌ MapStore: Cannot refresh plot layer - plotsLayer is null')
       return
     }
-
-    console.log('🔄 MapStore: Refreshing plot layer for:', plotId)
 
     try {
       // Find and remove the specific plot feature
@@ -1263,9 +1047,6 @@ export const useMapStore = defineStore('map', () => {
 
       if (plotFeature) {
         source.removeFeature(plotFeature)
-        console.log(`🗑️ MapStore: Removed plot ${plotId} from layer`)
-      } else {
-        console.log(`⚠️ MapStore: Plot ${plotId} not found in layer`)
       }
 
       // Re-add the plot with updated geometry
@@ -1275,14 +1056,8 @@ export const useMapStore = defineStore('map', () => {
       if (plotsStore.data.value) {
         const updatedPlot = plotsStore.data.value.find(p => p.id === plotId)
         if (updatedPlot) {
-          console.log(`🔄 MapStore: Re-adding plot ${plotId} with updated geometry`)
           addPlotMarker(updatedPlot)
-          console.log(`✅ MapStore: Re-added plot ${plotId} with updated geometry`)
-        } else {
-          console.log(`❌ MapStore: Updated plot ${plotId} not found in data`)
         }
-      } else {
-        console.log('❌ MapStore: No plots data available')
       }
     } catch (error) {
       console.error('MapStore: Error refreshing plot layer:', error)
@@ -1311,7 +1086,6 @@ export const useMapStore = defineStore('map', () => {
     await loadExtentConfiguration()
     watchLocation()
     initialized.value = true
-    console.log('Map store initialized')
   }
 
   // Clear selected plot and persons
