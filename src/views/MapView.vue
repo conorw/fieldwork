@@ -1,7 +1,5 @@
 <template>
   <div class="h-full flex flex-col min-h-0">
-
-
     <!-- Map Container -->
     <div class="flex-1 relative min-h-0 map-container h-full">
       <MapComponent ref="mapComponent" :center="mapCenter" :zoom="settingsStore.defaultZoom"
@@ -138,7 +136,6 @@ import LayerControl from '../components/LayerControl.vue'
 import { useRouter } from 'vue-router'
 import { updateLayerVisibility, refreshMapLayers } from '../utils/tileSource'
 import { isLocationWithinBounds } from '../utils/locationUtils'
-import { mapViewLogger } from '../utils/logger'
 import { toLonLat } from 'ol/proj'
 
 const mapStore = useMapStore()
@@ -155,11 +152,9 @@ const showMapEdit = ref(false)
 // Context menu state
 const persistentContextLocation = ref(null)
 
-// Use Zero queries for reactive data
+// Use PowerSync queries for reactive data
 // Note: usePlots will return empty results until selectedLocationId is set
 const { data: plots, refetch: refetchPlots } = usePlots()
-
-// Removed debug logging to improve performance
 
 // Computed properties
 const currentLocation = computed(() => mapStore.currentLocation)
@@ -183,7 +178,6 @@ onMounted(() => {
   plotSelectedHandler = async (event) => {
     const { plotId } = event.detail
     if (plotId && selectedPlot.value?.id === plotId && plotImagesQuery.refetch) {
-      console.log('🗺️ [MapView] Plot selected, refetching images for plot:', plotId)
       // Wait a bit for image to be inserted into database
       await new Promise(resolve => setTimeout(resolve, 500))
       await plotImagesQuery.refetch()
@@ -221,18 +215,6 @@ const checkLocationSelection = () => {
 }
 
 // Methods
-const toggleDrawingMode = () => {
-  mapStore.toggleDrawingMode()
-}
-
-const centerOnLocation = async () => {
-  await mapStore.centerOnLocation()
-}
-
-const cancelDrawing = () => {
-  mapStore.cancelDrawing()
-}
-
 const finishEditing = async () => {
   try {
     // Get the current plot and its geometry
@@ -267,17 +249,11 @@ const finishEditing = async () => {
           type: 'Polygon',
           coordinates: [latLngCoordinates]
         })
-        console.log('Updated selectedPlot geometry to match saved coordinates')
       }
     }
     
     // Disable editing mode
-    console.log('About to call disableInPlacePlotEditing...')
     await mapStore.disableInPlacePlotEditing()
-    console.log('Plot editing finished successfully')
-    console.log('Editing mode after disable:', mapStore.editingMode)
-    console.log('Local editingMode after disable:', editingMode.value)
-    console.log('=== FINISH EDITING COMPLETED ===')
   } catch (error) {
     console.error('Error finishing plot editing:', error)
   }
@@ -286,17 +262,11 @@ const finishEditing = async () => {
 const togglePlotEditing = async () => {
   if (editingMode.value) {
     // Currently editing - finish editing and save
-    console.log('Finishing plot editing and saving...')
     await finishEditing()
-    console.log('After finishEditing, editingMode:', editingMode.value)
-    console.log('MapStore editingMode:', mapStore.editingMode)
   } else {
     // Not editing - start editing
     if (selectedPlot.value) {
-      console.log('Starting plot editing for:', selectedPlot.value)
       await mapStore.enableInPlacePlotEditing(selectedPlot.value)
-      console.log('After enableInPlacePlotEditing, editingMode:', editingMode.value)
-      console.log('MapStore editingMode:', mapStore.editingMode)
     }
   }
 }
@@ -305,102 +275,59 @@ const startPlotCreationWizard = async () => {
   // Check if current location is within allowed extent
   const currentLocation = mapStore.currentLocation
   const allowedExtent = mapStore.mapExtent
-  mapViewLogger.debug('Checking location for plot creation:', {
-    currentLocation,
-    allowedExtent,
-    hasCurrentLocation: !!currentLocation,
-    hasAllowedExtent: !!allowedExtent,
-    currentLocationType: typeof currentLocation,
-    allowedExtentType: typeof allowedExtent,
-    currentLocationKeys: currentLocation ? Object.keys(currentLocation) : 'N/A',
-    allowedExtentLength: allowedExtent ? allowedExtent.length : 'N/A'
-  })
   
   // Check if we have both location and extent
   if (!currentLocation) {
-    mapViewLogger.warn('No current location available, allowing plot creation')
     showPlotCreationWizard.value = true
     return
   }
   
   if (!allowedExtent) {
-    mapViewLogger.warn('No extent configured, allowing plot creation')
     showPlotCreationWizard.value = true
     return
   }
   
   // Check bounds
   const isWithinBounds = isLocationWithinBounds(currentLocation, allowedExtent)
-  mapViewLogger.debug('Location bounds check:', { 
-    isWithinBounds,
-    locationCoords: { lat: currentLocation.latitude, lon: currentLocation.longitude },
-    extentBounds: allowedExtent
-  })
   
   if (!isWithinBounds) {
     // Show error message and prevent plot creation
-    mapViewLogger.error('Current location is outside allowed extent, preventing plot creation')
-    
-    // Show error message to user
     alert('Location Outside Bounds\n\nYour current location is outside the allowed cemetery area. Please move to a valid location within the cemetery boundaries to create a plot.')
-    
-    return // Don't open the wizard
+    return
   }
   
-  mapViewLogger.info('Location is within bounds, opening plot creation wizard')
   showPlotCreationWizard.value = true
 }
 
 const handlePhotoPlotCreated = async (newPlot) => {
-  console.log('🔍 MapView: handlePhotoPlotCreated called with plot:', newPlot)
-  console.log('🔍 MapView: Plot ID:', newPlot?.id)
-  console.log('🔍 MapView: Plot geometry available:', !!newPlot?.geometry)
-  console.log('🔍 persistentContextLocation before clearing:', persistentContextLocation.value)
-
   // Clear the persistent context location after plot creation
   persistentContextLocation.value = null
-  console.log('🔍 persistentContextLocation after clearing: null')
 
   // Refetch plots to update the list
   if (typeof refetchPlots === 'function') {
     refetchPlots()
-  } else {
-    console.warn('refetchPlots is not available, plots will update automatically')
   }
 
   // Handle zoom to plot and show popup
   if (newPlot) {
-    console.log('MapView: Handling zoom to newly created plot:', newPlot.id)
-    console.log('MapView: Map store available:', !!mapStore)
-    console.log('MapView: Map available:', !!mapStore.map)
-
     try {
       // Add the plot to the map first if it's not already there
       await mapStore.addPlotMarker(newPlot)
-      console.log('MapView: Plot marker added, now zooming to plot')
-
       // Then zoom to it and show the popup
       await mapStore.zoomToPlot(newPlot)
-      console.log('MapView: Zoom to plot completed')
     } catch (error) {
       console.error('MapView: Error handling zoom to plot:', error)
     }
-  } else {
-    console.warn('MapView: No plot data in handlePhotoPlotCreated')
   }
 }
 
 // Clean up context menu location when modal is closed without creating a plot
 const handlePlotCreationWizardClose = () => {
-  console.log('MapView: Plot creation wizard closed')
-  // Close the modal
   showPlotCreationWizard.value = false
-  // Clear the persistent context location when modal is closed without creating a plot
   persistentContextLocation.value = null
 }
 
 const handlePlotEditSave = (updatedPlot) => {
-  console.log('Plot edited:', updatedPlot)
   // Update the selected plot in the store
   mapStore.updatePlot(updatedPlot)
   // Close the editor
@@ -408,83 +335,58 @@ const handlePlotEditSave = (updatedPlot) => {
   // Refetch plots to update the list
   if (typeof refetchPlots === 'function') {
     refetchPlots()
-  } else {
-    console.warn('refetchPlots is not available, plots will update automatically')
   }
 }
 
 const closeMapEdit = () => {
-  console.log('MapView: Closing MapEdit modal')
-
-  // MapEdit is now independent - no need to reset mapStore configuration
   showMapEdit.value = false
 }
 
 // Listen for new plot creation events
-const handlePlotCreated = (event) => {
-  console.log('MapView: Plot created event received:', event.detail)
-  console.log('MapView: Event type:', event.type)
-  console.log('MapView: Event detail keys:', Object.keys(event.detail || {}))
-
+const handlePlotCreated = () => {
   // Refetch plots to update the list
   if (typeof refetchPlots === 'function') {
     refetchPlots()
-  } else {
-    console.warn('refetchPlots is not available, plots will update automatically')
   }
 }
 
 // Listen for plot update events
-const handlePlotUpdated = (event) => {
-  console.log('Plot updated event received:', event.detail)
+const handlePlotUpdated = () => {
   // Refetch plots to update the list
   if (typeof refetchPlots === 'function') {
     refetchPlots()
-  } else {
-    console.warn('refetchPlots is not available, plots will update automatically')
   }
 }
 
 // Listen for plot editing completion events
-const handlePlotEditingFinished = (event) => {
-  console.log('Plot editing finished event received:', event.detail)
+const handlePlotEditingFinished = () => {
   // Refetch plots to update the list and refresh map display
   if (typeof refetchPlots === 'function') {
     refetchPlots()
-  } else {
-    console.warn('refetchPlots is not available, plots will update automatically')
   }
 }
 
 // Listen for open plot editor events
-const handleOpenMapEdit = (event) => {
-  // MapEdit is now independent - no need to update mapStore configuration
-  console.log('MapView: Opening MapEdit with independent zoom configuration')
-
+const handleOpenMapEdit = () => {
   showMapEdit.value = true
 }
 
 // Listen for navigation to plots view events
-const handleNavigateToPlots = (event) => {
-  console.log('Navigate to plots event received:', event.detail)
-  // Navigate to plots view
+const handleNavigateToPlots = () => {
   router.push('/plots')
 }
 
 // Listen for navigation to plot detail events
 const handleNavigateToPlotDetail = (event) => {
-  console.log('Navigate to plot detail event received:', event.detail)
   const { plotId, editMode, plotData } = event.detail
 
   // Check if plotData is too large for URL query parameters
   const plotDataString = plotData ? JSON.stringify(plotData) : undefined
   if (plotDataString && plotDataString.length > 2000) {
-    console.warn('Plot data is too large for URL query parameter, length:', plotDataString.length)
-    // For large data, we'll rely on the Zero.dev query instead
+    // For large data, we'll rely on the PowerSync query instead
     const query = editMode ? { editMode: 'true' } : {}
     router.push({ path: `/plots/${plotId}`, query })
   } else {
-    console.log('Plot data size is acceptable for URL query parameter, length:', plotDataString?.length || 0)
     // Navigate to specific plot detail page with edit mode if requested
     if (editMode) {
       router.push({
@@ -507,34 +409,18 @@ const handleNavigateToPlotDetail = (event) => {
 
 // Listen for zoom to plot events
 const handleZoomToPlot = async (event) => {
-  console.log('MapView: Zoom to plot event received:', event.detail)
-  console.log('MapView: Event type:', event.type)
-  console.log('MapView: Event detail keys:', Object.keys(event.detail || {}))
-
   const { plot } = event.detail
 
   if (plot) {
-    console.log('MapView: Processing zoom to plot:', plot.id)
-    console.log('MapView: Plot geometry available:', !!plot.geometry)
-    console.log('MapView: Map store available:', !!mapStore)
-    console.log('MapView: Map available:', !!mapStore.map)
-
     // Add the plot to the map first if it's not already there
     await mapStore.addPlotMarker(plot)
-    console.log('MapView: Plot marker added, now zooming to plot')
-
     // Then zoom to it and show the popup
     await mapStore.zoomToPlot(plot)
-    console.log('MapView: Zoom to plot completed')
-  } else {
-    console.warn('MapView: No plot data in zoom-to-plot event')
-    console.warn('MapView: Event detail:', event.detail)
   }
 }
 
 // Listen for clear map data events
-const handleClearMapData = (event) => {
-  console.log('Clear map data event received')
+const handleClearMapData = () => {
   // Clear all map layers except the base tile layer
   if (mapStore.map) {
     const layers = mapStore.map.getLayers()
@@ -552,8 +438,6 @@ const handleClearMapData = (event) => {
     layersToRemove.forEach(layer => {
       mapStore.map.removeLayer(layer)
     })
-
-    console.log('Cleared', layersToRemove.length, 'plot layers from map')
   }
 
   // Clear selected plot
@@ -562,16 +446,10 @@ const handleClearMapData = (event) => {
 
 // Initialize map when component mounts
 onMounted(async () => {
-  const mountStart = performance.now()
-  console.log('🗺️ [MapView] onMounted started')
-  
   try {
     // Only load locations if not already loaded
     if (locationsStore.locations.length === 0) {
-      console.log('🗺️ [MapView] Loading locations...')
-      const loadStart = performance.now()
       await locationsStore.loadLocations()
-      console.log(`🗺️ [MapView] Locations loaded in ${(performance.now() - loadStart).toFixed(2)}ms`)
     }
 
     // Check if a location is selected
@@ -579,75 +457,36 @@ onMounted(async () => {
 
     // Initialize map store if not already initialized
     if (!mapStore.initialized) {
-      console.log('🗺️ [MapView] Initializing map store...')
-      const initStart = performance.now()
       await mapStore.initialize()
-      console.log(`🗺️ [MapView] Map store initialized in ${(performance.now() - initStart).toFixed(2)}ms`)
     }
 
     // Wait for PowerSync to initialize before refetching plots
     // This prevents queries from blocking on database initialization (15+ seconds on slow networks)
-    console.log('🗺️ [MapView] Checking PowerSync state...', {
-      isInitialized: powerSyncStore.isInitialized,
-      isConnecting: powerSyncStore.isConnecting,
-      hasPowerSync: !!powerSyncStore.powerSync
-    })
-    
     if (!powerSyncStore.isInitialized) {
-      console.log('🗺️ [MapView] Waiting for PowerSync to initialize...')
-      const powersyncStart = performance.now()
       let waitAttempts = 0
       const maxAttempts = 150
       
       while (!powerSyncStore.isInitialized && waitAttempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100))
         waitAttempts++
-        
-        // Log progress every 10 attempts (1 second)
-        if (waitAttempts % 10 === 0) {
-          console.log(`🗺️ [MapView] Still waiting for PowerSync... (attempt ${waitAttempts}/${maxAttempts})`, {
-            isInitialized: powerSyncStore.isInitialized,
-            isConnecting: powerSyncStore.isConnecting
-          })
-        }
       }
       
-      const powersyncReadyTime = performance.now() - powersyncStart
-      console.log(`🗺️ [MapView] PowerSync initialized in ${powersyncReadyTime.toFixed(2)}ms (attempts: ${waitAttempts}/${maxAttempts})`, {
-        isInitialized: powerSyncStore.isInitialized,
-        isConnecting: powerSyncStore.isConnecting
-      })
-      
-      // If still not initialized after waiting, log warning but continue
-      if (!powerSyncStore.isInitialized) {
-        console.warn('🗺️ [MapView] PowerSync not initialized after 15s wait, proceeding anyway')
-      } else {
+      // If still not initialized after waiting, continue anyway
+      if (powerSyncStore.isInitialized) {
         // After PowerSync initializes, give it a moment to start syncing data
         // This prevents queries from running against an empty local database
-        console.log('🗺️ [MapView] Waiting 200ms for PowerSync to start syncing...')
         await new Promise(resolve => setTimeout(resolve, 200))
-        console.log('🗺️ [MapView] Proceeding with plot query...')
       }
     } else {
-      console.log('🗺️ [MapView] PowerSync already initialized')
       // Even if already initialized, give Android IndexedDB a moment to be fully ready
       // This helps with IndexedDB transaction initialization on slower devices
-      console.log('🗺️ [MapView] Waiting 100ms for IndexedDB to be fully ready...')
       await new Promise(resolve => setTimeout(resolve, 100))
     }
-    
-    // No need to manually refetch - usePlots() uses PowerSync's watch() which automatically
-    // streams updates when plots change. The watch() is started automatically when PowerSync
-    // initializes and location is selected.
-    console.log('🗺️ [MapView] Plots will load automatically via PowerSync watch()')
 
     // Restore saved zoom level when returning to map view
     if (mapStore.map) {
       mapStore.restoreZoomLevel()
     }
-    
-    const totalTime = performance.now() - mountStart
-    console.log(`🗺️ [MapView] onMounted completed in ${totalTime.toFixed(2)}ms`)
   } catch (error) {
     console.error('Error initializing map store:', error)
   }
@@ -684,12 +523,9 @@ watch(() => mapStore.map, (newMap, oldMap) => {
 })
 
 // Consolidated watcher for adding and removing plots from map
-watch([plots, () => mapStore.map], async ([newPlots, map], [oldPlots, oldMap]) => {
+watch([plots, () => mapStore.map], async ([newPlots, map]) => {
   // Only process if map is available and we have plots data
   if (!map || !mapStore.plotsLayer) return
-  
-  const watchStart = performance.now()
-  console.log(`🗺️ [MapView] Plots watcher triggered: ${newPlots?.length || 0} plots, map available: ${!!map}`)
   
   const source = mapStore.plotsLayer.getSource()
   if (!source) return
@@ -710,65 +546,33 @@ watch([plots, () => mapStore.map], async ([newPlots, map], [oldPlots, oldMap]) =
     return plotId && !currentPlotIds.has(plotId)
   })
   
-  console.log(`🗺️ [MapView] Plots to add: ${plotsToAdd.length}, plots to remove: ${plotsToRemove.length}`)
-  
   // Remove plots that are no longer in the data
   if (plotsToRemove.length > 0) {
-    const removeStart = performance.now()
     plotsToRemove.forEach(feature => {
       source.removeFeature(feature)
-      const plotId = feature.get('plot')?.id
-      console.log(`🗺️ [MapView] Removed plot ${plotId} from map`)
     })
-    console.log(`🗺️ [MapView] Removing plots took ${(performance.now() - removeStart).toFixed(2)}ms`)
   }
   
   // Add new plots
   if (plotsToAdd.length > 0) {
-    const addStart = performance.now()
     const plotPromises = plotsToAdd.map(plot => mapStore.addPlotMarkerOptimized(plot))
     await Promise.all(plotPromises)
-    console.log(`🗺️ [MapView] Adding plots took ${(performance.now() - addStart).toFixed(2)}ms`)
   }
   
   // Trigger a single render update if anything changed
   if (plotsToAdd.length > 0 || plotsToRemove.length > 0) {
     source.changed()
-    console.log(`🗺️ [MapView] Plots watcher completed in ${(performance.now() - watchStart).toFixed(2)}ms`)
   }
 }, { immediate: true })
 
-// Close context menu when clicking outside
-const handleMapClick = () => {
-  // if (showContextMenu.value) { // This line is removed
-  //   hideContextMenu() // This line is removed
-  // }
-}
-
-// Add click handler to map element
-onMounted(() => {
-  // The MapComponent handles its own click events, so we don't need to add listeners here
-  // The context menu will be closed by the MapComponent's click events
-})
-
-onUnmounted(() => {
-  // No need to remove listeners since we're not adding them
-})
 
 // MapComponent event handlers
 const handleMapCreated = (mapInstance) => {
-  console.log('MapView: Map created event received:', mapInstance)
   // Pass map instance to store
   mapStore.setMap(mapInstance)
 }
 
-const handleMapReady = async (mapInstance) => {
-  console.log('MapView: Map ready event received:', mapInstance)
-
-  // Debug LayerControl component
-  console.log('MapView: LayerControl ref:', layerControl.value)
-  console.log('MapView: LayerControl component mounted:', !!layerControl.value)
-  
+const handleMapReady = async () => {
   // Plot loading is now handled by the consolidated watcher
 }
 
@@ -778,29 +582,15 @@ const handleMapError = (error) => {
 
 // New handler for context menu actions from MapComponent
 const handleContextMenuAction = async ({ action, location }) => {
-  console.log('Context menu action received:', action, 'at location:', location)
-
   if (action === 'add-plot' && location) {
-    console.log('🔍 Adding plot at location:', location)
-    console.log('🔍 Location details:', {
-      latitude: location.latitude,
-      longitude: location.longitude,
-      accuracy: location.accuracy
-    })
-
     // Store the location for the plot creation wizard
     persistentContextLocation.value = location
-    console.log('🔍 persistentContextLocation set to:', persistentContextLocation.value)
 
     // Wait for the next tick to ensure the location is set before opening modal
     await nextTick()
 
     // Start photo plot creation with the clicked location
     showPlotCreationWizard.value = true
-
-    // Debug: Check if the location is still available after opening modal
-    console.log('🔍 PlotCreationWizard modal opened, persistentContextLocation:', persistentContextLocation.value)
-    console.log('🔍 PlotCreationWizard modal opened, persistentContextLocation still valid:', !!persistentContextLocation.value)
   }
 }
 
@@ -811,26 +601,15 @@ const viewImage = (image) => {
   }
 }
 
-const getLocationName = (locationId) => {
-  if (!locationId) return 'No Location'
-  const location = locationsStore.locations.find(loc => loc.id === locationId)
-  return location ? location.name : 'Unknown Location'
-}
 
 // Handle layer visibility changes
 const handleLayerVisibilityChanged = (visibilityData) => {
-  console.log('🔍 MapView: Layer visibility changed:', visibilityData)
-  console.log('🔍 MapView: Map instance available:', !!mapStore.map)
-  
   // Update the global layer visibility state
   updateLayerVisibility(visibilityData.featureLayers)
   
   // Refresh the map layers to apply changes
   if (mapStore.map) {
-    console.log('🔍 MapView: Refreshing map layers...')
     refreshMapLayers(mapStore.map)
-  } else {
-    console.warn('⚠️ MapView: No map instance available for refresh')
   }
 }
 </script>
