@@ -17,7 +17,6 @@ import Style from 'ol/style/Style'
 import Fill from 'ol/style/Fill'
 import Stroke from 'ol/style/Stroke'
 import Select from 'ol/interaction/Select'
-import Collection from 'ol/Collection'
 
 export const useMapStore = defineStore('map', () => {
   const map = ref<import('ol/Map').default | null>(null)
@@ -876,9 +875,6 @@ export const useMapStore = defineStore('map', () => {
         interaction.setActive(false)
       }
     })
-
-    // Create a Collection with the single feature
-    const featureCollection = new Collection([plotFeature])
 
     // Import Transform interaction for scaling and rotating (ol-ext is optional, keep lazy)
     const { default: Transform } = await import('ol-ext/interaction/Transform') as any
