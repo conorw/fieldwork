@@ -18,12 +18,15 @@ A local-first progressive web application for cemetery plot documentation and fi
 - **Image Analysis**: AI-powered headstone text extraction and person data extraction
 
 ### 🤖 AI-Powered Headstone Analysis
-- **Dual Analysis Modes**:
-  - **OpenAI API** (default): Fast, cloud-based analysis using GPT-4o-mini
-  - **Local Browser Model**: Privacy-focused, offline-capable analysis using Transformers.js
+- **OpenAI API Mode** (default): Fast, cloud-based analysis using GPT-4o-mini
+  - High accuracy for headstone text extraction
+  - 8-10 second processing times
+  - Structured JSON output with person data
+- **Local Browser Models**: Currently not available due to WebLLM vision model limitations
+  - See [Local AI Approaches Documentation](./docs/LOCAL_AI_APPROACHES.md) for details
+  - Will be available when WebLLM vision models mature
 - **Automatic Text Extraction**: Extracts names, dates, relationships, and full transcriptions
 - **Structured Data**: Automatically populates person records with extracted information
-- **Optimized Performance**: Client-side compression and optimized prompts for 8-10 second analysis times
 
 ### 📱 Progressive Web App
 - **Installable**: Works as a native app on iOS and Android

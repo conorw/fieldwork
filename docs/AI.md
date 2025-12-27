@@ -1,13 +1,15 @@
 # AI Analysis
 
-Fieldwork includes AI-powered headstone analysis that automatically extracts person information from headstone photos. The system supports two analysis modes: OpenAI API (cloud-based) and Local Browser Model (privacy-focused, offline-capable).
+Fieldwork includes AI-powered headstone analysis that automatically extracts person information from headstone photos. The system currently supports OpenAI API mode (cloud-based). Local browser models are not yet available due to WebLLM vision model limitations.
+
+> **Note**: For details on attempted local AI approaches and why they didn't work, see [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md)
 
 ## Overview
 
 The AI analysis system:
 - **Automatic Extraction**: Extracts names, dates, relationships from headstone photos
 - **Structured Output**: Returns structured JSON with person data
-- **Dual Modes**: Choose between OpenAI API or local browser model
+- **Current Mode**: OpenAI API (local browser models not available)
 - **Fast Processing**: Optimized for 8-10 second analysis times
 - **High Accuracy**: Extracts full text transcriptions and structured data
 
@@ -30,22 +32,22 @@ The AI analysis system:
 
 ### Local Browser Model
 
-**Best for**: Privacy-focused use, offline capability, no API costs
+**Status**: ⚠️ **Not Currently Available**
 
-- **Models**: 
-  - OCR: `Xenova/trocr-small-printed` (text extraction)
-  - Vision: `Xenova/vit-gpt2-image-captioning` (image understanding)
-  - Text: `Xenova/gpt2` (structured output)
-- **Speed**: 15-30 seconds per analysis (depends on device)
-- **Accuracy**: Good accuracy, may vary by image quality
-- **Requirements**: Initial model download (~100-200MB), works offline after
-- **Cost**: Free (no API costs)
-- **Privacy**: All processing happens in your browser
+**Why**: Local browser models are not functional due to:
+- WebLLM vision models require experimental WebGPU features not available in standard browsers
+- Known issues with vision model support in WebLLM (see [issue #727](https://github.com/mlc-ai/web-llm/issues/727))
+- TrOCR models are not suitable for engraved headstone text
 
-**Configuration**:
-- Select "Local Browser Model" in Settings → AI Analysis Settings
-- Models download automatically on first use
-- Progress shown in Settings page
+**Future**: Will be available when:
+- WebLLM vision models mature and stabilize
+- Browser support for required WebGPU features becomes standard
+- See [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md) for detailed technical information
+
+**Attempted Approaches**:
+- TrOCR (Transformer-based OCR) - Poor accuracy on headstones
+- Vision-language models - Wrong task (captioning, not text extraction)
+- Phi-3.5-vision-instruct - WebGPU compatibility issues
 
 ## How It Works
 
