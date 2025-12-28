@@ -87,6 +87,20 @@
               />
             </svg>
           </router-link>
+          <div v-if="authStore.isAuthenticated" class="flex items-center gap-2 ml-2 pl-2 border-l border-surface-200">
+            <Avatar 
+              :label="userInitials" 
+              shape="circle"
+              class="w-8 h-8"
+            />
+            <Button 
+              icon="pi pi-sign-out" 
+              text 
+              rounded
+              @click="handleLogout"
+              v-tooltip="'Logout'"
+            />
+          </div>
         </div>
       </template>
     </Toolbar>
@@ -106,20 +120,37 @@
 
 <script setup>
 import { computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useLocationsStore } from "./stores/locations";
+import { useAuthStore } from "./stores/auth";
 import { useOnline } from "@vueuse/core";
 import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
+import Button from "primevue/button";
+import Avatar from "primevue/avatar";
 import InstallPrompt from "./components/InstallPrompt.vue";
 import { toastService } from "./services/toastService";
 
+const router = useRouter();
 const locationsStore = useLocationsStore();
+const authStore = useAuthStore();
 const toast = useToast();
 
 const isOnline = useOnline();
 const locationName = computed(
   () => locationsStore.selectedLocation?.name || "Fieldwork",
 );
+
+const userInitials = computed(() => {
+  if (!authStore.user) return "?";
+  const email = authStore.user.email || "";
+  return email.charAt(0).toUpperCase();
+});
+
+const handleLogout = async () => {
+  await authStore.logout();
+  router.push("/auth");
+};
 
 // Initialize global toast service for use outside component contexts
 onMounted(() => {

@@ -10,6 +10,7 @@ import router from "./router/index";
 import { usePowerSyncStore } from "./stores/powersync";
 import { useSettingsStore } from "./stores/settings";
 import { useMapStore } from "./stores/map";
+import { useAuthStore } from "./stores/auth";
 
 // Capacitor imports
 import { App as CapacitorApp } from "@capacitor/app";
@@ -45,6 +46,7 @@ import Message from "primevue/message";
 import Textarea from "primevue/textarea";
 import Image from "primevue/image";
 import Checkbox from "primevue/checkbox";
+import Password from "primevue/password";
 
 // PrimeVue directives
 import Tooltip from "primevue/tooltip";
@@ -95,6 +97,7 @@ app.component("Message", Message);
 app.component("Textarea", Textarea);
 app.component("Image", Image);
 app.component("Checkbox", Checkbox);
+app.component("Password", Password);
 
 // Register PrimeVue directives (only directives actually used in the app)
 app.directive("ripple", Ripple);
@@ -107,21 +110,45 @@ app.directive("tooltip", Tooltip);
 const powerSyncStore = usePowerSyncStore();
 const settingsStore = useSettingsStore();
 const mapStore = useMapStore();
+const authStore = useAuthStore();
 
-// Initialize PowerSync store
-powerSyncStore.initialize().catch((error: Error) => {
-  console.error("Failed to initialize PowerSync store:", error);
-});
+// Initialize auth store first and wait for it before mounting
+// This ensures session is restored before router navigation and PowerSync connection
+(async () => {
+  try {
+    await authStore.init();
+    console.log("Auth initialized, session:", authStore.session ? "restored" : "none");
+    console.log("Auth authenticated:", authStore.isAuthenticated);
+    
+    // Only initialize PowerSync if user is authenticated
+    // PowerSync requires authentication to connect
+    if (authStore.isAuthenticated && authStore.session) {
+      console.log("User authenticated, initializing PowerSync...");
+      // Wait a bit to ensure session is fully ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      powerSyncStore.initialize().catch((error: Error) => {
+        console.error("Failed to initialize PowerSync store:", error);
+      });
+    } else {
+      console.log("User not authenticated, skipping PowerSync initialization");
+      console.log("PowerSync will initialize when user logs in");
+    }
+  } catch (error: Error) {
+    console.error("Failed to initialize auth store:", error);
+  }
+  
+  // Initialize other stores (don't block on these)
+  mapStore.initialize().catch((error: Error) => {
+    console.error("Failed to initialize map store:", error);
+  });
 
-// Initialize map store
-mapStore.initialize().catch((error: Error) => {
-  console.error("Failed to initialize map store:", error);
-});
-
-// Initialize settings with GPS
-settingsStore.initializeWithGPS().catch((error: Error) => {
-  console.error("Failed to initialize settings with GPS:", error);
-});
+  settingsStore.initializeWithGPS().catch((error: Error) => {
+    console.error("Failed to initialize settings with GPS:", error);
+  });
+  
+  // Mount app after auth is initialized
+  app.mount("#app");
+})();
 
 // Pre-load local LLM models if analysis mode is set to 'local'
 // This starts downloading models immediately when the app opens
@@ -213,5 +240,4 @@ if (import.meta.env.DEV) {
   console.log("  - window.testHighZoom() - Test zooming to level 20");
 }
 
-// Handle app startup and resume downloads
-app.mount("#app");
+// App mounting is now handled after auth initialization (see above)

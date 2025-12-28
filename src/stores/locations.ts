@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { defineStore } from "pinia";
 import { usePowerSyncStore } from "./powersync";
+import { useAuthStore } from "./auth";
 import type { LocationRecord } from "../powersync-schema";
 import { pmtilesService, type PMTilesLocation } from "../utils/pmtilesService";
 import { useStorage } from "@vueuse/core";
@@ -15,10 +16,13 @@ export interface LocationData {
   dateCreated: string;
   createdBy: string;
   isPublic: boolean;
+  ownerId?: string;
+  userRole?: 'owner' | 'admin' | 'member';
 }
 
 export const useLocationsStore = defineStore("locations", () => {
   const powerSyncStore = usePowerSyncStore();
+  const authStore = useAuthStore();
 
   // State
   const locations = ref<LocationData[]>([]);
@@ -33,10 +37,12 @@ export const useLocationsStore = defineStore("locations", () => {
   );
 
   const userLocations = computed(() =>
-    locations.value.filter((loc) => loc.createdBy === "anonymous"),
+    locations.value.filter((loc) => loc.userRole !== undefined),
   );
 
   // Actions
+  let loadPromise: Promise<void> | null = null;
+  
   const loadLocations = async () => {
     const startTime = performance.now();
     console.log(
@@ -44,15 +50,18 @@ export const useLocationsStore = defineStore("locations", () => {
       isLoading.value,
     );
 
-    // Prevent concurrent loading
-    if (isLoading.value) {
-      console.log("📍 [LocationsStore] Already loading, skipping");
+    // If already loading, wait for the existing load to complete
+    if (isLoading.value && loadPromise) {
+      console.log("📍 [LocationsStore] Already loading, waiting for existing load to complete...");
+      await loadPromise;
+      console.log("📍 [LocationsStore] Existing load completed");
       return;
     }
 
-    if (locations.value.length > 0) {
-      return;
-    }
+    // Always reload to ensure we have the latest data, especially after creating a new location
+    // if (locations.value.length > 0) {
+    //   return;
+    // }
 
     // Wait for PowerSync to be ready
     if (!powerSyncStore.powerSync) {
@@ -84,25 +93,119 @@ export const useLocationsStore = defineStore("locations", () => {
     isLoading.value = true;
     error.value = null;
 
-    try {
-      const queryStart = performance.now();
-      const results = await powerSyncStore.powerSync.getAll(
-        "SELECT * FROM locations",
-      );
+    // Store the promise so other callers can wait for it
+    loadPromise = (async () => {
+      try {
+        const queryStart = performance.now();
+      let results: any[] = []
+      
+      // Get user's location memberships and owned locations
+      if (authStore.user) {
+        // Get locations where user is owner OR member
+        // Use a simpler query that handles both cases
+        results = await powerSyncStore.powerSync.getAll(
+          `SELECT l.*, COALESCE(lm.role, CASE WHEN l.owner_id = ? THEN 'owner' END) as user_role 
+           FROM locations l 
+           LEFT JOIN location_members lm ON l.id = lm.location_id AND lm.user_id = ?
+           WHERE l.owner_id = ? OR lm.user_id = ?`,
+          [authStore.user.id, authStore.user.id, authStore.user.id, authStore.user.id]
+        )
+      } else {
+        // Fallback: load all locations if not authenticated (shouldn't happen with auth guards)
+        results = await powerSyncStore.powerSync.getAll(
+          "SELECT * FROM locations",
+        )
+      }
+      
+      // Debug logging to see what pmtiles_url values are in PowerSync
+      console.log("📍 [LocationsStore] Raw PowerSync query results:", {
+        count: results.length,
+        results: results.map((loc: any) => ({
+          id: loc.id,
+          name: loc.name,
+          pmtiles_url: loc.pmtiles_url,
+          pmtiles_urlType: typeof loc.pmtiles_url,
+          pmtiles_urlLength: loc.pmtiles_url?.length,
+          pmtiles_urlIsNull: loc.pmtiles_url === null,
+          pmtiles_urlIsUndefined: loc.pmtiles_url === undefined,
+          pmtiles_urlIsEmpty: loc.pmtiles_url === "",
+          allKeys: Object.keys(loc),
+        })),
+      });
+      
+      // Check if pmtiles_url column exists in results
+      if (results.length > 0) {
+        const firstResult = results[0];
+        console.log("📍 [LocationsStore] First result keys:", Object.keys(firstResult));
+        console.log("📍 [LocationsStore] First result pmtiles_url:", {
+          value: firstResult.pmtiles_url,
+          type: typeof firstResult.pmtiles_url,
+          exists: 'pmtiles_url' in firstResult,
+        });
+      }
+      
       const queryEnd = performance.now();
       console.log(
         `📍 [LocationsStore] Query took ${(queryEnd - queryStart).toFixed(2)}ms, got ${results.length} locations`,
       );
 
       const mapStart = performance.now();
-      locations.value = results.map((loc: any) => ({
-        ...loc,
-        bbox: JSON.parse(loc.bbox),
-        minZoom: parseInt(loc.minZoom),
-        maxZoom: parseInt(loc.maxZoom),
-        pmtilesUrl: loc.pmtiles_url || "",
-        isPublic: loc.isPublic === "true",
-      }));
+      if (authStore.user) {
+        locations.value = results.map((loc: any) => {
+          try {
+            return {
+              ...loc,
+              bbox: typeof loc.bbox === 'string' ? JSON.parse(loc.bbox) : loc.bbox,
+              minZoom: parseInt(loc.min_zoom || loc.minZoom || '8'),
+              maxZoom: parseInt(loc.max_zoom || loc.maxZoom || '18'),
+              pmtilesUrl: loc.pmtiles_url && loc.pmtiles_url.trim() !== "" ? loc.pmtiles_url : undefined,
+              isPublic: loc.is_public === "true" || loc.is_public === true,
+              ownerId: loc.owner_id,
+              userRole: loc.user_role || (loc.owner_id === authStore.user?.id ? 'owner' : undefined),
+            }
+          } catch (e) {
+            console.error('Error parsing location:', loc, e)
+            return null
+          }
+        }).filter((loc): loc is LocationData => loc !== null)
+      } else {
+        locations.value = results.map((loc: any) => ({
+          ...loc,
+          bbox: JSON.parse(loc.bbox),
+          minZoom: parseInt(loc.min_zoom || loc.minZoom),
+          maxZoom: parseInt(loc.max_zoom || loc.maxZoom),
+          pmtilesUrl: loc.pmtiles_url && loc.pmtiles_url.trim() !== "" ? loc.pmtiles_url : undefined,
+          isPublic: loc.is_public === "true" || loc.is_public === true,
+          ownerId: loc.owner_id,
+        }))
+      }
+      
+      // Debug logging to verify pmtiles_url values after mapping
+      console.log("📍 [LocationsStore] Locations after mapping:", 
+        locations.value.map(loc => ({
+          id: loc.id,
+          name: loc.name,
+          pmtilesUrl: loc.pmtilesUrl,
+          hasPmtilesUrl: !!loc.pmtilesUrl,
+          pmtilesUrlType: typeof loc.pmtilesUrl,
+          pmtilesUrlLength: loc.pmtilesUrl?.length,
+          pmtilesUrlIsUndefined: loc.pmtilesUrl === undefined,
+          pmtilesUrlIsNull: loc.pmtilesUrl === null,
+          pmtilesUrlIsEmpty: loc.pmtilesUrl === "",
+        }))
+      );
+      
+      // Also log the selected location if it exists
+      if (selectedLocationId.value) {
+        const selectedLoc = getLocationById(selectedLocationId.value);
+        console.log("📍 [LocationsStore] Currently selected location after load:", {
+          id: selectedLocationId.value,
+          found: !!selectedLoc,
+          pmtilesUrl: selectedLoc?.pmtilesUrl,
+          hasPmtilesUrl: !!selectedLoc?.pmtilesUrl,
+        });
+      }
+      
       const mapEnd = performance.now();
       console.log(
         `📍 [LocationsStore] Mapping took ${(mapEnd - mapStart).toFixed(2)}ms`,
@@ -111,28 +214,60 @@ export const useLocationsStore = defineStore("locations", () => {
       // Ensure selectedLocationId is set before selecting location
       // This ensures queries (like usePlots) have a valid location ID immediately
       if (selectedLocationId.value) {
-        selectLocation(selectedLocationId.value);
+        const location = getLocationById(selectedLocationId.value);
+        if (location) {
+          selectLocation(selectedLocationId.value);
+        } else {
+          // Stored location ID is invalid (deleted or no access), clear it
+          console.warn(`Stored location ID ${selectedLocationId.value} not found, clearing selection`);
+          selectedLocationId.value = "";
+          selectedLocation.value = null;
+          // Auto-select first location if available
+          if (locations.value.length > 0) {
+            selectLocation(locations.value[0].id);
+          }
+        }
       } else if (locations.value.length > 0) {
         // Auto-select first location if none selected
         selectLocation(locations.value[0].id);
       }
 
-      const totalTime = performance.now() - startTime;
-      console.log(
-        `📍 [LocationsStore] loadLocations completed in ${totalTime.toFixed(2)}ms`,
-      );
-    } catch (err) {
-      error.value = `Failed to load locations: ${err}`;
-      console.error("Error loading locations:", err);
-    } finally {
-      isLoading.value = false;
-    }
+        const totalTime = performance.now() - startTime;
+        console.log(
+          `📍 [LocationsStore] loadLocations completed in ${totalTime.toFixed(2)}ms`,
+        );
+      } catch (err) {
+        error.value = `Failed to load locations: ${err}`;
+        console.error("Error loading locations:", err);
+      } finally {
+        isLoading.value = false;
+        loadPromise = null;
+      }
+    })();
+    
+    await loadPromise;
   };
 
   const selectLocation = (id: string) => {
     selectedLocationId.value = id;
-    selectedLocation.value = getLocationById(id) || null;
-    console.log("Selected location:", selectedLocationId.value);
+    const location = getLocationById(id);
+    selectedLocation.value = location || null;
+    console.log("📍 [LocationsStore] selectLocation called:", {
+      id,
+      found: !!location,
+      locationName: location?.name,
+      pmtilesUrl: location?.pmtilesUrl,
+      hasPmtilesUrl: !!location?.pmtilesUrl,
+      pmtilesUrlType: typeof location?.pmtilesUrl,
+      locationObject: location ? {
+        id: location.id,
+        name: location.name,
+        pmtilesUrl: location.pmtilesUrl,
+        bbox: location.bbox,
+        minZoom: location.minZoom,
+        maxZoom: location.maxZoom,
+      } : null,
+    });
   };
 
   const updateLocation = async (id: string, updates: Partial<LocationData>) => {
@@ -140,7 +275,14 @@ export const useLocationsStore = defineStore("locations", () => {
       throw new Error("PowerSync client not initialized");
     }
 
-    const location = getLocationById(id);
+    // Reload locations if the location isn't found (might have just been created)
+    let location = getLocationById(id);
+    if (!location) {
+      console.warn(`Location ${id} not found, reloading locations...`);
+      await loadLocations();
+      location = getLocationById(id);
+    }
+    
     if (!location) {
       throw new Error(`Location ${id} not found`);
     }

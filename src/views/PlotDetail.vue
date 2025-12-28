@@ -807,6 +807,7 @@ import { usePowerSyncStore, usePlot, usePlotImages } from "../stores/powersync";
 import { usePersonsStore } from "../stores/persons";
 import { useLocationsStore } from "../stores/locations";
 import { useMapStore } from "../stores/map";
+import { useAuthStore } from "../stores/auth";
 import { createMapView } from "../utils/mapView";
 import { createBestTileSource } from "../utils/tileSource";
 import { base64ToBlob } from "../powersync-schema";
@@ -837,6 +838,7 @@ const powerSyncStore = usePowerSyncStore();
 const personsStore = usePersonsStore();
 const locationsStore = useLocationsStore();
 const mapStore = useMapStore();
+const authStore = useAuthStore();
 
 const peopleNames = computed(() => {
   return plotPersons.value.map((person) => person.full_name).join(", ");
@@ -1028,12 +1030,14 @@ const cancelEditing = () => {
 const saveChanges = async () => {
   saving.value = true;
   try {
+    const userId = authStore.user?.id || "anonymous";
+    
     // Update the plot with the edited data
     const updatedPlotData = {
       ...effectivePlot.value,
       ...editablePlot.value,
       dateModified: new Date().toISOString(),
-      modifiedBy: "anonymous",
+      modifiedBy: userId,
     };
 
     // Check if this is a newly created plot that might not be in Zero.dev yet
@@ -1523,11 +1527,13 @@ const savePerson = async () => {
 
   savingPerson.value = true;
   try {
+    const userId = authStore.user?.id || "anonymous";
+    
     const personData = {
       ...personForm.value,
       plot_id: effectivePlot.value.id,
-      created_by: "anonymous",
-      last_updated_by: "anonymous",
+      created_by: userId,
+      last_updated_by: userId,
     };
 
     if (showEditPersonModal.value && editingPerson.value) {

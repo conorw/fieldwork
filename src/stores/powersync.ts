@@ -10,6 +10,7 @@ import {
 import { SupabaseConnector } from "../connectors/SupabaseConnector";
 import { createBaseLogger, LogLevel } from "@powersync/web";
 import { useLocationsStore } from "./locations";
+import { useAuthStore } from "./auth";
 
 console.log("PowerSync: PowerSyncDatabase import:", PowerSyncDatabase);
 console.log("PowerSync: AppSchema import:", AppSchema);
@@ -104,6 +105,41 @@ export const usePowerSyncStore = defineStore("powersync", () => {
           `[${new Date().toISOString()}] Initializing PowerSync store...`,
         );
         console.log("PowerSync: AppSchema:", AppSchema);
+        
+        // Check if user is authenticated before connecting
+        const { useAuthStore } = await import('./auth');
+        const authStore = useAuthStore();
+        
+        // Ensure auth store is initialized first
+        if (authStore.isLoading) {
+          console.log("🔄 PowerSync: Waiting for auth store to initialize...");
+          await authStore.init();
+        }
+        
+        // Check authentication status
+        if (!authStore.isAuthenticated) {
+          // Wait a bit for auth to initialize (handles race conditions)
+          console.log("🔄 PowerSync: Waiting for authentication...");
+          for (let i = 0; i < 30; i++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            // Re-check auth status
+            if (authStore.isAuthenticated) {
+              console.log("🔄 PowerSync: Authentication ready");
+              break;
+            }
+          }
+        }
+        
+        if (!authStore.isAuthenticated) {
+          // Don't throw - just log and return null
+          // PowerSync will initialize when user logs in
+          console.log("ℹ️ PowerSync: User not authenticated, skipping initialization. PowerSync will initialize when user logs in.");
+          isConnecting.value = false;
+          initializationPromise = null;
+          // Don't set isInitialized to true, so it can be initialized later
+          return null;
+        }
+        
         // Initialize the database first
         const connector = new SupabaseConnector();
         await db.connect(connector);
@@ -255,14 +291,17 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       serializedGeometry,
     );
 
+    const authStore = useAuthStore();
+    const userId = authStore.user?.id || "anonymous";
+    
     const newPlot = {
       ...plotData,
       geometry: serializedGeometry,
       id: plotId,
       date_created: new Date().toISOString(),
       date_modified: new Date().toISOString(),
-      created_by: "anonymous",
-      modified_by: "anonymous",
+      created_by: userId,
+      modified_by: userId,
     };
 
     console.log("PowerSync: Creating plot with ID:", plotId);
@@ -345,12 +384,15 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       throw new Error(`Plot with id ${id} not found`);
     }
 
+    const authStore = useAuthStore();
+    const userId = authStore.user?.id || "anonymous";
+    
     const updatedPlot: PlotRecord = {
       ...existingPlot, // Preserve all existing fields
       ...plotData, // Override with new data
       id,
       date_modified: new Date().toISOString(),
-      modified_by: "anonymous",
+      modified_by: userId,
       // Ensure geometry is always set - use existing if not provided
       geometry: plotData.geometry ?? existingPlot.geometry,
     } as PlotRecord;
@@ -419,6 +461,9 @@ export const usePowerSyncStore = defineStore("powersync", () => {
     locationData: Omit<LocationRecord, "id">,
   ): Promise<LocationRecord> => {
     if (!powerSync.value) throw new Error("PowerSync not initialized");
+    
+    const authStore = useAuthStore();
+    if (!authStore.user) throw new Error("User must be authenticated to create a location");
 
     const locationId = `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -430,17 +475,19 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         typeof locationData.bbox === "string"
           ? locationData.bbox
           : JSON.stringify(locationData.bbox),
-      min_zoom: 8,
-      max_zoom: 18,
+      min_zoom: locationData.min_zoom || "8",
+      max_zoom: locationData.max_zoom || "18",
       pmtiles_url: locationData.pmtiles_url || "",
       date_created: new Date().toISOString(),
-      created_by: "anonymous",
+      date_modified: new Date().toISOString(),
+      created_by: authStore.user.id,
+      owner_id: authStore.user.id,
       is_public: locationData.is_public ? "true" : "false",
     };
 
     console.log("PowerSync: Inserting location into database:", newLocation);
     await powerSync.value.execute(
-      "INSERT INTO locations (id, name, bbox, min_zoom, max_zoom, pmtiles_url, date_created, created_by, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO locations (id, name, bbox, min_zoom, max_zoom, pmtiles_url, date_created, date_modified, created_by, owner_id, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [
         newLocation.id,
         newLocation.name,
@@ -449,10 +496,28 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         newLocation.max_zoom,
         newLocation.pmtiles_url,
         newLocation.date_created,
+        newLocation.date_modified,
         newLocation.created_by,
+        newLocation.owner_id,
         newLocation.is_public,
       ],
     );
+    
+    // Create location_members entry for the owner
+    const memberId = `${locationId}_${authStore.user.id}`
+    const userEmail = authStore.user.email || null
+    await powerSync.value.execute(
+      "INSERT INTO location_members (id, location_id, user_id, user_email, role, joined_at) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        memberId,
+        locationId,
+        authStore.user.id,
+        userEmail,
+        'owner',
+        new Date().toISOString(),
+      ],
+    );
+    
     console.log(
       "PowerSync: Location inserted successfully, checking sync status...",
     );
@@ -461,15 +526,20 @@ export const usePowerSyncStore = defineStore("powersync", () => {
     console.log("PowerSync: Database ready state:", powerSync.value.ready);
     console.log("PowerSync: Database closed state:", powerSync.value.closed);
 
-    // Get the last inserted location (PowerSync auto-generates the ID)
+    // Get the last inserted location
     const createdLocation = (await powerSync.value.get(
-      "SELECT * FROM locations ORDER BY id DESC LIMIT 1",
+      "SELECT * FROM locations WHERE id = ?",
+      [locationId],
     )) as LocationRecord;
     console.log("PowerSync: Retrieved created location:", createdLocation);
 
-    // Refresh the locations store to include the new location
+    // Clear locations cache and reload to ensure new location is included
+    locationStore.locations = []
     await locationStore.loadLocations();
 
+    // Wait a bit for the location to be available
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
     locationStore.selectLocation(createdLocation.id);
     return createdLocation;
   };
@@ -512,6 +582,9 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       // Process the image (create thumbnails and upload to cloud)
       const processedImage = await imageProcessingService.processImage(file);
 
+      const authStore = useAuthStore();
+      const userId = authStore.user?.id || "anonymous";
+      
       const personImage = {
         id: imageId,
         person_id: personId,
@@ -524,7 +597,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         dimensions: JSON.stringify(processedImage.metadata.dimensions),
         format: processedImage.metadata.format,
         date_created: new Date().toISOString(),
-        created_by: "anonymous",
+        created_by: userId,
       };
 
       console.log("🔄 PowerSync: Hybrid person image data to insert:", {
@@ -620,6 +693,9 @@ export const usePowerSyncStore = defineStore("powersync", () => {
             }),
           );
 
+        const authStore = useAuthStore();
+        const userId = authStore.user?.id || "anonymous";
+        
         const fallbackImage = {
           id: imageId,
           person_id: personId,
@@ -632,7 +708,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
           dimensions: "{}",
           format: imageBlob.type,
           date_created: new Date().toISOString(),
-          created_by: "anonymous",
+          created_by: userId,
         };
 
         await powerSync.value.execute(
@@ -715,6 +791,9 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       // Process the image (create thumbnails and upload to cloud)
       const processedImage = await imageProcessingService.processImage(file);
 
+      const authStore = useAuthStore();
+      const userId = authStore.user?.id || "anonymous";
+      
       const plotImage = {
         id: imageId,
         plot_id: plotId,
@@ -727,7 +806,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         dimensions: JSON.stringify(processedImage.metadata.dimensions),
         format: processedImage.metadata.format,
         date_created: new Date().toISOString(),
-        created_by: "anonymous",
+        created_by: userId,
       };
 
       console.log("🔄 PowerSync: Hybrid image data to insert:", {
@@ -885,6 +964,9 @@ export const usePowerSyncStore = defineStore("powersync", () => {
             }),
           );
 
+        const authStore = useAuthStore();
+        const userId = authStore.user?.id || "anonymous";
+        
         const fallbackImage = {
           id: imageId,
           plot_id: plotId,
@@ -897,7 +979,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
           dimensions: "{}",
           format: imageBlob.type,
           date_created: new Date().toISOString(),
-          created_by: "anonymous",
+          created_by: userId,
         };
 
         await powerSync.value.execute(

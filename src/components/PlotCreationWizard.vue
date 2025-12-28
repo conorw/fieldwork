@@ -852,8 +852,10 @@ const createPlot = async () => {
   try {
     isCreating.value = true;
 
-    // Ensure PowerSync store is initialized before creating plot
-    if (!powerSyncStore.isInitialized) {
+    // Ensure PowerSync store is initialized before creating plot (only if authenticated)
+    const { useAuthStore } = await import('../stores/auth');
+    const authStore = useAuthStore();
+    if (!powerSyncStore.isInitialized && authStore.isAuthenticated) {
       wizardLogger.debug(
         "PowerSync store not initialized, initializing now...",
       );

@@ -1125,10 +1125,10 @@ const handleSetExtent = async () => {
     const locationId = await powerSyncStore.addNewLocation({
       name: locationName.value.trim(),
       bbox,
-      minZoom: selectedMinZoom.value,
-      maxZoom: selectedMaxZoom.value,
+      min_zoom: selectedMinZoom.value.toString(),
+      max_zoom: selectedMaxZoom.value.toString(),
       pmtiles_url,
-      isPublic: isPublic.value,
+      is_public: isPublic.value,
     });
 
     // Save the extent configuration
@@ -1180,10 +1180,10 @@ const handleSaveLocation = async () => {
     const locationId = await powerSyncStore.addNewLocation({
       name: locationName.value.trim(),
       bbox,
-      minZoom: selectedMinZoom.value,
-      maxZoom: selectedMaxZoom.value,
+      min_zoom: selectedMinZoom.value.toString(),
+      max_zoom: selectedMaxZoom.value.toString(),
       pmtiles_url,
-      isPublic: isPublic.value,
+      is_public: isPublic.value,
     });
 
     // Save the extent configuration
@@ -1230,10 +1230,20 @@ const generatepmtilesUrl = async (bbox) => {
       throw new Error(`PMTiles generation failed: ${errorText}`);
     }
 
+    // API always returns the Vercel Blob Storage URL as plain text
     const url = await response.text();
+    
+    // Validate that it's actually a URL
+    if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+      throw new Error(
+        `Invalid PMTiles URL returned: ${url}. Expected a valid HTTP/HTTPS URL from Vercel Blob Storage.`
+      );
+    }
+
+    console.log(`✅ PMTiles URL generated: ${url}`);
     return url;
   } catch (error) {
-    console.error("Error generating PMTiles data:", error);
+    console.error("Error generating PMTiles URL:", error);
     throw error;
   }
 };
@@ -1256,8 +1266,10 @@ onMounted(async () => {
   }, 10000); // 10 second timeout
 
   try {
-    // Initialize PowerSync first
-    if (!powerSyncStore.isInitialized) {
+    // Initialize PowerSync first (only if authenticated)
+    const { useAuthStore } = await import('../stores/auth');
+    const authStore = useAuthStore();
+    if (!powerSyncStore.isInitialized && authStore.isAuthenticated) {
       await powerSyncStore.initialize();
     }
 

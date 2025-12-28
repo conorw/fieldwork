@@ -120,11 +120,52 @@ const locations = new Table(
     max_zoom: column.text,
     pmtiles_url: column.text, // URL to PMTiles file
     date_created: column.text,
-    date_modified: column.text, // Add missing date_modified field
+    date_modified: column.text,
     created_by: column.text,
     is_public: column.text,
+    owner_id: column.text, // FK to auth.users
   },
   { indexes: { idx_locations_name: ["name"] } },
+);
+
+const location_members = new Table(
+  {
+    id: column.text, // Composite key: location_id + user_id
+    location_id: column.text,
+    user_id: column.text,
+    user_email: column.text, // Email of the member (for display without querying auth.users)
+    role: column.text, // 'owner', 'admin', 'member'
+    joined_at: column.text,
+  },
+  { indexes: { idx_location_members_location_id: ["location_id"], idx_location_members_user_id: ["user_id"], idx_location_members_user_email: ["user_email"] } },
+);
+
+const location_invites = new Table(
+  {
+    location_id: column.text,
+    invited_by: column.text,
+    email: column.text,
+    role: column.text, // 'admin', 'member'
+    token: column.text,
+    status: column.text, // 'pending', 'accepted', 'expired', 'cancelled'
+    expires_at: column.text,
+    created_at: column.text,
+  },
+  { indexes: { idx_location_invites_location_id: ["location_id"], idx_location_invites_email: ["email"], idx_location_invites_token: ["token"] } },
+);
+
+const location_requests = new Table(
+  {
+    location_id: column.text,
+    user_id: column.text,
+    user_email: column.text, // Email of the requesting user
+    status: column.text, // 'pending', 'approved', 'rejected', 'cancelled'
+    message: column.text,
+    created_at: column.text,
+    responded_at: column.text,
+    responded_by: column.text,
+  },
+  { indexes: { idx_location_requests_location_id: ["location_id"], idx_location_requests_user_id: ["user_id"] } },
 );
 
 console.log("PowerSync Schema: Creating AppSchema with tables:", {
@@ -143,6 +184,9 @@ export const AppSchema = new Schema({
   persons: persons,
   person_images: person_images,
   locations: locations,
+  location_members: location_members,
+  location_invites: location_invites,
+  location_requests: location_requests,
 });
 
 console.log("PowerSync Schema: AppSchema created:", AppSchema);
@@ -157,6 +201,9 @@ export type PlotImageRecord = Database["plot_images"];
 export type PersonRecord = Database["persons"];
 export type PersonImageRecord = Database["person_images"];
 export type LocationRecord = Database["locations"];
+export type LocationMemberRecord = Database["location_members"];
+export type LocationInviteRecord = Database["location_invites"];
+export type LocationRequestRecord = Database["location_requests"];
 
 // Legacy type exports for compatibility
 export type Plot = PlotRecord;

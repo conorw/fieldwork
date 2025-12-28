@@ -151,19 +151,29 @@
                   />
                   <div v-else></div>
 
-                  <Button
-                    @click.stop="confirmDeleteLocation(location)"
-                    :disabled="deletingLocationId === location.id"
-                    severity="danger"
-                    size="small"
-                    icon="pi pi-trash"
-                    :loading="deletingLocationId === location.id"
-                    v-tooltip.top="
-                      deletingLocationId === location.id
-                        ? 'Deleting...'
-                        : 'Delete facility'
-                    "
-                  />
+                  <div class="flex gap-2">
+                    <Button
+                      v-if="location.userRole === 'owner' || location.userRole === 'admin'"
+                      @click.stop="goToLocationSettings(location.id)"
+                      severity="secondary"
+                      size="small"
+                      icon="pi pi-cog"
+                      v-tooltip.top="'Location settings, members, invites, and join requests'"
+                    />
+                    <Button
+                      @click.stop="confirmDeleteLocation(location)"
+                      :disabled="deletingLocationId === location.id"
+                      severity="danger"
+                      size="small"
+                      icon="pi pi-trash"
+                      :loading="deletingLocationId === location.id"
+                      v-tooltip.top="
+                        deletingLocationId === location.id
+                          ? 'Deleting...'
+                          : 'Delete facility'
+                      "
+                    />
+                  </div>
                 </div>
               </template>
             </Card>
@@ -530,6 +540,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useOnline } from "@vueuse/core";
 import { usePowerSyncStore } from "../stores/powersync";
 import { useLocationsStore } from "../stores/locations";
@@ -541,6 +552,7 @@ import { localLLMService } from "../services/localLLMService";
 // PrimeVue imports
 import InputText from "primevue/inputtext";
 
+const router = useRouter();
 const powerSyncStore = usePowerSyncStore();
 const locationsStore = useLocationsStore();
 const settingsStore = useSettingsStore();
@@ -637,6 +649,10 @@ const refreshData = async () => {
 
 const selectLocation = (locationId: string) => {
   locationsStore.selectLocation(locationId);
+};
+
+const goToLocationSettings = (locationId: string) => {
+  router.push(`/locations/${locationId}/settings`);
 };
 
 const refreshStorageInfo = async () => {

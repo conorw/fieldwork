@@ -120,6 +120,14 @@
                 Select
               </button>
               <button
+                v-if="location.userRole === 'owner' || location.userRole === 'admin'"
+                @click="goToSettings(location.id)"
+                class="btn-secondary text-sm px-3 py-1"
+                title="View settings, members, invites, and join requests"
+              >
+                Settings
+              </button>
+              <button
                 @click="editLocation(location)"
                 class="btn-secondary text-sm px-3 py-1"
               >
@@ -175,10 +183,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useLocationsStore } from "../stores/locations";
 
 const emit = defineEmits(["location-selected", "location-edited"]);
 
+const router = useRouter();
 const locationsStore = useLocationsStore();
 
 // Computed properties
@@ -203,6 +213,10 @@ const selectLocation = (location) => {
 
 const editLocation = (location) => {
   emit("location-edited", location);
+};
+
+const goToSettings = (locationId) => {
+  router.push(`/locations/${locationId}/settings`);
 };
 
 const deleteLocation = async (locationId) => {

@@ -18,14 +18,24 @@ class PMTilesService {
     source: "local" | "generated";
   }> {
     console.log(
-      `Getting PMTiles for location: ${location.name} (${location.id})`,
+      `📦 [PMTilesService] getPMTiles called for location: ${location.name} (${location.id})`,
     );
+    console.log("📦 [PMTilesService] Location object:", {
+      id: location.id,
+      name: location.name,
+      pmtilesUrl: location.pmtilesUrl,
+      hasPmtilesUrl: !!location.pmtilesUrl,
+      pmtilesUrlType: typeof location.pmtilesUrl,
+      pmtilesUrlLength: location.pmtilesUrl?.length,
+      pmtilesUrlTrimmed: location.pmtilesUrl?.trim(),
+      isEmpty: location.pmtilesUrl?.trim() === "",
+    });
 
-    // 1. Check if PMTiles data exists in IndexedDB cache
+    // 1. Check if PMTiles data exists in Cache Storage (browser cache)
     const cached = await pmtilesCache.getCachedPMTiles(location.id);
     if (cached) {
       console.log(
-        `Using PMTiles data from IndexedDB cache for ${location.name}`,
+        `Using PMTiles data from Cache Storage for ${location.name}`,
       );
       return {
         data: cached.data,
@@ -34,14 +44,56 @@ class PMTilesService {
     }
 
     // 2. If not cached, download and cache the data
-    if (location.pmtilesUrl) {
+    console.log("📦 [PMTilesService] Checking if pmtilesUrl exists:", {
+      hasPmtilesUrl: !!location.pmtilesUrl,
+      pmtilesUrl: location.pmtilesUrl,
+      condition: location.pmtilesUrl && location.pmtilesUrl.trim() !== "",
+    });
+    
+    if (location.pmtilesUrl && location.pmtilesUrl.trim() !== "") {
       console.log(
-        "PMTiles service: Downloading from URL:",
+        "📦 [PMTilesService] ✅ pmtilesUrl is valid, downloading from URL:",
         location.pmtilesUrl,
       );
-      const response = await fetch(location.pmtilesUrl);
+      // Use credentials: 'omit' to prevent sending cookies/auth headers
+      // PMTiles files are public assets (Vercel Blob Storage) and don't need authentication
+      // This prevents the "431 Request Header Fields Too Large" error caused by
+      // large Supabase auth tokens being sent automatically by the browser
+      // Using a new Request object to ensure a clean fetch without any interceptors
+      // Use the most minimal fetch possible to avoid sending large headers
+      // PMTiles files are public assets and don't need authentication
+      const requestInit: RequestInit = {
+        method: 'GET',
+        credentials: 'omit', // Don't send cookies or auth headers
+        mode: 'cors', // Allow CORS but don't send credentials
+        cache: 'default',
+        redirect: 'follow',
+        // Explicitly don't set any headers - let browser send only minimal required headers
+        // This prevents the "431 Request Header Fields Too Large" error
+      };
+      
+      let response: Response;
+      try {
+        response = await fetch(location.pmtilesUrl, requestInit);
+      } catch (fetchError) {
+        // If fetch fails, it might be a network error or header size issue
+        console.error('PMTiles fetch error:', fetchError);
+        throw new Error(
+          `Failed to fetch PMTiles: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}. ` +
+          `This may be due to large headers being sent. Try clearing browser cookies or using a different browser.`
+        );
+      }
 
       if (!response.ok) {
+        // Provide more specific error messages
+        if (response.status === 431) {
+          throw new Error(
+            `Failed to download PMTiles: Request Header Fields Too Large (431). ` +
+            `The server rejected the request because headers were too large. ` +
+            `Try clearing browser cookies or using a different browser. ` +
+            `URL: ${location.pmtilesUrl}`
+          );
+        }
         throw new Error(
           `Failed to download PMTiles: ${response.status} ${response.statusText}`,
         );
@@ -73,7 +125,7 @@ class PMTilesService {
         );
       }
 
-      // Cache the data in IndexedDB
+      // Cache the data using Cache Storage API (browser cache for PWA offline support)
       try {
         await pmtilesCache.cachePMTiles(
           location.id,
@@ -83,7 +135,7 @@ class PMTilesService {
           location.minZoom,
           location.maxZoom,
         );
-        console.log("PMTiles service: Data cached in IndexedDB");
+        console.log("PMTiles service: Data cached in Cache Storage");
       } catch (cacheError) {
         console.warn(
           "PMTiles service: Failed to cache data, but continuing:",
@@ -97,7 +149,13 @@ class PMTilesService {
       };
     }
 
-    throw new Error(`PMTiles data not found for ${location.name}`);
+    console.error("📦 [PMTilesService] ❌ No PMTiles data found:", {
+      locationId: location.id,
+      locationName: location.name,
+      pmtilesUrl: location.pmtilesUrl,
+      hasPmtilesUrl: !!location.pmtilesUrl,
+    });
+    throw new Error(`PMTiles data not found for ${location.name}. pmtilesUrl: ${location.pmtilesUrl || 'not set'}`);
   }
 
   /**

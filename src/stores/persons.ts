@@ -2,6 +2,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { usePowerSyncStore } from "./powersync";
+import { useAuthStore } from "./auth";
 import type { PersonRecord } from "../powersync-schema";
 
 export interface PersonData {
@@ -146,6 +147,9 @@ export const usePersonsStore = defineStore("persons", () => {
       return null;
     }
 
+    const authStore = useAuthStore();
+    const userId = authStore.user?.id || "anonymous";
+    
     const personId = `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
 
@@ -182,9 +186,9 @@ export const usePersonsStore = defineStore("persons", () => {
       notes: personData.notes || "",
       race: personData.race || "",
       ethnicity: personData.ethnicity || "",
-      created_by: personData.created_by || "anonymous",
+      created_by: personData.created_by || userId,
       date_created: now,
-      last_updated_by: personData.last_updated_by || "anonymous",
+      last_updated_by: personData.last_updated_by || userId,
       last_updated_datetime: now,
       birth_city: personData.birth_city || "",
       birth_sub_country: personData.birth_sub_country || "",
@@ -392,7 +396,11 @@ export const usePersonsStore = defineStore("persons", () => {
         updateValues.push(fullName);
       }
 
-      // Add last_updated_datetime
+      // Add last_updated_by and last_updated_datetime
+      const authStore = useAuthStore();
+      const userId = authStore.user?.id || "anonymous";
+      updateFields.push("last_updated_by = ?");
+      updateValues.push(userId);
       updateFields.push("last_updated_datetime = ?");
       updateValues.push(now);
 

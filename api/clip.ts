@@ -559,29 +559,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `PMTiles archive extracted successfully, size: ${out.byteLength} bytes`,
     );
 
-    // Generate filename for the PMTiles file
-    const filename = `pmtiles/clip-${name}.pmtiles`;
+    // Generate unique filename for the PMTiles file
+    // Add timestamp to ensure uniqueness and allow overwriting if needed
+    const timestamp = Date.now();
+    const filename = `pmtiles/clip-${name}-${timestamp}.pmtiles`;
 
-    try {
-      // Try to save to blob storage and return the url
-      const url = await savePMTilesToBlobStorage(out, filename);
-      return res.status(200).send(url);
-    } catch (blobError) {
-      console.warn(
-        "⚠️ Failed to upload to blob storage, returning data directly:",
-        blobError,
-      );
-
-      // Fallback: return the data directly as base64
-      const base64 = Buffer.from(out).toString("base64");
-      return res.status(200).json({
-        data: base64,
-        size: out.byteLength,
-        error: "Blob storage unavailable, data returned as base64",
-        message:
-          "PMTiles generated successfully but could not be uploaded to cloud storage. Data is returned as base64 for local use.",
-      });
-    }
+    // Save to blob storage and return the URL
+    // Blob storage is required - no fallback to base64
+    const url = await savePMTilesToBlobStorage(out, filename);
+    console.log(`✅ PMTiles saved to blob storage, URL: ${url}`);
+    
+    // Return the blob storage URL as plain text
+    // This URL will be saved to the locations table
+    return res.status(200).send(url);
   } catch (buildError) {
     console.error("Error building PMTiles archive:", buildError);
     const errorMessage =

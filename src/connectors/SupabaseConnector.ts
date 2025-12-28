@@ -7,7 +7,8 @@ import {
   type PowerSyncCredentials,
 } from "@powersync/web";
 
-import { Session, SupabaseClient, createClient } from "@supabase/supabase-js";
+import { Session, SupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseClient } from "@/lib/supabase/client";
 
 export type SupabaseConfig = {
   supabaseUrl: string;
@@ -43,10 +44,6 @@ export class SupabaseConnector
 
   currentSession: Session | null;
 
-  // Mutex to prevent concurrent anonymous login attempts
-  private loginAnonPromise: Promise<void> | null = null;
-  private last429Error: number | null = null;
-  private retryCount: number = 0;
 
   constructor() {
     super();
@@ -56,15 +53,9 @@ export class SupabaseConnector
       supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     };
 
-    this.client = createClient(
-      this.config.supabaseUrl,
-      this.config.supabaseAnonKey,
-      {
-        auth: {
-          persistSession: true,
-        },
-      },
-    );
+    // Use the shared Supabase client instance to ensure session sharing
+    // This ensures the connector uses the same session storage as the auth store
+    this.client = createSupabaseClient();
     this.currentSession = null;
     this.ready = false;
   }
@@ -81,15 +72,29 @@ export class SupabaseConnector
         hasSession: !!session,
       });
 
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        this.updateSession(session);
+      // Handle all session-related events
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        if (session) {
+          console.log("🔄 PowerSync: Updating session from auth state change");
+          this.updateSession(session);
+        }
       } else if (event === "SIGNED_OUT") {
         this.updateSession(null);
       }
     });
 
-    const sessionResponse = await this.client.auth.getSession();
-    this.updateSession(sessionResponse.data.session);
+    // Get initial session
+    try {
+      const sessionResponse = await this.client.auth.getSession();
+      if (sessionResponse.data.session) {
+        this.updateSession(sessionResponse.data.session);
+        console.log("🔄 PowerSync: Connector initialized with session");
+      } else {
+        console.log("🔄 PowerSync: Connector initialized without session (will connect when user logs in)");
+      }
+    } catch (error) {
+      console.warn("⚠️ PowerSync: Error getting session during init:", error);
+    }
 
     this.ready = true;
     this.iterateListeners((cb) => cb.initialized?.());
@@ -120,28 +125,61 @@ export class SupabaseConnector
       await this.init();
     }
 
-    // First, try to get session from Supabase client (which checks localStorage)
-    // This is important because the session might be persisted but not yet loaded into currentSession
-    if (!this.currentSession) {
-      try {
-        const {
-          data: { session },
-        } = await this.client.auth.getSession();
-        if (session) {
-          console.log("🔄 PowerSync: Found persisted session, using it");
-          this.updateSession(session);
+    // Always check for session from Supabase client (which checks localStorage)
+    // This ensures we get the latest session even if it was updated elsewhere
+    let session = this.currentSession;
+    
+    try {
+      const {
+        data: { session: currentSession },
+        error: sessionError,
+      } = await this.client.auth.getSession();
+      
+      if (sessionError) {
+        console.warn("⚠️ PowerSync: Error getting session:", sessionError);
+      } else if (currentSession) {
+        // Update our cached session if we found one
+        if (!this.currentSession || this.currentSession.access_token !== currentSession.access_token) {
+          console.log("🔄 PowerSync: Found session from storage, updating");
+          this.updateSession(currentSession);
+          session = currentSession;
         }
-      } catch (error) {
-        console.warn("⚠️ PowerSync: Error getting persisted session:", error);
+      }
+    } catch (error) {
+      console.warn("⚠️ PowerSync: Error getting persisted session:", error);
+    }
+
+    // If still no session, wait a bit for auth store to initialize
+    // This handles race conditions where PowerSync initializes before auth is ready
+    if (!session) {
+      console.log("🔄 PowerSync: No session found, waiting for auth initialization...");
+      // Wait up to 10 seconds for auth to initialize (longer wait for slower devices)
+      for (let i = 0; i < 100; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        try {
+          const { data: { session: newSession }, error: checkError } = await this.client.auth.getSession();
+          if (checkError) {
+            console.debug("PowerSync: Error checking session during wait:", checkError);
+            continue;
+          }
+          if (newSession) {
+            console.log("🔄 PowerSync: Session found after waiting");
+            this.updateSession(newSession);
+            session = newSession;
+            break;
+          }
+        } catch (error) {
+          // Continue waiting if there's an error getting session
+          console.debug("PowerSync: Error checking session during wait:", error);
+        }
       }
     }
 
-    let session = this.currentSession;
-
     if (!session) {
-      console.log("🔄 PowerSync: No session found, logging in anonymously...");
-      await this.loginAnon();
-      session = this.currentSession;
+      // Don't throw immediately - PowerSync will retry when auth is ready
+      // This allows the app to work offline until user logs in
+      console.warn("⚠️ PowerSync: No authenticated session found. PowerSync will connect when user logs in.");
+      throw new Error("No authenticated session found. Please log in.");
     }
 
     // Check if session is expired or will expire soon (within 5 minutes)
@@ -168,9 +206,7 @@ export class SupabaseConnector
           } = await this.client.auth.refreshSession();
           if (error) {
             console.error("❌ PowerSync: Failed to refresh session:", error);
-            // If refresh fails, try to login anonymously again
-            await this.loginAnon();
-            session = this.currentSession;
+            throw new Error("Session expired and refresh failed. Please log in again.");
           } else {
             console.log("✅ PowerSync: Session refreshed successfully");
             this.updateSession(refreshedSession);
@@ -181,9 +217,7 @@ export class SupabaseConnector
             "❌ PowerSync: Error refreshing session:",
             refreshError,
           );
-          // If refresh fails, try to login anonymously again
-          await this.loginAnon();
-          session = this.currentSession;
+          throw new Error("Session expired and refresh failed. Please log in again.");
         }
       }
     }
@@ -316,94 +350,6 @@ export class SupabaseConnector
     this.iterateListeners((cb) => cb.sessionStarted?.(session));
   }
 
-  async loginAnon() {
-    // Check if we already have a session (double-check after potential race condition)
-    if (this.currentSession) {
-      console.log("✅ PowerSync: Already logged in, skipping anonymous login");
-      return;
-    }
-
-    // Check if there's already a login in progress (prevent concurrent signups)
-    if (this.loginAnonPromise) {
-      console.log(
-        "⏳ PowerSync: Anonymous login already in progress, waiting...",
-      );
-      await this.loginAnonPromise;
-      return;
-    }
-
-    // Check for rate limiting - if we got a 429 recently, wait before retrying
-    if (this.last429Error) {
-      const timeSince429 = Date.now() - this.last429Error;
-      const backoffDelay = Math.min(60000, 1000 * Math.pow(2, this.retryCount)); // Exponential backoff, max 60s
-
-      if (timeSince429 < backoffDelay) {
-        const waitTime = backoffDelay - timeSince429;
-        console.log(
-          `⏳ PowerSync: Rate limited, waiting ${Math.ceil(waitTime / 1000)}s before retry...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
-      } else {
-        // Reset after backoff period
-        this.last429Error = null;
-        this.retryCount = 0;
-      }
-    }
-
-    // Create a promise that will be shared by concurrent callers
-    this.loginAnonPromise = (async () => {
-      try {
-        console.log("🔄 PowerSync: Logging in anonymously...");
-
-        // Double-check session one more time (might have been set by another concurrent call)
-        if (this.currentSession) {
-          console.log(
-            "✅ PowerSync: Session found during login, skipping signup",
-          );
-          return;
-        }
-
-        const {
-          data: { session },
-          error,
-        } = await this.client.auth.signInAnonymously();
-
-        if (error) {
-          // Handle rate limiting (429 errors)
-          if (
-            error.status === 429 ||
-            error.message?.includes("429") ||
-            error.message?.includes("Too Many Requests")
-          ) {
-            this.last429Error = Date.now();
-            this.retryCount++;
-            console.error(
-              `❌ PowerSync: Rate limited (429). Retry count: ${this.retryCount}`,
-            );
-            throw new Error(
-              `Rate limited: Too many anonymous signup requests. Please wait before retrying.`,
-            );
-          }
-          throw error;
-        }
-
-        // Reset rate limit tracking on success
-        this.last429Error = null;
-        this.retryCount = 0;
-
-        this.updateSession(session);
-        console.log("✅ PowerSync: Anonymous login successful");
-      } catch (error) {
-        console.error("❌ PowerSync: Anonymous login failed:", error);
-        throw error;
-      } finally {
-        // Clear the promise so future calls can create a new one
-        this.loginAnonPromise = null;
-      }
-    })();
-
-    await this.loginAnonPromise;
-  }
 
   async logout() {
     console.log("logging out");

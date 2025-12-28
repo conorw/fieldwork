@@ -233,14 +233,33 @@ const createMap = async () => {
     // Find available PMTiles location function
     const findSelectedLocation = async () => {
       try {
-        // Only load locations if not already loaded
+        // Ensure locations are loaded - wait if currently loading
+        if (locationsStore.isLoading) {
+          console.log("🗺️ [MapComponent] Locations are loading, waiting...");
+          // Wait for loading to complete (max 10 seconds)
+          let waitCount = 0;
+          while (locationsStore.isLoading && waitCount < 100) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            waitCount++;
+          }
+        }
+        
+        // Load locations if not already loaded
         if (locationsStore.locations.length === 0) {
+          console.log("🗺️ [MapComponent] No locations found, loading...");
           await locationsStore.loadLocations();
         }
 
         const location = locationsStore.selectedLocation;
+        console.log("🗺️ [MapComponent] findSelectedLocation result:", {
+          found: !!location,
+          id: location?.id,
+          name: location?.name,
+          pmtilesUrl: location?.pmtilesUrl,
+        });
 
         if (!location) {
+          console.warn("🗺️ [MapComponent] No selected location found");
           return null;
         }
 
@@ -253,7 +272,7 @@ const createMap = async () => {
           pmtilesUrl: location.pmtilesUrl,
         };
       } catch (error) {
-        console.error("Error finding available PMTiles location:", error);
+        console.error("🗺️ [MapComponent] Error finding available PMTiles location:", error);
         return null;
       }
     };
@@ -261,20 +280,70 @@ const createMap = async () => {
     // Create tile source using shared utility
     let tileSource;
 
+    // Ensure locations are loaded before creating map
+    if (locationsStore.isLoading) {
+      console.log("🗺️ [MapComponent] Locations are loading, waiting...");
+      // Wait for loading to complete (max 10 seconds)
+      let waitCount = 0;
+      while (locationsStore.isLoading && waitCount < 100) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        waitCount++;
+      }
+    }
+    
+    // Load locations if not already loaded
+    if (locationsStore.locations.length === 0) {
+      console.log("🗺️ [MapComponent] No locations found, loading...");
+      await locationsStore.loadLocations();
+    }
+
     // Check if we have location data with PMTiles support
-    if (
-      locationsStore.selectedLocation &&
-      locationsStore.selectedLocation.pmtilesUrl
-    ) {
-      // Use the best available tile source (PMTiles if cached/available, fallback to others)
+    const selectedLocation = locationsStore.selectedLocation;
+    console.log("🗺️ [MapComponent] Selected location from store:", {
+      id: selectedLocation?.id,
+      name: selectedLocation?.name,
+      pmtilesUrl: selectedLocation?.pmtilesUrl,
+      hasPmtilesUrl: !!selectedLocation?.pmtilesUrl,
+      pmtilesUrlType: typeof selectedLocation?.pmtilesUrl,
+      pmtilesUrlLength: selectedLocation?.pmtilesUrl?.length,
+      fullLocationObject: selectedLocation,
+      locationsCount: locationsStore.locations.length,
+      isLoading: locationsStore.isLoading,
+    });
+
+    if (selectedLocation) {
+      const locationForTileSource = {
+        id: selectedLocation.id,
+        name: selectedLocation.name,
+        bbox: selectedLocation.bbox,
+        minZoom: selectedLocation.minZoom,
+        maxZoom: selectedLocation.maxZoom,
+        pmtilesUrl: selectedLocation.pmtilesUrl,
+      };
+      
+      console.log("🗺️ [MapComponent] ✅ Creating tile source with location object:", {
+        ...locationForTileSource,
+        pmtilesUrl: locationForTileSource.pmtilesUrl,
+        hasPmtilesUrl: !!locationForTileSource.pmtilesUrl,
+        pmtilesUrlCheck: locationForTileSource.pmtilesUrl ? locationForTileSource.pmtilesUrl.trim() !== "" : false,
+      });
+      
+      // Always use createBestTileSource - it will handle the fallback logic
       tileSource = await createBestTileSource(
-        locationsStore.selectedLocation,
+        locationForTileSource,
         props.viewName,
       );
     } else {
+      console.warn("🗺️ [MapComponent] ⚠️ No selected location, trying to find one...");
       // Check if we should use PMTiles even without explicit location prop
       const pmtilesLocation = await findSelectedLocation();
-      tileSource = await createBestTileSource(pmtilesLocation, props.viewName);
+      if (pmtilesLocation) {
+        console.log("🗺️ [MapComponent] ✅ Found location via findSelectedLocation:", pmtilesLocation);
+        tileSource = await createBestTileSource(pmtilesLocation, props.viewName);
+      } else {
+        console.warn("🗺️ [MapComponent] ⚠️ No location found, using fallback online PMTiles");
+        tileSource = await createBestTileSource(null, props.viewName);
+      }
     }
 
     // Create view using shared utility
