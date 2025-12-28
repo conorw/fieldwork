@@ -198,13 +198,12 @@ WITH CHECK (
     AND locations.owner_id = auth.uid()
   )
   AND (
-    -- Can't add another owner (only one owner)
+    -- Allow adding owner role if the user is adding themselves as owner
+    -- (This handles the initial owner creation when a location is created)
+    (location_members.role = 'owner' AND location_members.user_id = auth.uid())
+    OR
+    -- Can't add another owner (only one owner) - for non-owner inserts
     location_members.role != 'owner'
-    OR NOT EXISTS (
-      SELECT 1 FROM locations
-      WHERE locations.id = location_members.location_id
-      AND locations.owner_id IS NOT NULL
-    )
   )
 );
 

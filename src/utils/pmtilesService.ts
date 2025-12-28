@@ -126,6 +126,7 @@ class PMTilesService {
       }
 
       // Cache the data using Cache Storage API (browser cache for PWA offline support)
+      // If caching fails, continue anyway - the data is still available
       try {
         await pmtilesCache.cachePMTiles(
           location.id,
@@ -135,12 +136,13 @@ class PMTilesService {
           location.minZoom,
           location.maxZoom,
         );
-        console.log("PMTiles service: Data cached in Cache Storage");
+        console.log("📦 [PMTilesService] ✅ Data cached in Cache Storage");
       } catch (cacheError) {
         console.warn(
-          "PMTiles service: Failed to cache data, but continuing:",
+          "📦 [PMTilesService] ⚠️ Failed to cache data (non-fatal), continuing anyway:",
           cacheError,
         );
+        // Don't throw - caching is optional, the data is still available
       }
 
       return {

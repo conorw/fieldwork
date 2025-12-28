@@ -96,6 +96,7 @@ class PMTilesCacheManager {
 
       // Store metadata as JSON response
       const metadataKey = this.getMetadataKey(locationId);
+      console.log('📦 [PMTilesCache] Storing metadata with key:', metadataKey.url);
       const metadataResponse = new Response(JSON.stringify(metadata), {
         headers: { "Content-Type": "application/json" },
       });
@@ -103,6 +104,7 @@ class PMTilesCacheManager {
 
       // Store PMTiles data as ArrayBuffer response
       const dataKey = this.getDataKey(locationId);
+      console.log('📦 [PMTilesCache] Storing data with key:', dataKey.url);
       const dataResponse = new Response(data, {
         headers: { "Content-Type": "application/octet-stream" },
       });
@@ -174,7 +176,7 @@ class PMTilesCacheManager {
 
       // Process metadata keys only (skip data keys)
       for (const key of keys) {
-        if (key.url.includes("pmtiles-cache://metadata/")) {
+        if (key.url.includes("/pmtiles-cache/metadata/")) {
           const response = await cache.match(key);
           if (response) {
             const metadata: CacheMetadata = await response.json();
@@ -216,18 +218,27 @@ class PMTilesCacheManager {
 
   /**
    * Get metadata key for a location
-   * Using a custom scheme to avoid conflicts with real URLs
+   * Using relative URLs to avoid conflicts with real URLs
+   * Cache Storage API only supports http/https URLs or relative paths
    */
   private getMetadataKey(locationId: string): Request {
-    return new Request(`pmtiles-cache://metadata/${locationId}`);
+    // Use a relative URL with a unique prefix to avoid conflicts
+    // The origin will be the current page origin, but this is just a cache key
+    return new Request(`/pmtiles-cache/metadata/${locationId}`, {
+      method: 'GET',
+    });
   }
 
   /**
    * Get data key for a location
-   * Using a custom scheme to avoid conflicts with real URLs
+   * Using relative URLs to avoid conflicts with real URLs
+   * Cache Storage API only supports http/https URLs or relative paths
    */
   private getDataKey(locationId: string): Request {
-    return new Request(`pmtiles-cache://data/${locationId}`);
+    // Use a relative URL with a unique prefix to avoid conflicts
+    return new Request(`/pmtiles-cache/data/${locationId}`, {
+      method: 'GET',
+    });
   }
 
   /**

@@ -87,10 +87,22 @@ const isSaving = ref(false)
 
 const loadLocation = async () => {
   try {
-    // Use PowerSync to load location (works offline)
+    // Wait for PowerSync to be ready
     if (!powerSyncStore.powerSync) {
-      throw new Error('PowerSync not initialized')
+      console.log('📍 [LocationSettings] PowerSync not initialized, waiting...')
+      // Wait up to 10 seconds for PowerSync to initialize
+      let waitCount = 0
+      while (!powerSyncStore.powerSync && waitCount < 100) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        waitCount++
+      }
+      
+      if (!powerSyncStore.powerSync) {
+        throw new Error('PowerSync not initialized after waiting')
+      }
     }
+    
+    console.log('📍 [LocationSettings] Loading location:', locationId)
     
     // Load location from PowerSync
     const locData = await powerSyncStore.powerSync.get(
@@ -99,8 +111,22 @@ const loadLocation = async () => {
     ) as any
     
     if (!locData) {
-      throw new Error('Location not found')
+      console.error('📍 [LocationSettings] Location not found:', locationId)
+      toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Location not found',
+      })
+      router.push('/locations')
+      return
     }
+    
+    console.log('📍 [LocationSettings] Location loaded:', {
+      id: locData.id,
+      name: locData.name,
+      owner_id: locData.owner_id,
+      current_user_id: authStore.user?.id,
+    })
     
     location.value = {
       ...locData,
@@ -110,30 +136,48 @@ const loadLocation = async () => {
     
     // Check user role from PowerSync
     if (authStore.user) {
-      const memberData = await powerSyncStore.powerSync.get(
-        'SELECT role FROM location_members WHERE location_id = ? AND user_id = ?',
-        [locationId, authStore.user.id]
-      ) as any
+      // First check if user is owner (from locations table)
+      const isOwner = locData.owner_id === authStore.user.id
       
-      // Also check if user is owner
-      if (locData.owner_id === authStore.user.id) {
+      if (isOwner) {
         userRole.value = 'owner'
+        console.log('📍 [LocationSettings] User is owner of location')
       } else {
+        // Check location_members table
+        const memberData = await powerSyncStore.powerSync.get(
+          'SELECT role FROM location_members WHERE location_id = ? AND user_id = ?',
+          [locationId, authStore.user.id]
+        ) as any
+        
         userRole.value = memberData?.role || null
+        console.log('📍 [LocationSettings] User role from location_members:', userRole.value)
       }
       
       // Check if user has permission (owner or admin)
       if (userRole.value !== 'owner' && userRole.value !== 'admin') {
-        router.push('/locations')
+        console.warn('📍 [LocationSettings] Access denied - user role:', userRole.value)
         toast.add({
           severity: 'warn',
           summary: 'Access Denied',
           detail: 'You do not have permission to access this page',
         })
+        router.push('/locations')
+        return
       }
+      
+      console.log('📍 [LocationSettings] Access granted - user role:', userRole.value)
+    } else {
+      console.warn('📍 [LocationSettings] No authenticated user')
+      router.push('/auth')
+      return
     }
   } catch (error) {
-    console.error('Error loading location:', error)
+    console.error('📍 [LocationSettings] Error loading location:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: `Failed to load location: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    })
     router.push('/locations')
   }
 }
