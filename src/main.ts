@@ -1,13 +1,8 @@
-// Polyfill Buffer for PowerSync (Node.js compatibility)
-import { Buffer } from 'buffer'
-window.Buffer = Buffer
-globalThis.Buffer = Buffer
-
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router/index'
-import { usePowerSyncStore } from './stores/powersync'
+import { useElectricStore } from './stores/electric'
 import { useSettingsStore } from './stores/settings'
 import { useMapStore } from './stores/map'
 
@@ -105,13 +100,13 @@ app.directive('focustrap', FocusTrap)
 app.directive('tooltip', Tooltip)
 
 // Initialize stores
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 const settingsStore = useSettingsStore()
 const mapStore = useMapStore()
 
-// Initialize PowerSync store
-powerSyncStore.initialize().catch((error: Error) => {
-  console.error('Failed to initialize PowerSync store:', error)
+// Initialize Electric SQL store
+electricStore.initialize().catch((error: Error) => {
+  console.error('Failed to initialize Electric SQL store:', error)
 })
 
 // Initialize map store

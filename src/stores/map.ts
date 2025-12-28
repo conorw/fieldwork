@@ -1,7 +1,7 @@
 
 import { ref, watch } from 'vue'
 import { useGeolocation } from '@vueuse/core'
-import { usePowerSyncStore } from './powersync'
+import { useElectricStore } from './electric'
 import { defineStore } from 'pinia'
 import { useLocationsStore } from './locations'
 import { usePersonsStore } from './persons'
@@ -333,30 +333,21 @@ export const useMapStore = defineStore('map', () => {
   // Clear extent configuration
   const clearExtentConfiguration = async (): Promise<void> => {
     try {
-      const powerSyncStore = usePowerSyncStore()
+      const electricStore = useElectricStore()
 
-      if (!powerSyncStore.powerSync) {
-        console.error('Zero.dev not initialized, cannot clear extent')
+      if (!electricStore.isInitialized) {
+        console.error('Electric SQL not initialized, cannot clear extent')
         return
       }
 
-      // Find and delete the settings
-      const existingSettings2 = await powerSyncStore.powerSync.getAll(
-        'SELECT * FROM settings WHERE type = ?',
-        ['mapExtent']
-      )
+      // Delete settings from Supabase
+      const { error: deleteError } = await electricStore.supabaseClient
+        .from('settings')
+        .delete()
+        .eq('type', 'mapExtent')
 
-      if (existingSettings2 && existingSettings2.length > 0) {
-        const existingSetting = existingSettings2[0] as any
-        await powerSyncStore.powerSync.execute('DELETE FROM settings WHERE id = ?', [existingSetting.id])
-
-        // Trigger sync to save changes (optional - don't fail if sync fails)
-        try {
-          // PowerSync handles sync automatically
-        } catch (syncError) {
-          console.warn('Map extent deleted locally but server sync failed:', syncError)
-          // Don't throw the error - local deletion was successful
-        }
+      if (deleteError) {
+        console.warn('Map extent deletion error:', deleteError)
       }
 
       // Update local state
@@ -644,10 +635,48 @@ export const useMapStore = defineStore('map', () => {
     }
 
     try {
-
-      // Parse geometry
-      const geometry = JSON.parse(plot.geometry) as { coordinates: number[][][] }
-      const coordinates: number[][] = geometry.coordinates[0]
+      // Parse geometry - handle both GeoJSON and array formats
+      if (!plot.geometry) {
+        console.error('Plot geometry is missing in zoomToPlot:', plot)
+        return
+      }
+      
+      let parsedGeometry: any
+      try {
+        parsedGeometry = typeof plot.geometry === 'string' 
+          ? JSON.parse(plot.geometry) 
+          : plot.geometry
+      } catch (parseError) {
+        console.error('Error parsing plot geometry in zoomToPlot:', parseError, plot.geometry)
+        return
+      }
+      
+      // Handle both GeoJSON format and direct array format
+      let coordinates: number[][]
+      if (Array.isArray(parsedGeometry)) {
+        if (parsedGeometry.length > 0 && Array.isArray(parsedGeometry[0]) && Array.isArray(parsedGeometry[0][0])) {
+          coordinates = parsedGeometry[0]
+        } else if (parsedGeometry.length > 0 && Array.isArray(parsedGeometry[0]) && typeof parsedGeometry[0][0] === 'number') {
+          coordinates = parsedGeometry
+        } else {
+          console.error('Unexpected array format in zoomToPlot:', parsedGeometry)
+          return
+        }
+      } else if (parsedGeometry && parsedGeometry.coordinates) {
+        if (!Array.isArray(parsedGeometry.coordinates) || parsedGeometry.coordinates.length === 0) {
+          console.error('Invalid coordinates in zoomToPlot:', parsedGeometry.coordinates)
+          return
+        }
+        coordinates = parsedGeometry.coordinates[0]
+      } else {
+        console.error('Invalid geometry format in zoomToPlot:', parsedGeometry)
+        return
+      }
+      
+      if (!coordinates || !Array.isArray(coordinates) || coordinates.length === 0) {
+        console.error('Invalid coordinates array in zoomToPlot:', coordinates)
+        return
+      }
 
       // Check if coordinates are already in map projection or need conversion
       // Map projection coordinates (EPSG:3857) are typically much larger than lat/lng
@@ -700,8 +729,13 @@ export const useMapStore = defineStore('map', () => {
 
   // Plot marker management
   const addPlotMarker = (plot: any): void => {
-    if (!map.value || !plot.geometry) {
-      console.warn('Cannot add plot marker: map or plot geometry not available')
+    if (!map.value) {
+      console.warn('Cannot add plot marker: map not available')
+      return
+    }
+    
+    if (!plot.geometry) {
+      console.warn('Cannot add plot marker: plot geometry not available', plot)
       return
     }
 
@@ -727,9 +761,60 @@ export const useMapStore = defineStore('map', () => {
         }
       }
 
-      // Parse geometry
-      const geometry = JSON.parse(plot.geometry) as { coordinates: number[][][] }
-      const coordinates: number[][] = geometry.coordinates[0]
+      // Parse geometry with detailed validation
+      console.log('🔍 addPlotMarker: Parsing geometry for plot:', plot.id, 'Geometry type:', typeof plot.geometry)
+      
+      let parsedGeometry: any
+      try {
+        if (typeof plot.geometry === 'string') {
+          parsedGeometry = JSON.parse(plot.geometry)
+        } else if (plot.geometry && typeof plot.geometry === 'object') {
+          parsedGeometry = plot.geometry
+        } else {
+          console.error('Invalid geometry type:', typeof plot.geometry, plot.geometry)
+          return
+        }
+      } catch (parseError) {
+        console.error('Error parsing plot geometry:', parseError, 'Raw geometry:', plot.geometry)
+        return
+      }
+      
+      console.log('🔍 addPlotMarker: Parsed geometry:', parsedGeometry, 'Is array:', Array.isArray(parsedGeometry))
+      
+      // Handle both GeoJSON format { type: 'Polygon', coordinates: [...] } and direct array format
+      let coordinates: number[][]
+      
+      if (Array.isArray(parsedGeometry)) {
+        // If it's already an array, it might be coordinates directly
+        // Check if it's a nested array structure (coordinates format)
+        if (parsedGeometry.length > 0 && Array.isArray(parsedGeometry[0]) && Array.isArray(parsedGeometry[0][0])) {
+          // It's already in coordinates format: [[[lon, lat], ...]]
+          coordinates = parsedGeometry[0]
+        } else if (parsedGeometry.length > 0 && Array.isArray(parsedGeometry[0]) && typeof parsedGeometry[0][0] === 'number') {
+          // It's a single ring: [[lon, lat], ...]
+          coordinates = parsedGeometry
+        } else {
+          console.error('Unexpected array format for geometry:', parsedGeometry)
+          return
+        }
+      } else if (parsedGeometry && typeof parsedGeometry === 'object' && parsedGeometry.coordinates) {
+        // Standard GeoJSON format
+        if (!Array.isArray(parsedGeometry.coordinates) || parsedGeometry.coordinates.length === 0) {
+          console.error('Invalid coordinates in GeoJSON:', parsedGeometry.coordinates)
+          return
+        }
+        coordinates = parsedGeometry.coordinates[0]
+      } else {
+        console.error('Geometry is not in expected format:', parsedGeometry)
+        return
+      }
+      
+      if (!coordinates || !Array.isArray(coordinates) || coordinates.length === 0) {
+        console.error('Invalid coordinates array:', coordinates)
+        return
+      }
+      
+      console.log('✅ addPlotMarker: Geometry validated successfully, coordinates count:', coordinates.length)
 
       // Check if coordinates are already in map projection (EPSG:3857) or need conversion from lat/lng (EPSG:4326)
       const isMapProjection = coordinates.some((coord: number[]) =>
@@ -765,9 +850,48 @@ export const useMapStore = defineStore('map', () => {
     }
 
     try {
-      // Parse geometry
-      const geometry = JSON.parse(plot.geometry) as { coordinates: number[][][] }
-      const coordinates: number[][] = geometry.coordinates[0]
+      // Parse geometry - handle both GeoJSON and array formats
+      if (!plot.geometry) {
+        console.error('Plot geometry is missing in addPlotMarkerOptimized:', plot)
+        return
+      }
+      
+      let parsedGeometry: any
+      try {
+        parsedGeometry = typeof plot.geometry === 'string' 
+          ? JSON.parse(plot.geometry) 
+          : plot.geometry
+      } catch (parseError) {
+        console.error('Error parsing plot geometry in addPlotMarkerOptimized:', parseError, plot.geometry)
+        return
+      }
+      
+      // Handle both GeoJSON format and direct array format
+      let coordinates: number[][]
+      if (Array.isArray(parsedGeometry)) {
+        if (parsedGeometry.length > 0 && Array.isArray(parsedGeometry[0]) && Array.isArray(parsedGeometry[0][0])) {
+          coordinates = parsedGeometry[0]
+        } else if (parsedGeometry.length > 0 && Array.isArray(parsedGeometry[0]) && typeof parsedGeometry[0][0] === 'number') {
+          coordinates = parsedGeometry
+        } else {
+          console.error('Unexpected array format in addPlotMarkerOptimized:', parsedGeometry)
+          return
+        }
+      } else if (parsedGeometry && parsedGeometry.coordinates) {
+        if (!Array.isArray(parsedGeometry.coordinates) || parsedGeometry.coordinates.length === 0) {
+          console.error('Invalid coordinates in addPlotMarkerOptimized:', parsedGeometry.coordinates)
+          return
+        }
+        coordinates = parsedGeometry.coordinates[0]
+      } else {
+        console.error('Invalid geometry format in addPlotMarkerOptimized:', parsedGeometry)
+        return
+      }
+      
+      if (!coordinates || !Array.isArray(coordinates) || coordinates.length === 0) {
+        console.error('Invalid coordinates array in addPlotMarkerOptimized:', coordinates)
+        return
+      }
 
       // Check if coordinates are already in map projection
       const isMapProjection = coordinates.some((coord: number[]) =>
@@ -978,7 +1102,7 @@ export const useMapStore = defineStore('map', () => {
   const saveInPlacePlotCoordinates = async (newCoordinates: number[][], plotId: string): Promise<void> => {
     try {
       // Import required modules
-      const { usePowerSyncStore } = await import('./powersync')
+      const { useElectricStore } = await import('./electric')
 
       // Create geometry from coordinates - store in lat/lng format (WGS84)
       // newCoordinates are already in [lon, lat] format from toLonLat conversion
@@ -990,8 +1114,8 @@ export const useMapStore = defineStore('map', () => {
       const geometryString = JSON.stringify(geometry)
 
       // Update the plot in the database
-      const powerSyncStore = usePowerSyncStore()
-      await powerSyncStore.updatePlotGeometry(plotId, geometryString)
+      const electricStore = useElectricStore()
+      await electricStore.updatePlotGeometry(plotId, geometryString)
     } catch (error) {
       console.error('❌ MapStore: Error saving in-place plot coordinates:', error)
       throw error
@@ -1046,7 +1170,7 @@ export const useMapStore = defineStore('map', () => {
       }
 
       // Re-add the plot with updated geometry
-      const { usePlots } = await import('./powersync')
+      const { usePlots } = await import('./electric')
       const plotsStore = usePlots()
 
       if (plotsStore.data.value) {

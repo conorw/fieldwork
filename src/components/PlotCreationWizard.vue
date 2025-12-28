@@ -199,9 +199,8 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
 import { useMapStore } from '../stores/map'
-import { usePowerSyncStore } from '../stores/powersync'
+import { useElectricStore, usePlots } from '../stores/electric'
 import { useLocationsStore } from '../stores/locations'
-import { usePlots } from '../stores/powersync'
 import MapEdit from './MapEdit.vue'
 import { headstoneAnalysisService } from '../utils/headstoneAnalysisService'
 
@@ -209,7 +208,7 @@ import { headstoneAnalysisService } from '../utils/headstoneAnalysisService'
 import { CapacitorCameraService } from '../services/capacitorCamera'
 
 // Convert photoData to File object for analysis
-import { base64ToBlob } from '../powersync-schema'
+import { base64ToBlob } from '../electric-schema'
 
 // Shared utilities
 import { DEFAULT_PLOT_SIZE, getSimplifiedPlotSizes } from '../utils/plotSizes'
@@ -234,7 +233,7 @@ const emit = defineEmits(['close', 'plotCreated'])
 
 // Stores
 const mapStore = useMapStore()
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 const locationsStore = useLocationsStore()
 const plots = usePlots()
 
@@ -653,17 +652,11 @@ const createPlot = async () => {
   try {
     isCreating.value = true
 
-    // Ensure PowerSync store is initialized before creating plot
-    if (!powerSyncStore.isInitialized) {
-      wizardLogger.debug('PowerSync store not initialized, initializing now...')
-      await powerSyncStore.initialize()
-      wizardLogger.debug('PowerSync store initialized successfully')
-    }
-
-    // Additional check to ensure PowerSync client is fully ready
-    if (!powerSyncStore.powerSync) {
-      wizardLogger.error('PowerSync client not available after initialization')
-      throw new Error('PowerSync client not available')
+    // Ensure Electric SQL store is initialized before creating plot
+    if (!electricStore.isInitialized) {
+      wizardLogger.debug('Electric SQL store not initialized, initializing now...')
+      await electricStore.initialize()
+      wizardLogger.debug('Electric SQL store initialized successfully')
     }
 
     // Validate required data
@@ -733,7 +726,7 @@ const createPlot = async () => {
 
     wizardLogger.debug('Creating plot with comprehensive data:', plotData)
 
-    const newPlot = await powerSyncStore.createNewPlot(plotData)
+    const newPlot = await electricStore.createNewPlot(plotData)
     wizardLogger.debug('Plot created successfully:', newPlot)
     showSuccess('Plot created successfully!')
 
@@ -829,7 +822,7 @@ const processRemainingOperationsInBackground = async (newPlot, preservedPhotoDat
       wizardLogger.debug('Image blob created:', imageBlob.size, 'bytes')
 
       // Add the image to the plot (analysis is handled by the service)
-      const savedImage = await powerSyncStore.addPlotImage(newPlot.id, imageBlob, 'plot-photo.jpg', {
+      const savedImage = await electricStore.addPlotImage(newPlot.id, imageBlob, 'plot-photo.jpg', {
         analyzeForHeadstone: false // Analysis is handled by the service
       })
       wizardLogger.debug('Photo saved successfully in background:', savedImage.id)
@@ -875,7 +868,7 @@ const populateFormWithDefaults = async () => {
   // Generate plot number if not already set
   if (!plotNumber.value) {
     try {
-      const generatedNumber = await powerSyncStore.generateNextPlotNumber()
+      const generatedNumber = await electricStore.generateNextPlotNumber()
       plotNumber.value = generatedNumber
       wizardLogger.debug('Generated plot number:', generatedNumber)
     } catch (error) {

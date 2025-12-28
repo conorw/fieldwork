@@ -31,7 +31,7 @@ A local-first progressive web application for cemetery plot documentation and fi
 ### 📱 Progressive Web App
 - **Installable**: Works as a native app on iOS and Android
 - **Offline-First**: Full functionality without internet connection
-- **Real-time Sync**: PowerSync integration for seamless data synchronization
+- **Real-time Sync**: Electric SQL integration for seamless data synchronization
 - **Mobile-Optimized**: Touch gestures, responsive design, and native device features
 
 ## 🚀 Quick Start
@@ -57,9 +57,16 @@ A local-first progressive web application for cemetery plot documentation and fi
    
    Create a `.env.local` file in the root directory:
    ```bash
-   # PowerSync Configuration (Required)
-   VITE_POWERSYNC_URL=your_powersync_url
-   VITE_POWERSYNC_DEV_TOKEN=your_dev_token
+   # Electric SQL Configuration (Required)
+   # Electric Cloud URL (defaults to /api/electric-shape proxy endpoint)
+   # Use the proxy endpoint to avoid CORS issues and keep secrets secure
+   VITE_ELECTRIC_URL=/api/electric-shape
+   # Your Electric Cloud source ID (get from https://dashboard.electric-sql.cloud)
+   # This is used by the proxy endpoint
+   VITE_ELECTRIC_SOURCE_ID=your_electric_source_id
+   # Your Electric Cloud source secret (server-side only, never expose to client)
+   # Add this to your Vercel environment variables, not .env.local
+   ELECTRIC_SOURCE_SECRET=your_electric_source_secret
    
    # Supabase Configuration (Required)
    VITE_SUPABASE_URL=your_supabase_url

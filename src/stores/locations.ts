@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { usePowerSyncStore } from './powersync'
-import type { LocationRecord } from '../powersync-schema'
+import { useElectricStore } from './electric'
+import type { LocationRecord } from '../electric-schema'
 import { pmtilesService, type PMTilesLocation } from '../utils/pmtilesService'
 import { useStorage } from '@vueuse/core'
 
@@ -18,7 +18,7 @@ export interface LocationData {
 }
 
 export const useLocationsStore = defineStore('locations', () => {
-  const powerSyncStore = usePowerSyncStore()
+  const electricStore = useElectricStore()
 
   // State
   const locations = ref<LocationData[]>([])
@@ -51,24 +51,24 @@ export const useLocationsStore = defineStore('locations', () => {
       return
     }
     
-    // Wait for PowerSync to be ready
-    if (!powerSyncStore.powerSync) {
-      const isConnecting = powerSyncStore.isConnecting || (powerSyncStore as any).isInitialized === false
+    // Wait for Electric SQL to be ready
+    if (!electricStore.isInitialized) {
+      const isConnecting = electricStore.isConnecting
       
-      if (isConnecting || !powerSyncStore.isInitialized) {
-        // Wait up to 10 seconds for PowerSync to initialize
+      if (isConnecting || !electricStore.isInitialized) {
+        // Wait up to 10 seconds for Electric SQL to initialize
         let waitCount = 0
-        while ((isConnecting || !powerSyncStore.isInitialized) && !powerSyncStore.powerSync && waitCount < 100) {
+        while ((isConnecting || !electricStore.isInitialized) && waitCount < 100) {
           await new Promise(resolve => setTimeout(resolve, 100))
           waitCount++
-          if (powerSyncStore.powerSync) break
+          if (electricStore.isInitialized) break
         }
       }
     }
     
-    if (!powerSyncStore.powerSync) {
-      console.error('LocationsStore: PowerSync client not initialized')
-      error.value = 'PowerSync client not initialized'
+    if (!electricStore.isInitialized) {
+      console.error('LocationsStore: Electric SQL client not initialized')
+      error.value = 'Electric SQL client not initialized'
       return
     }
 
@@ -77,7 +77,11 @@ export const useLocationsStore = defineStore('locations', () => {
 
     try {
       const queryStart = performance.now()
-      const results = await powerSyncStore.powerSync.getAll('SELECT * FROM locations')
+      const { data: results, error: fetchError } = await electricStore.supabaseClient
+        .from('locations')
+        .select('*')
+      
+      if (fetchError) throw fetchError
       const queryEnd = performance.now()
       console.log(`📍 [LocationsStore] Query took ${(queryEnd - queryStart).toFixed(2)}ms, got ${results.length} locations`)
       
@@ -119,8 +123,8 @@ export const useLocationsStore = defineStore('locations', () => {
   }
 
   const updateLocation = async (id: string, updates: Partial<LocationData>) => {
-    if (!powerSyncStore.powerSync) {
-      throw new Error('PowerSync client not initialized')
+    if (!electricStore.isInitialized) {
+      throw new Error('Electric SQL client not initialized')
     }
 
     const location = getLocationById(id)
@@ -145,10 +149,20 @@ export const useLocationsStore = defineStore('locations', () => {
       is_public: updates.isPublic !== undefined ? updates.isPublic.toString() : location.isPublic.toString(),
     }
 
-    await powerSyncStore.powerSync?.execute(
-      'UPDATE locations SET name = ?, bbox = ?, min_zoom = ?, max_zoom = ?, pmtiles_url = ?, date_modified = ?, is_public = ? WHERE id = ?',
-      [updatedLocation.name, updatedLocation.bbox, updatedLocation.min_zoom, updatedLocation.max_zoom, updatedLocation.pmtiles_url, updatedLocation.date_modified, updatedLocation.is_public, id]
-    )
+    const { error: updateError } = await electricStore.supabaseClient
+      .from('locations')
+      .update({
+        name: updatedLocation.name,
+        bbox: updatedLocation.bbox,
+        min_zoom: updatedLocation.min_zoom,
+        max_zoom: updatedLocation.max_zoom,
+        pmtiles_url: updatedLocation.pmtiles_url,
+        date_modified: updatedLocation.date_modified,
+        is_public: updatedLocation.is_public
+      })
+      .eq('id', id)
+    
+    if (updateError) throw updateError
 
     // Update local state
     const index = locations.value.findIndex(loc => loc.id === id)
@@ -161,52 +175,63 @@ export const useLocationsStore = defineStore('locations', () => {
   }
 
   const deleteLocation = async (id: string) => {
-    if (!powerSyncStore.powerSync) {
-      throw new Error('PowerSync client not initialized')
+    if (!electricStore.isInitialized) {
+      throw new Error('Electric SQL client not initialized')
     }
 
     console.log(`🗑️ Deleting location ${id} and all associated data...`)
 
     try {
-      // Start a transaction to ensure all deletions succeed or none do
-      await powerSyncStore.powerSync.writeTransaction(async (tx) => {
-        // 1. Get all plots for this location
-        const plots = await tx.getAll('SELECT id FROM plots WHERE location_id = ?', [id])
-        console.log(`🗑️ Found ${plots.length} plots to delete for location ${id}`)
+      // Get all plots for this location
+      const { data: plots, error: plotsError } = await electricStore.supabaseClient
+        .from('plots')
+        .select('id')
+        .eq('location_id', id)
+      
+      if (plotsError) throw plotsError
+      console.log(`🗑️ Found ${plots?.length || 0} plots to delete for location ${id}`)
 
-        // 2. For each plot, delete associated data
+      // 2. For each plot, delete associated data
+      if (plots) {
         for (const plot of plots) {
-          const plotId = (plot as any).id
+          const plotId = plot.id
           console.log(`🗑️ Deleting data for plot ${plotId}...`)
 
           // Delete plot images
-          await tx.execute('DELETE FROM plot_images WHERE plot_id = ?', [plotId])
+          await electricStore.supabaseClient.from('plot_images').delete().eq('plot_id', plotId)
           console.log(`🗑️ Deleted plot images for plot ${plotId}`)
 
           // Get all persons for this plot
-          const persons = await tx.getAll('SELECT id FROM persons WHERE plot_id = ?', [plotId])
-          console.log(`🗑️ Found ${persons.length} persons to delete for plot ${plotId}`)
+          const { data: persons, error: personsError } = await electricStore.supabaseClient
+            .from('persons')
+            .select('id')
+            .eq('plot_id', plotId)
+          
+          if (personsError) throw personsError
+          console.log(`🗑️ Found ${persons?.length || 0} persons to delete for plot ${plotId}`)
 
           // Delete person images for each person
-          for (const person of persons) {
-            const personId = (person as any).id
-            await tx.execute('DELETE FROM person_images WHERE person_id = ?', [personId])
-            console.log(`🗑️ Deleted person images for person ${personId}`)
+          if (persons) {
+            for (const person of persons) {
+              const personId = person.id
+              await electricStore.supabaseClient.from('person_images').delete().eq('person_id', personId)
+              console.log(`🗑️ Deleted person images for person ${personId}`)
+            }
           }
 
           // Delete all persons for this plot
-          await tx.execute('DELETE FROM persons WHERE plot_id = ?', [plotId])
+          await electricStore.supabaseClient.from('persons').delete().eq('plot_id', plotId)
           console.log(`🗑️ Deleted persons for plot ${plotId}`)
         }
+      }
 
-        // 3. Delete all plots for this location
-        await tx.execute('DELETE FROM plots WHERE location_id = ?', [id])
-        console.log(`🗑️ Deleted plots for location ${id}`)
+      // 3. Delete all plots for this location
+      await electricStore.supabaseClient.from('plots').delete().eq('location_id', id)
+      console.log(`🗑️ Deleted plots for location ${id}`)
 
-        // 4. Finally, delete the location itself
-        await tx.execute('DELETE FROM locations WHERE id = ?', [id])
-        console.log(`🗑️ Deleted location ${id}`)
-      })
+      // 4. Finally, delete the location itself
+      await electricStore.supabaseClient.from('locations').delete().eq('id', id)
+      console.log(`🗑️ Deleted location ${id}`)
 
       // Remove from local state
       const index = locations.value.findIndex(loc => loc.id === id)

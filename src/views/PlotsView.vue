@@ -141,9 +141,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { usePowerSyncStore } from '../stores/powersync'
+import { useElectricStore } from '../stores/electric'
 import { useLocationsStore } from '../stores/locations'
-import { PlotRecord } from '@/powersync-schema'
+// PlotRecord type available from electric-schema if needed
 
 const router = useRouter()
 
@@ -160,7 +160,7 @@ const hasLoadedOnce = ref(false) // Track if initial load has occurred
 const locationsStore = useLocationsStore()
 
 // PowerSync store for direct queries
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 
 // Reactive data for plots
 const plots = ref<any[]>([])
@@ -231,8 +231,8 @@ const loadPlots = async () => {
   const loadStart = performance.now()
   console.log('📋 [PlotsView] Starting loadPlots')
   
-  if (!powerSyncStore.powerSync) {
-    return
+  if (!electricStore.isInitialized) {
+    await electricStore.initialize()
   }
 
   loading.value = true
@@ -243,17 +243,30 @@ const loadPlots = async () => {
     const { query, params } = buildSearchQuery()
     console.log(`📋 [PlotsView] Query built in ${(performance.now() - buildStart).toFixed(2)}ms`)
     
+    // Convert PowerSync query to Supabase query
+    let supabaseQuery = electricStore.supabaseClient.from('plots').select('*')
+    
+    // Apply WHERE conditions from buildSearchQuery
+    // Note: This is a simplified conversion - you may need to adjust based on your query builder
+    if (params && params.length > 0) {
+      // Handle location_id filter
+      if (query.includes('location_id = ?')) {
+        supabaseQuery = supabaseQuery.eq('location_id', params[0])
+      }
+    }
+    
     const queryStart = performance.now()
-    const allPlots = await powerSyncStore.powerSync.getAll(query, params) as PlotRecord[]
+    const { data: allPlots, error: fetchError } = await supabaseQuery
+    if (fetchError) throw fetchError
     const queryEnd = performance.now()
-    console.log(`📋 [PlotsView] Query executed in ${(queryEnd - queryStart).toFixed(2)}ms, got ${allPlots.length} plots`)
+    console.log(`📋 [PlotsView] Query executed in ${(queryEnd - queryStart).toFixed(2)}ms, got ${(allPlots || []).length} plots`)
 
     // Track total count for hasMorePlots
-    totalPlotsCount.value = allPlots.length
+    totalPlotsCount.value = (allPlots || []).length
 
     // Apply pagination
     const paginationStart = performance.now()
-    plots.value = allPlots.slice(0, displayedPlotsCount.value)
+    plots.value = (allPlots || []).slice(0, displayedPlotsCount.value)
     console.log(`📋 [PlotsView] Pagination applied in ${(performance.now() - paginationStart).toFixed(2)}ms, showing ${plots.value.length} plots`)
     
     const totalTime = performance.now() - loadStart
@@ -307,15 +320,15 @@ watch(() => locationsStore.selectedLocation, async () => {
   await loadPlots()
 }, { immediate: false })
 
-// Load plots when PowerSync is ready
-watch(() => powerSyncStore.isInitialized, async (initialized, wasInitialized) => {
-  console.log(`📋 [PlotsView] PowerSync watcher: initialized=${initialized}, wasInitialized=${wasInitialized}, hasLoadedOnce=${hasLoadedOnce.value}`)
-  // Only trigger if PowerSync became initialized (not if it was already initialized)
-  if (initialized && !wasInitialized && !hasLoadedOnce.value && powerSyncStore.powerSync) {
+// Load plots when Electric SQL is ready
+watch(() => electricStore.isInitialized, async (initialized, wasInitialized) => {
+  console.log(`📋 [PlotsView] Electric SQL watcher: initialized=${initialized}, wasInitialized=${wasInitialized}, hasLoadedOnce=${hasLoadedOnce.value}`)
+  // Only trigger if Electric SQL became initialized (not if it was already initialized)
+  if (initialized && !wasInitialized && !hasLoadedOnce.value) {
     const watcherStart = performance.now()
     hasLoadedOnce.value = true
     await loadPlots()
-    console.log(`📋 [PlotsView] PowerSync watcher completed in ${(performance.now() - watcherStart).toFixed(2)}ms`)
+    console.log(`📋 [PlotsView] Electric SQL watcher completed in ${(performance.now() - watcherStart).toFixed(2)}ms`)
   }
 }, { immediate: true })
 
@@ -346,28 +359,26 @@ const loadPlotImagesBatch = async (plotIds: string[]) => {
   const batchStart = performance.now()
   console.log(`📋 [PlotsView] loadPlotImagesBatch: ${plotIds.length} plot IDs`)
   
-  if (!powerSyncStore.powerSync || plotIds.length === 0) {
+  if (!electricStore.isInitialized || plotIds.length === 0) {
     return
   }
 
   try {
-    // Use a single query with IN clause to get all images at once
-    // Include images with thumbnail_data OR cloud_url (prioritize thumbnails)
-    const placeholders = plotIds.map(() => '?').join(',')
-    const query = `SELECT plot_id, thumbnail_data, cloud_url, data 
-                   FROM plot_images 
-                   WHERE plot_id IN (${placeholders}) 
-                   AND (thumbnail_data IS NOT NULL OR cloud_url IS NOT NULL)
-                   ORDER BY date_created DESC`
-
     const queryStart = performance.now()
-    const allImages = await powerSyncStore.powerSync.getAll(query, plotIds) as any[]
-    console.log(`📋 [PlotsView] Image query took ${(performance.now() - queryStart).toFixed(2)}ms, got ${allImages.length} images`)
+    const { data: allImages, error: fetchError } = await electricStore.supabaseClient
+      .from('plot_images')
+      .select('plot_id, thumbnail_data, cloud_url, data')
+      .in('plot_id', plotIds)
+      .or('thumbnail_data.not.is.null,cloud_url.not.is.null')
+      .order('date_created', { ascending: false })
+    
+    if (fetchError) throw fetchError
+    console.log(`📋 [PlotsView] Image query took ${(performance.now() - queryStart).toFixed(2)}ms, got ${(allImages || []).length} images`)
 
     // Group by plot_id and take the first image for each plot
     const groupStart = performance.now()
     const imageMap = new Map<string, any>()
-    for (const image of allImages) {
+    for (const image of (allImages || [])) {
       if (!imageMap.has(image.plot_id)) {
         imageMap.set(image.plot_id, image)
       }
@@ -440,7 +451,7 @@ onMounted(async () => {
   }
 
   // Load plots if PowerSync is already initialized (e.g., navigating from another screen)
-  if (powerSyncStore.isInitialized && !hasLoadedOnce.value && powerSyncStore.powerSync) {
+  if (electricStore.isInitialized && !hasLoadedOnce.value) {
     console.log('📋 [PlotsView] PowerSync already initialized, loading plots in onMounted')
     hasLoadedOnce.value = true
     await loadPlots()

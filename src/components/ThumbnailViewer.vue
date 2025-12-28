@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { base64ToBlob } from '../powersync-schema'
+import { base64ToBlob } from '../electric-schema'
 
 interface ImageData {
   id: string

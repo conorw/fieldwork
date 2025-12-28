@@ -1,8 +1,8 @@
 // PowerSync store for managing persons (deceased individuals)
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePowerSyncStore } from './powersync'
-import type { PersonRecord } from '../powersync-schema'
+import { useElectricStore } from './electric'
+import type { PersonRecord } from '../electric-schema'
 
 export interface PersonData {
   id: string
@@ -46,8 +46,7 @@ export interface PersonData {
 }
 
 export const usePersonsStore = defineStore('persons', () => {
-  const powerSyncStore = usePowerSyncStore()
-  const powerSync = computed(() => powerSyncStore.powerSync)
+  const electricStore = useElectricStore()
   
   // State
   const persons = ref<PersonData[]>([])
@@ -72,20 +71,23 @@ export const usePersonsStore = defineStore('persons', () => {
 
   // Actions
   const loadPersons = async () => {
-    if (!powerSync.value) {
-      error.value = 'PowerSync not initialized'
-      return
+    if (!electricStore.isInitialized) {
+      await electricStore.initialize()
     }
 
     loading.value = true
     error.value = null
 
     try {
-      const results = await powerSync.value.getAll(
-        'SELECT * FROM persons ORDER BY surname, forename'
-      )
+      const { data: results, error: fetchError } = await electricStore.supabaseClient
+        .from('persons')
+        .select('*')
+        .order('surname', { ascending: true })
+        .order('forename', { ascending: true })
+      
+      if (fetchError) throw fetchError
 
-      persons.value = results.map((person: any) => ({
+      persons.value = (results || []).map((person: any) => ({
         ...person,
         deceased: person.deceased === 'true' || person.deceased === true,
         person_of_interest: person.person_of_interest === 'true' || person.person_of_interest === true,
@@ -103,18 +105,21 @@ export const usePersonsStore = defineStore('persons', () => {
   }
 
   const loadPersonsByPlot = async (plotId: string) => {
-    if (!powerSync.value) {
-      error.value = 'PowerSync not initialized'
-      return []
+    if (!electricStore.isInitialized) {
+      await electricStore.initialize()
     }
 
     try {
-      const results = await powerSync.value.getAll(
-        'SELECT * FROM persons WHERE plot_id = ? ORDER BY surname, forename',
-        [plotId]
-      )
+      const { data: results, error: fetchError } = await electricStore.supabaseClient
+        .from('persons')
+        .select('*')
+        .eq('plot_id', plotId)
+        .order('surname', { ascending: true })
+        .order('forename', { ascending: true })
+      
+      if (fetchError) throw fetchError
 
-      return results.map((person: any) => ({
+      return (results || []).map((person: any) => ({
         ...person,
         deceased: person.deceased === 'true' || person.deceased === true,
         person_of_interest: person.person_of_interest === 'true' || person.person_of_interest === true,
@@ -129,9 +134,8 @@ export const usePersonsStore = defineStore('persons', () => {
   }
 
   const createPerson = async (personData: Partial<PersonData>): Promise<PersonData | null> => {
-    if (!powerSync.value) {
-      error.value = 'PowerSync not initialized'
-      return null
+    if (!electricStore.isInitialized) {
+      await electricStore.initialize()
     }
 
     const personId = `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -190,32 +194,11 @@ export const usePersonsStore = defineStore('persons', () => {
       console.log('🔍 PersonsStore: About to execute INSERT for person:', newPerson.id)
       console.log('🔍 PersonsStore: INSERT data:', newPerson)
       
-      await powerSync.value.execute(
-        `INSERT INTO persons (
-          id, plot_id, title, forename, middle_name, surname, full_name,
-          address_line1, address_line2, town, county, country, postcode,
-          mobile, landline, email_address, gender, date_of_birth, deceased,
-          notes, race, ethnicity, created_by, date_created, last_updated_by,
-          last_updated_datetime, birth_city, birth_sub_country, birth_country,
-          marital_status, known_as, maiden_name, date_of_death, age_at_death,
-          cause_of_death, person_of_interest, veteran, time_of_death
-   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newPerson.id, newPerson.plot_id, newPerson.title, newPerson.forename,
-          newPerson.middle_name, newPerson.surname, newPerson.full_name,
-          newPerson.address_line1, newPerson.address_line2, newPerson.town,
-          newPerson.county, newPerson.country, newPerson.postcode,
-          newPerson.mobile, newPerson.landline, newPerson.email_address,
-          newPerson.gender, newPerson.date_of_birth, newPerson.deceased,
-          newPerson.notes, newPerson.race, newPerson.ethnicity,
-          newPerson.created_by, newPerson.date_created, newPerson.last_updated_by,
-          newPerson.last_updated_datetime, newPerson.birth_city, newPerson.birth_sub_country,
-          newPerson.birth_country, newPerson.marital_status, newPerson.known_as,
-          newPerson.maiden_name, newPerson.date_of_death, newPerson.age_at_death,
-          newPerson.cause_of_death, newPerson.person_of_interest, newPerson.veteran,
-          newPerson.time_of_death
-        ]
-      )
+      const { error: insertError } = await electricStore.supabaseClient
+        .from('persons')
+        .insert(newPerson)
+      
+      if (insertError) throw insertError
       
       console.log('✅ PersonsStore: INSERT executed successfully for person:', newPerson.id)
 
@@ -232,9 +215,8 @@ export const usePersonsStore = defineStore('persons', () => {
   }
 
   const updatePerson = async (personId: string, updates: Partial<PersonData>): Promise<boolean> => {
-    if (!powerSync.value) {
-      error.value = 'PowerSync not initialized'
-      return false
+    if (!electricStore.isInitialized) {
+      await electricStore.initialize()
     }
 
     const now = new Date().toISOString()
@@ -254,8 +236,7 @@ export const usePersonsStore = defineStore('persons', () => {
     }
 
     try {
-      const updateFields = []
-      const updateValues = []
+      // Removed - using updateObj directly instead
 
       // Build dynamic update query
       const fieldMappings = {
@@ -293,44 +274,49 @@ export const usePersonsStore = defineStore('persons', () => {
         time_of_death: 'time_of_death'
       }
 
+      // Build update object directly
+      const updateObj: Record<string, any> = {}
+
       for (const [key, dbField] of Object.entries(fieldMappings)) {
         if (updates[key as keyof PersonData] !== undefined) {
-          updateFields.push(`${dbField} = ?`)
-          let value = updates[key as keyof PersonData]
-          
-          // Convert boolean values to strings
-          if (key === 'deceased' || key === 'person_of_interest' || key === 'veteran') {
-            value = value ? 'true' : 'false'
-          }
-          // Convert number to string
-          else if (key === 'age_at_death') {
-            value = value !== null && value !== undefined ? value.toString() : null
-          }
-          
-          updateValues.push(value)
+          updateObj[dbField] = updates[key as keyof PersonData]
         }
       }
 
-      if (updateFields.length === 0) {
-        return true // No updates to make
+      // Handle boolean fields (convert to strings)
+      if (updates.deceased !== undefined) {
+        updateObj.deceased = updates.deceased ? 'true' : 'false'
+      }
+      if (updates.person_of_interest !== undefined) {
+        updateObj.person_of_interest = updates.person_of_interest ? 'true' : 'false'
+      }
+      if (updates.veteran !== undefined) {
+        updateObj.veteran = updates.veteran ? 'true' : 'false'
+          }
+
+      // Handle age_at_death (convert number to string)
+      if (updates.age_at_death !== undefined) {
+        updateObj.age_at_death = updates.age_at_death !== null ? updates.age_at_death.toString() : null
       }
 
       // Add full_name if name fields were updated
       if (fullName) {
-        updateFields.push('full_name = ?')
-        updateValues.push(fullName)
+        updateObj.full_name = fullName
       }
 
       // Add last_updated_datetime
-      updateFields.push('last_updated_datetime = ?')
-      updateValues.push(now)
+      updateObj.last_updated_datetime = now
 
-      // Add personId for WHERE clause
-      updateValues.push(personId)
+      if (Object.keys(updateObj).length === 0) {
+        return true // No updates to make
+      }
 
-      const query = `UPDATE persons SET ${updateFields.join(', ')} WHERE id = ?`
+      const { error: updateError } = await electricStore.supabaseClient
+        .from('persons')
+        .update(updateObj)
+        .eq('id', personId)
       
-      await powerSync.value.execute(query, updateValues)
+      if (updateError) throw updateError
 
       // Reload persons to get the updated data
       await loadPersons()
@@ -345,13 +331,17 @@ export const usePersonsStore = defineStore('persons', () => {
   }
 
   const deletePerson = async (personId: string): Promise<boolean> => {
-    if (!powerSync.value) {
-      error.value = 'PowerSync not initialized'
-      return false
+    if (!electricStore.isInitialized) {
+      await electricStore.initialize()
     }
 
     try {
-      await powerSync.value.execute('DELETE FROM persons WHERE id = ?', [personId])
+      const { error: deleteError } = await electricStore.supabaseClient
+        .from('persons')
+        .delete()
+        .eq('id', personId)
+      
+      if (deleteError) throw deleteError
 
       // Remove from local state
       persons.value = persons.value.filter(p => p.id !== personId)

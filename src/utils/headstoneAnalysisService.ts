@@ -1,6 +1,6 @@
 // Service for analyzing headstone images and creating person records
 import { usePersonsStore } from '../stores/persons'
-import { usePowerSyncStore } from '../stores/powersync'
+import { useElectricStore } from '../stores/electric'
 import { useSettingsStore } from '../stores/settings'
 import { localLLMService } from '../services/localLLMService'
 import type { PersonData } from '../stores/persons'
@@ -27,8 +27,8 @@ export class HeadstoneAnalysisService {
     return usePersonsStore()
   }
   
-  private get powerSyncStore() {
-    return usePowerSyncStore()
+  private get electricStore() {
+    return useElectricStore()
   }
 
   private get settingsStore() {
@@ -68,7 +68,7 @@ export class HeadstoneAnalysisService {
         
         // Update plot notes
         if (result.analysisData.full_text_transcription) {
-          await this.powerSyncStore.updateExistingPlot(plotId, {
+          await this.electricStore.updateExistingPlot(plotId, {
             notes: result.analysisData.full_text_transcription
           })
         }
@@ -165,11 +165,11 @@ export class HeadstoneAnalysisService {
         console.log(`HeadstoneAnalysisService: Processing analysis results for temp plot ID: ${tempPlotId}`)
 
         // find the plot using the temp plot id
-        const plot = await this.powerSyncStore.findPlotByTempId(tempPlotId)
+        const plot = await this.electricStore.findPlotByTempId(tempPlotId)
         if (plot) {
           console.log(`HeadstoneAnalysisService: Found plot ${plot.id}, updating notes and creating persons...`)
           const plotId = plot.id
-          await this.powerSyncStore.updateExistingPlot(plotId, {
+          await this.electricStore.updateExistingPlot(plotId, {
             ...plot,
             notes: analysisData.full_text_transcription
           })

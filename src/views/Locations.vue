@@ -103,7 +103,7 @@ import { useRouter } from 'vue-router'
 import { useMapStore } from '../stores/map'
 import { useSettingsStore } from '../stores/settings'
 import { useLocationsStore } from '../stores/locations'
-import { usePowerSyncStore } from '../stores/powersync'
+import { useElectricStore } from '../stores/electric'
 import MapComponent from '../components/MapComponent.vue'
 
 // Static imports for OpenLayers (already in bundle via manualChunks)
@@ -130,7 +130,7 @@ const router = useRouter()
 const mapStore = useMapStore()
 const settingsStore = useSettingsStore()
 const locationsStore = useLocationsStore()
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 
 const mapComponent = ref(null)
 const isLoading = ref(false)
@@ -958,7 +958,7 @@ const handleSetExtent = async () => {
     const pmtiles_url = await generatepmtilesUrl(bbox)
 
     // Save location to database
-    const locationId = await powerSyncStore.addNewLocation({
+    const locationId = await electricStore.addNewLocation({
       name: locationName.value.trim(),
       bbox,
       minZoom: selectedMinZoom.value,
@@ -1013,7 +1013,7 @@ const handleSaveLocation = async () => {
     const pmtiles_url = await generatepmtilesUrl(bbox)
 
     // Save location to database with PMTiles data
-    const locationId = await powerSyncStore.addNewLocation({
+    const locationId = await electricStore.addNewLocation({
       name: locationName.value.trim(),
       bbox,
       minZoom: selectedMinZoom.value,
@@ -1091,8 +1091,8 @@ onMounted(async () => {
 
   try {
     // Initialize PowerSync first
-    if (!powerSyncStore.isInitialized) {
-      await powerSyncStore.initialize()
+    if (!electricStore.isInitialized) {
+      await electricStore.initialize()
     }
 
     // Ensure extent configuration is loaded

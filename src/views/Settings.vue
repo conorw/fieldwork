@@ -327,7 +327,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useOnline } from '@vueuse/core'
-import { usePowerSyncStore } from '../stores/powersync'
+import { useElectricStore } from '../stores/electric'
 import { useLocationsStore } from '../stores/locations'
 import { useSettingsStore } from '../stores/settings'
 import { storageAnalytics } from '../utils/storageAnalytics'
@@ -338,7 +338,7 @@ import { localLLMService } from '../services/localLLMService'
 import InputText from 'primevue/inputtext'
 
 
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 const locationsStore = useLocationsStore()
 const settingsStore = useSettingsStore()
 const isOnline = useOnline()
@@ -371,15 +371,15 @@ const storageSummary = ref<StorageSummary>({
 // Computed properties
 const connectionStatus = computed(() => {
   if (!isOnline.value) return 'Offline'
-  if (!powerSyncStore.isInitialized) return 'Initializing'
-  if (!powerSyncStore.powerSync) return 'Server Unavailable'
+  if (!electricStore.isInitialized) return 'Initializing'
+  return 'Connected'
   return 'Connected'
 })
 
 const connectionStatusSeverity = computed(() => {
   if (!isOnline.value) return 'danger'
-  if (!powerSyncStore.isInitialized) return 'warning'
-  if (!powerSyncStore.powerSync) return 'warning'
+  if (!electricStore.isInitialized) return 'warning'
+  return 'success'
   return 'success'
 })
 
@@ -435,7 +435,7 @@ const selectLocation = (locationId: string) => {
 const refreshStorageInfo = async () => {
   storageLoading.value = true
   try {
-    storageAnalytics.setPowerSyncStore(powerSyncStore)
+    // Storage analytics no longer uses PowerSync - Electric SQL handles storage differently
     storageSummary.value = await storageAnalytics.getStorageSummary()
   } catch (error) {
     console.error('Error loading storage info:', error)

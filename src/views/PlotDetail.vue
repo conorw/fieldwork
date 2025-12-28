@@ -442,13 +442,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { usePowerSyncStore, usePlot, usePlotImages } from '../stores/powersync'
+import { useElectricStore, usePlot, usePlotImages } from '../stores/electric'
 import { usePersonsStore } from '../stores/persons'
 import { useLocationsStore } from '../stores/locations'
 import { useMapStore } from '../stores/map'
 import { createMapView } from '../utils/mapView'
 import { createBestTileSource } from '../utils/tileSource'
-import { base64ToBlob } from '../powersync-schema'
+import { base64ToBlob } from '../electric-schema'
 import { progressiveImageLoader } from '../utils/imageDisplayUtils'
 import ThumbnailViewer from '../components/ThumbnailViewer.vue'
 
@@ -472,7 +472,7 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 const personsStore = usePersonsStore()
 const locationsStore = useLocationsStore()
 const mapStore = useMapStore()
@@ -672,8 +672,8 @@ const saveChanges = async () => {
     if (fallbackPlot.value && !plot.value) {
 
       try {
-        // Try to create the plot in PowerSync if it doesn't exist
-        const createdPlot = await powerSyncStore.createNewPlot(updatedPlotData)
+        // Try to create the plot in Electric SQL if it doesn't exist
+        const createdPlot = await electricStore.createNewPlot(updatedPlotData)
         console.log('Plot created in Zero.dev:', createdPlot)
 
         // Update the fallback plot with the created data
@@ -697,7 +697,7 @@ const saveChanges = async () => {
     }
 
     // Update the plot in the PowerSync store
-    const result = await powerSyncStore.updateExistingPlot(effectivePlot.value.id, updatedPlotData)
+    const result = await electricStore.updateExistingPlot(effectivePlot.value.id, updatedPlotData)
     console.log('Plot update result:', result)
 
     // Sync happens automatically - no need for manual sync
@@ -777,7 +777,7 @@ const deletePlot = async () => {
 
     // 4. Delete the plot itself
     console.log('Deleting plot:', effectivePlot.value.id)
-    await powerSyncStore.deletePlot(effectivePlot.value.id)
+    await electricStore.deletePlot(effectivePlot.value.id)
     console.log('Plot deleted successfully')
 
     // 5. Navigate back to plots list
@@ -820,7 +820,7 @@ const capturePhoto = async () => {
 
       canvas.toBlob(async (blob) => {
         const fileName = `plot_${effectivePlot.value.section}_${effectivePlot.value.row}_${effectivePlot.value.number}_${Date.now()}.jpg`
-        await powerSyncStore.addPlotImage(effectivePlot.value.id, blob, fileName)
+        await electricStore.addPlotImage(effectivePlot.value.id, blob, fileName)
 
         // Stop camera
         stream.getTracks().forEach(track => track.stop())
@@ -835,7 +835,7 @@ const capturePhoto = async () => {
 const deleteImage = async (imageId) => {
   if (confirm('Are you sure you want to delete this photo?')) {
     try {
-      await powerSyncStore.powerSync?.execute('DELETE FROM plot_images WHERE id = ?', [imageId])
+      await electricStore.supabaseClient.from('plot_images').delete().eq('id', imageId)
     } catch (err) {
       console.error('Error deleting image:', err)
     }

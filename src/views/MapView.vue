@@ -126,7 +126,7 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useMapStore } from '../stores/map'
 import { useSettingsStore } from '../stores/settings'
-import { usePowerSyncStore, usePlots, usePlotImages } from '../stores/powersync'
+import { useElectricStore, usePlots, usePlotImages } from '../stores/electric'
 import { useLocationsStore } from '../stores/locations'
 import PlotCreationWizard from '../components/PlotCreationWizard.vue'
 import MapEdit from '../components/MapEdit.vue'
@@ -140,7 +140,7 @@ import { toLonLat } from 'ol/proj'
 
 const mapStore = useMapStore()
 const settingsStore = useSettingsStore()
-const powerSyncStore = usePowerSyncStore()
+const electricStore = useElectricStore()
 const locationsStore = useLocationsStore()
 const router = useRouter()
 
@@ -460,20 +460,20 @@ onMounted(async () => {
       await mapStore.initialize()
     }
 
-    // Wait for PowerSync to initialize before refetching plots
-    // This prevents queries from blocking on database initialization (15+ seconds on slow networks)
-    if (!powerSyncStore.isInitialized) {
+    // Wait for Electric SQL to initialize before refetching plots
+    // This prevents queries from blocking on database initialization
+    if (!electricStore.isInitialized) {
       let waitAttempts = 0
       const maxAttempts = 150
       
-      while (!powerSyncStore.isInitialized && waitAttempts < maxAttempts) {
+      while (!electricStore.isInitialized && waitAttempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100))
         waitAttempts++
       }
       
       // If still not initialized after waiting, continue anyway
-      if (powerSyncStore.isInitialized) {
-        // After PowerSync initializes, give it a moment to start syncing data
+      if (electricStore.isInitialized) {
+        // After Electric SQL initializes, give it a moment to start syncing data
         // This prevents queries from running against an empty local database
         await new Promise(resolve => setTimeout(resolve, 200))
       }
