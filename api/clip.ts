@@ -1,12 +1,12 @@
 // api/clip.ts
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { put } from '@vercel/blob';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import * as https from 'https';
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { put } from "@vercel/blob";
+import { exec } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import * as https from "https";
 
 const execAsync = promisify(exec);
 
@@ -16,14 +16,14 @@ async function getPMTilesBinary(): Promise<string> {
   const arch = os.arch();
 
   // For Vercel deployment, always use the bundled Linux binary
-  if (process.env.VERCEL === '1') {
-    const bundledPath = path.join(process.cwd(), 'bin', 'pmtiles');
+  if (process.env.VERCEL === "1") {
+    const bundledPath = path.join(process.cwd(), "bin", "pmtiles");
     if (fs.existsSync(bundledPath)) {
-      console.log('Using bundled go-pmtiles binary for Vercel');
+      console.log("Using bundled go-pmtiles binary for Vercel");
       return bundledPath;
     }
     // If bundled binary doesn't exist on Vercel, fall back to download
-    console.log('Bundled binary not found on Vercel, will download');
+    console.log("Bundled binary not found on Vercel, will download");
   }
 
   // For local development, download the correct binary for current platform
@@ -36,16 +36,18 @@ async function getPMTilesBinary(): Promise<string> {
   }
 
   // If we're on macOS ARM64 locally, try the bundled binary first, but fall back to download if it fails
-  if (platform === 'darwin' && arch === 'arm64') {
-    const bundledPath = path.join(process.cwd(), 'bin', 'pmtiles');
+  if (platform === "darwin" && arch === "arm64") {
+    const bundledPath = path.join(process.cwd(), "bin", "pmtiles");
     if (fs.existsSync(bundledPath)) {
       // Try to execute the bundled binary to see if it works
       try {
         await execAsync(`"${bundledPath}" --help`);
-        console.log('Using bundled go-pmtiles binary for local development');
+        console.log("Using bundled go-pmtiles binary for local development");
         return bundledPath;
       } catch (error) {
-        console.log('Bundled binary not compatible, will download correct ARM64 version');
+        console.log(
+          "Bundled binary not compatible, will download correct ARM64 version",
+        );
         // Continue to download the correct binary
       }
     }
@@ -55,17 +57,17 @@ async function getPMTilesBinary(): Promise<string> {
   let binaryName: string;
   let isCompressed = false;
 
-  if (platform === 'linux' && arch === 'x64') {
-    binaryName = 'go-pmtiles_1.28.0_Linux_x86_64.tar.gz';
+  if (platform === "linux" && arch === "x64") {
+    binaryName = "go-pmtiles_1.28.0_Linux_x86_64.tar.gz";
     isCompressed = true;
-  } else if (platform === 'darwin' && arch === 'x64') {
-    binaryName = 'go-pmtiles-1.28.0_Darwin_x86_64.zip';
+  } else if (platform === "darwin" && arch === "x64") {
+    binaryName = "go-pmtiles-1.28.0_Darwin_x86_64.zip";
     isCompressed = true;
-  } else if (platform === 'darwin' && arch === 'arm64') {
-    binaryName = 'go-pmtiles-1.28.0_Darwin_arm64.zip';
+  } else if (platform === "darwin" && arch === "arm64") {
+    binaryName = "go-pmtiles-1.28.0_Darwin_arm64.zip";
     isCompressed = true;
-  } else if (platform === 'win32' && arch === 'x64') {
-    binaryName = 'go-pmtiles_1.28.0_Windows_x86_64.zip';
+  } else if (platform === "win32" && arch === "x64") {
+    binaryName = "go-pmtiles_1.28.0_Windows_x86_64.zip";
     isCompressed = true;
   } else {
     throw new Error(`Unsupported platform: ${platform}-${arch}`);
@@ -81,92 +83,105 @@ async function getPMTilesBinary(): Promise<string> {
     const file = fs.createWriteStream(tempFile);
 
     const downloadFile = (downloadUrl: string) => {
-      https.get(downloadUrl, (response) => {
-        // Handle redirects
-        if (response.statusCode === 301 || response.statusCode === 302) {
-          const redirectUrl = response.headers.location;
-          if (redirectUrl) {
-            console.log(`Following redirect to: ${redirectUrl}`);
-            downloadFile(redirectUrl);
+      https
+        .get(downloadUrl, (response) => {
+          // Handle redirects
+          if (response.statusCode === 301 || response.statusCode === 302) {
+            const redirectUrl = response.headers.location;
+            if (redirectUrl) {
+              console.log(`Following redirect to: ${redirectUrl}`);
+              downloadFile(redirectUrl);
+              return;
+            }
+          }
+
+          if (response.statusCode !== 200) {
+            reject(
+              new Error(`Failed to download binary: ${response.statusCode}`),
+            );
             return;
           }
-        }
 
-        if (response.statusCode !== 200) {
-          reject(new Error(`Failed to download binary: ${response.statusCode}`));
-          return;
-        }
+          response.pipe(file);
+          file.on("finish", async () => {
+            file.close();
 
-        response.pipe(file);
-        file.on('finish', async () => {
-          file.close();
+            try {
+              if (isCompressed) {
+                // Extract the binary from the archive
+                const extractDir = path.join(
+                  os.tmpdir(),
+                  `pmtiles-extract-${Date.now()}`,
+                );
+                fs.mkdirSync(extractDir, { recursive: true });
 
-          try {
-            if (isCompressed) {
-              // Extract the binary from the archive
-              const extractDir = path.join(os.tmpdir(), `pmtiles-extract-${Date.now()}`);
-              fs.mkdirSync(extractDir, { recursive: true });
-
-              let extractCommand: string;
-              if (binaryName.endsWith('.tar.gz')) {
-                extractCommand = `tar -xzf "${tempFile}" -C "${extractDir}"`;
-              } else {
-                extractCommand = `unzip -q "${tempFile}" -d "${extractDir}"`;
-              }
-
-              console.log(`Extracting archive: ${extractCommand}`);
-              await execAsync(extractCommand);
-
-              // Find the extracted binary
-              const findCommand = `find "${extractDir}" -name "pmtiles" -o -name "pmtiles.exe" | head -1`;
-              console.log(`Looking for binary: ${findCommand}`);
-              const { stdout } = await execAsync(findCommand);
-              const extractedPath = stdout.trim();
-
-              console.log(`Found binary at: ${extractedPath}`);
-
-              if (extractedPath && fs.existsSync(extractedPath)) {
-                // Move to final location
-                fs.renameSync(extractedPath, binaryPath);
-                fs.chmodSync(binaryPath, 0o755);
-                console.log(`Downloaded and extracted go-pmtiles binary to: ${binaryPath}`);
-
-                // Clean up extraction directory
-                try {
-                  fs.rmSync(extractDir, { recursive: true, force: true });
-                } catch (e) {
-                  console.warn('Failed to clean up extraction directory:', e);
+                let extractCommand: string;
+                if (binaryName.endsWith(".tar.gz")) {
+                  extractCommand = `tar -xzf "${tempFile}" -C "${extractDir}"`;
+                } else {
+                  extractCommand = `unzip -q "${tempFile}" -d "${extractDir}"`;
                 }
 
-                resolve(binaryPath);
+                console.log(`Extracting archive: ${extractCommand}`);
+                await execAsync(extractCommand);
+
+                // Find the extracted binary
+                const findCommand = `find "${extractDir}" -name "pmtiles" -o -name "pmtiles.exe" | head -1`;
+                console.log(`Looking for binary: ${findCommand}`);
+                const { stdout } = await execAsync(findCommand);
+                const extractedPath = stdout.trim();
+
+                console.log(`Found binary at: ${extractedPath}`);
+
+                if (extractedPath && fs.existsSync(extractedPath)) {
+                  // Move to final location
+                  fs.renameSync(extractedPath, binaryPath);
+                  fs.chmodSync(binaryPath, 0o755);
+                  console.log(
+                    `Downloaded and extracted go-pmtiles binary to: ${binaryPath}`,
+                  );
+
+                  // Clean up extraction directory
+                  try {
+                    fs.rmSync(extractDir, { recursive: true, force: true });
+                  } catch (e) {
+                    console.warn("Failed to clean up extraction directory:", e);
+                  }
+
+                  resolve(binaryPath);
+                } else {
+                  // List contents for debugging
+                  const { stdout: lsOutput } = await execAsync(
+                    `find "${extractDir}" -type f`,
+                  );
+                  console.log("Archive contents:", lsOutput);
+                  throw new Error(
+                    "Failed to extract binary from archive - binary not found",
+                  );
+                }
               } else {
-                // List contents for debugging
-                const { stdout: lsOutput } = await execAsync(`find "${extractDir}" -type f`);
-                console.log('Archive contents:', lsOutput);
-                throw new Error('Failed to extract binary from archive - binary not found');
+                // Direct binary download
+                fs.renameSync(tempFile, binaryPath);
+                fs.chmodSync(binaryPath, 0o755);
+                console.log(`Downloaded go-pmtiles binary to: ${binaryPath}`);
+                resolve(binaryPath);
               }
-            } else {
-              // Direct binary download
-              fs.renameSync(tempFile, binaryPath);
-              fs.chmodSync(binaryPath, 0o755);
-              console.log(`Downloaded go-pmtiles binary to: ${binaryPath}`);
-              resolve(binaryPath);
+            } catch (err) {
+              reject(err);
+            } finally {
+              // Clean up temp file
+              try {
+                fs.unlinkSync(tempFile);
+              } catch (e) {
+                // Ignore cleanup errors
+              }
             }
-          } catch (err) {
-            reject(err);
-          } finally {
-            // Clean up temp file
-            try {
-              fs.unlinkSync(tempFile);
-            } catch (e) {
-              // Ignore cleanup errors
-            }
-          }
+          });
+        })
+        .on("error", (err) => {
+          fs.unlink(tempFile, () => {}); // Delete partial file
+          reject(err);
         });
-      }).on('error', (err) => {
-        fs.unlink(tempFile, () => { }); // Delete partial file
-        reject(err);
-      });
     };
 
     downloadFile(url);
@@ -184,7 +199,13 @@ type ClipBody = {
 
 // ---- Minimal PMTiles writer for small clips (single leaf dir, uncompressed) ----
 type TileRef = { z: number; x: number; y: number; data: Uint8Array };
-type DirEntry = { z: number; x: number; y: number; offset: number; length: number };
+type DirEntry = {
+  z: number;
+  x: number;
+  y: number;
+  offset: number;
+  length: number;
+};
 
 function writeUint64LE(view: DataView, offset: number, value: number) {
   // value expected < 2^53 here; enough for our tiny files
@@ -210,7 +231,13 @@ function buildMinimalPMTiles(tiles: TileRef[]): Uint8Array {
   // Compute directory entries with offsets
   let cursor = dataOffset;
   const entries: DirEntry[] = tiles.map((t) => {
-    const e = { z: t.z, x: t.x, y: t.y, offset: cursor, length: t.data.byteLength };
+    const e = {
+      z: t.z,
+      x: t.x,
+      y: t.y,
+      offset: cursor,
+      length: t.data.byteLength,
+    };
     cursor += t.data.byteLength;
     return e;
   });
@@ -224,7 +251,7 @@ function buildMinimalPMTiles(tiles: TileRef[]): Uint8Array {
   // --- Header (v3) ---
   // PMTiles v3 header is 127 bytes
   // Magic bytes (8 bytes)
-  const magic = new TextEncoder().encode('PMTiles\0');
+  const magic = new TextEncoder().encode("PMTiles\0");
   u8.set(magic, 0);
 
   // Version (1 byte)
@@ -276,10 +303,10 @@ function buildMinimalPMTiles(tiles: TileRef[]): Uint8Array {
   view.setUint8(100, 0);
 
   // Min zoom (1 byte)
-  view.setUint8(101, Math.min(...tiles.map(t => t.z)));
+  view.setUint8(101, Math.min(...tiles.map((t) => t.z)));
 
   // Max zoom (1 byte)
-  view.setUint8(102, Math.max(...tiles.map(t => t.z)));
+  view.setUint8(102, Math.max(...tiles.map((t) => t.z)));
 
   // Min lon (4 bytes, little-endian)
   view.setFloat32(103, -180, true);
@@ -325,35 +352,42 @@ function buildMinimalPMTiles(tiles: TileRef[]): Uint8Array {
 }
 
 // Generate PMTiles using go-pmtiles CLI extract command
-async function generatePMTilesWithCLI(sourcePMTilesUrl: string, bbox: [number, number, number, number], minZoom: number, maxZoom: number): Promise<Uint8Array> {
+async function generatePMTilesWithCLI(
+  sourcePMTilesUrl: string,
+  bbox: [number, number, number, number],
+  minZoom: number,
+  maxZoom: number,
+): Promise<Uint8Array> {
   const binaryPath = await getPMTilesBinary();
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmtiles-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pmtiles-"));
 
   try {
     // Use go-pmtiles extract command to extract a portion of the source PMTiles
-    const outputPath = path.join(tempDir, 'output.pmtiles');
+    const outputPath = path.join(tempDir, "output.pmtiles");
     const [minLon, minLat, maxLon, maxLat] = bbox;
 
     // go-pmtiles extract command: extract <source> <output> --bbox=minLon,minLat,maxLon,maxLat --minzoom=z --maxzoom=z
     const command = `"${binaryPath}" extract "${sourcePMTilesUrl}" "${outputPath}" --bbox=${minLon},${minLat},${maxLon},${maxLat}`;
 
     console.log(`Running go-pmtiles extract command: ${command}`);
-    
+
     // Test if binary is executable first by trying to run it with help
     try {
       await execAsync(`"${binaryPath}" --help`);
     } catch (helpError) {
-      console.error('Binary execution test failed:', helpError);
-      throw new Error(`PMTiles binary is not executable or incompatible with this platform. Please ensure the correct binary is available for ${os.platform()}-${os.arch()}.`);
+      console.error("Binary execution test failed:", helpError);
+      throw new Error(
+        `PMTiles binary is not executable or incompatible with this platform. Please ensure the correct binary is available for ${os.platform()}-${os.arch()}.`,
+      );
     }
-    
+
     const { stdout, stderr } = await execAsync(command);
 
     if (stderr) {
-      console.log('go-pmtiles stderr:', stderr);
+      console.log("go-pmtiles stderr:", stderr);
     }
     if (stdout) {
-      console.log('go-pmtiles stdout:', stdout);
+      console.log("go-pmtiles stdout:", stdout);
     }
 
     // Read the generated PMTiles file
@@ -361,35 +395,50 @@ async function generatePMTilesWithCLI(sourcePMTilesUrl: string, bbox: [number, n
     console.log(`Generated PMTiles file size: ${pmtilesData.length} bytes`);
 
     return new Uint8Array(pmtilesData);
-
   } finally {
     // Clean up temp directory
     try {
       fs.rmSync(tempDir, { recursive: true, force: true });
     } catch (err) {
-      console.warn('Failed to clean up temp directory:', err);
+      console.warn("Failed to clean up temp directory:", err);
     }
   }
 }
 
 // ---- Helper: list z/x/y tiles intersecting bbox at each zoom ----
-function tilesForBBox(bbox: [number, number, number, number], minZ: number, maxZ: number) {
+function tilesForBBox(
+  bbox: [number, number, number, number],
+  minZ: number,
+  maxZ: number,
+) {
   const [minLon, minLat, maxLon, maxLat] = bbox;
   const tiles: Array<{ z: number; x: number; y: number }> = [];
 
-  console.log(`Calculating tiles for bbox: [${minLon}, ${minLat}, ${maxLon}, ${maxLat}]`);
+  console.log(
+    `Calculating tiles for bbox: [${minLon}, ${minLat}, ${maxLon}, ${maxLat}]`,
+  );
   console.log(`Bbox format: [minLon, minLat, maxLon, maxLat]`);
 
   for (let z = minZ; z <= maxZ; z++) {
     // Convert lat/lon to tile coordinates manually
     const minTile = pointToTile(minLon, maxLat, z);
     const maxTile = pointToTile(maxLon, minLat, z);
-    const [minX, minY] = [Math.min(minTile[0], maxTile[0]), Math.min(minTile[1], maxTile[1])];
-    const [maxX, maxY] = [Math.max(minTile[0], maxTile[0]), Math.max(minTile[1], maxTile[1])];
+    const [minX, minY] = [
+      Math.min(minTile[0], maxTile[0]),
+      Math.min(minTile[1], maxTile[1]),
+    ];
+    const [maxX, maxY] = [
+      Math.max(minTile[0], maxTile[0]),
+      Math.max(minTile[1], maxTile[1]),
+    ];
 
     console.log(`Zoom ${z}: tile range x:${minX}-${maxX}, y:${minY}-${maxY}`);
-    console.log(`  SW corner (${minLon}, ${maxLat}) -> tile (${minTile[0]}, ${minTile[1]})`);
-    console.log(`  NE corner (${maxLon}, ${minLat}) -> tile (${maxTile[0]}, ${maxTile[1]})`);
+    console.log(
+      `  SW corner (${minLon}, ${maxLat}) -> tile (${minTile[0]}, ${minTile[1]})`,
+    );
+    console.log(
+      `  NE corner (${maxLon}, ${minLat}) -> tile (${maxTile[0]}, ${maxTile[1]})`,
+    );
 
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
@@ -403,13 +452,23 @@ function tilesForBBox(bbox: [number, number, number, number], minZ: number, maxZ
 // Simple lat/lon to tile conversion
 function pointToTile(lon: number, lat: number, zoom: number): [number, number] {
   const n = Math.pow(2, zoom);
-  const xtile = Math.floor((lon + 180) / 360 * n);
+  const xtile = Math.floor(((lon + 180) / 360) * n);
   // Use proper math for y calculation (this is the standard Web Mercator formula)
-  const ytile = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n);
+  const ytile = Math.floor(
+    ((1 -
+      Math.log(
+        Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180),
+      ) /
+        Math.PI) /
+      2) *
+      n,
+  );
 
   // Validate tile coordinates are within bounds
   if (xtile < 0 || xtile >= n || ytile < 0 || ytile >= n) {
-    console.warn(`Invalid tile coordinates: z=${zoom}, x=${xtile}, y=${ytile} (bounds: 0-${n - 1})`);
+    console.warn(
+      `Invalid tile coordinates: z=${zoom}, x=${xtile}, y=${ytile} (bounds: 0-${n - 1})`,
+    );
     // Clamp to valid bounds
     const clampedX = Math.max(0, Math.min(xtile, n - 1));
     const clampedY = Math.max(0, Math.min(ytile, n - 1));
@@ -417,71 +476,88 @@ function pointToTile(lon: number, lat: number, zoom: number): [number, number] {
     return [clampedX, clampedY];
   }
 
-  console.log(`pointToTile: lon=${lon}, lat=${lat}, zoom=${zoom} -> x=${xtile}, y=${ytile}`);
+  console.log(
+    `pointToTile: lon=${lon}, lat=${lat}, zoom=${zoom} -> x=${xtile}, y=${ytile}`,
+  );
   return [xtile, ytile];
 }
 
-async function savePMTilesToBlobStorage(data: Uint8Array, filename: string): Promise<string> {
+async function savePMTilesToBlobStorage(
+  data: Uint8Array,
+  filename: string,
+): Promise<string> {
   try {
     // Check if BLOB_READ_WRITE_TOKEN is available
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not set. Please add it to your Vercel project environment variables.');
+      throw new Error(
+        "BLOB_READ_WRITE_TOKEN environment variable is not set. Please add it to your Vercel project environment variables.",
+      );
     }
 
-    console.log('Uploading PMTiles to Vercel Blob Storage...');
-    console.log('Filename:', filename);
-    console.log('Data size:', data.byteLength, 'bytes');
+    console.log("Uploading PMTiles to Vercel Blob Storage...");
+    console.log("Filename:", filename);
+    console.log("Data size:", data.byteLength, "bytes");
 
     // Convert Uint8Array to Buffer for Vercel Blob
     const buffer = Buffer.from(data);
 
     // Upload to Vercel Blob Storage
     const blob = await put(filename, buffer, {
-      access: 'public',
-      contentType: 'application/octet-stream'
+      access: "public",
+      contentType: "application/octet-stream",
     });
 
     console.log(`✅ PMTiles uploaded to Vercel Blob: ${blob.url}`);
     return blob.url;
   } catch (error) {
-    console.error('❌ Error uploading PMTiles to Vercel Blob Storage:', error);
+    console.error("❌ Error uploading PMTiles to Vercel Blob Storage:", error);
 
     // Provide specific error messages for common issues
     if (error instanceof Error) {
-      if (error.message.includes('Access denied')) {
-        throw new Error('Vercel Blob access denied. Please check your BLOB_READ_WRITE_TOKEN is valid and has the correct permissions.');
-      } else if (error.message.includes('BLOB_READ_WRITE_TOKEN')) {
-        throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not set. Please add it to your Vercel project environment variables.');
+      if (error.message.includes("Access denied")) {
+        throw new Error(
+          "Vercel Blob access denied. Please check your BLOB_READ_WRITE_TOKEN is valid and has the correct permissions.",
+        );
+      } else if (error.message.includes("BLOB_READ_WRITE_TOKEN")) {
+        throw new Error(
+          "BLOB_READ_WRITE_TOKEN environment variable is not set. Please add it to your Vercel project environment variables.",
+        );
       }
     }
 
-    throw new Error(`Failed to upload PMTiles to blob storage: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to upload PMTiles to blob storage: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-  console.log('req body:', req.body);
+  console.log("req body:", req.body);
   const { bbox, minZoom, maxZoom, name }: ClipBody = req.body;
-  console.log('bbox', bbox);
+  console.log("bbox", bbox);
 
-  if (!bbox || bbox.length !== 4) return res.status(400).send('bbox required');
-  if (typeof minZoom !== 'number' || typeof maxZoom !== 'number') return res.status(400).send('minZoom/maxZoom required');
+  if (!bbox || bbox.length !== 4) return res.status(400).send("bbox required");
+  if (typeof minZoom !== "number" || typeof maxZoom !== "number")
+    return res.status(400).send("minZoom/maxZoom required");
 
   const srcURL = process.env.SOURCE_PMTILES_URL;
-  if (!srcURL) return res.status(500).send('SOURCE_PMTILES_URL not configured');
+  if (!srcURL) return res.status(500).send("SOURCE_PMTILES_URL not configured");
 
   // Guardrails for serverless
-  if (maxZoom > 19) return res.status(400).send('maxZoom too high for serverless clip (<=19)');
-  if (minZoom < 0 || minZoom > maxZoom) return res.status(400).send('invalid zooms');
+  if (maxZoom > 19)
+    return res.status(400).send("maxZoom too high for serverless clip (<=19)");
+  if (minZoom < 0 || minZoom > maxZoom)
+    return res.status(400).send("invalid zooms");
 
   try {
-
     // Use go-pmtiles CLI to extract a portion of the source PMTiles file
-    console.log('Using go-pmtiles CLI to extract PMTiles...');
+    console.log("Using go-pmtiles CLI to extract PMTiles...");
     const out = await generatePMTilesWithCLI(srcURL, bbox, minZoom, maxZoom);
-    console.log(`PMTiles archive extracted successfully, size: ${out.byteLength} bytes`);
+    console.log(
+      `PMTiles archive extracted successfully, size: ${out.byteLength} bytes`,
+    );
 
     // Generate filename for the PMTiles file
     const filename = `pmtiles/clip-${name}.pmtiles`;
@@ -491,22 +567,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const url = await savePMTilesToBlobStorage(out, filename);
       return res.status(200).send(url);
     } catch (blobError) {
-      console.warn('⚠️ Failed to upload to blob storage, returning data directly:', blobError);
+      console.warn(
+        "⚠️ Failed to upload to blob storage, returning data directly:",
+        blobError,
+      );
 
       // Fallback: return the data directly as base64
-      const base64 = Buffer.from(out).toString('base64');
+      const base64 = Buffer.from(out).toString("base64");
       return res.status(200).json({
         data: base64,
         size: out.byteLength,
-        error: 'Blob storage unavailable, data returned as base64',
-        message: 'PMTiles generated successfully but could not be uploaded to cloud storage. Data is returned as base64 for local use.'
+        error: "Blob storage unavailable, data returned as base64",
+        message:
+          "PMTiles generated successfully but could not be uploaded to cloud storage. Data is returned as base64 for local use.",
       });
     }
   } catch (buildError) {
-    console.error('Error building PMTiles archive:', buildError);
-    const errorMessage = buildError instanceof Error ? buildError.message : 'Unknown error';
+    console.error("Error building PMTiles archive:", buildError);
+    const errorMessage =
+      buildError instanceof Error ? buildError.message : "Unknown error";
     return res.status(500).send(`Error building PMTiles: ${errorMessage}`);
   }
-
 }
-

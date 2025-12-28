@@ -13,8 +13,21 @@
             </div>
           </div>
           <div class="flex space-x-2">
-            <Button @click="dismissInstall" severity="secondary" size="small" text icon="pi pi-times" />
-            <Button @click="installApp" severity="primary" size="small" :loading="installing" icon="pi pi-download" label="Install" />
+            <Button
+              @click="dismissInstall"
+              severity="secondary"
+              size="small"
+              text
+              icon="pi pi-times"
+            />
+            <Button
+              @click="installApp"
+              severity="primary"
+              size="small"
+              :loading="installing"
+              icon="pi pi-download"
+              label="Install"
+            />
           </div>
         </div>
       </template>
@@ -23,95 +36,102 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { App as CapacitorApp } from '@capacitor/app'
+import { ref, onMounted, onUnmounted } from "vue";
+import { App as CapacitorApp } from "@capacitor/app";
 
 // PrimeVue components
-import Card from 'primevue/card'
-import Button from 'primevue/button'
-import Avatar from 'primevue/avatar'
+import Card from "primevue/card";
+import Button from "primevue/button";
+import Avatar from "primevue/avatar";
 
 // State
-const showInstallPrompt = ref(false)
-const installing = ref(false)
-const installIcon = '/icons/icon-192x192.png'
+const showInstallPrompt = ref(false);
+const installing = ref(false);
+const installIcon = "/icons/icon-192x192.png";
 
 // Install prompt handling
-let deferredPrompt: any = null
+let deferredPrompt: any = null;
 
 const handleBeforeInstallPrompt = (e: Event) => {
-  e.preventDefault()
-  deferredPrompt = e
-  showInstallPrompt.value = true
-}
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallPrompt.value = true;
+};
 
 const handleAppInstalled = () => {
-  console.log('App was installed')
-  showInstallPrompt.value = false
-  deferredPrompt = null
-}
+  console.log("App was installed");
+  showInstallPrompt.value = false;
+  deferredPrompt = null;
+};
 
 const installApp = async () => {
-  if (!deferredPrompt) return
+  if (!deferredPrompt) return;
 
-  installing.value = true
+  installing.value = true;
 
   try {
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
 
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt')
+    if (outcome === "accepted") {
+      console.log("User accepted the install prompt");
     } else {
-      console.log('User dismissed the install prompt')
+      console.log("User dismissed the install prompt");
     }
 
-    deferredPrompt = null
-    showInstallPrompt.value = false
+    deferredPrompt = null;
+    showInstallPrompt.value = false;
   } catch (error) {
-    console.error('Error during install:', error)
+    console.error("Error during install:", error);
   } finally {
-    installing.value = false
+    installing.value = false;
   }
-}
+};
 
 const dismissInstall = () => {
-  showInstallPrompt.value = false
+  showInstallPrompt.value = false;
   // Don't show again for this session
-  localStorage.setItem('installPromptDismissed', Date.now().toString())
-}
+  localStorage.setItem("installPromptDismissed", Date.now().toString());
+};
 
 // Check if we should show the prompt
 const shouldShowPrompt = () => {
-  const dismissed = localStorage.getItem('installPromptDismissed')
+  const dismissed = localStorage.getItem("installPromptDismissed");
   if (dismissed) {
-    const dismissedTime = parseInt(dismissed)
-    const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24)
-    return daysSinceDismissed > 7 // Show again after 7 days
+    const dismissedTime = parseInt(dismissed);
+    const daysSinceDismissed =
+      (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+    return daysSinceDismissed > 7; // Show again after 7 days
   }
-  return true
-}
+  return true;
+};
 
 // Capacitor app state handling
-CapacitorApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
-  if (isActive && shouldShowPrompt()) {
-    // Check if we're in a PWA context
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      showInstallPrompt.value = false
+CapacitorApp.addListener(
+  "appStateChange",
+  ({ isActive }: { isActive: boolean }) => {
+    if (isActive && shouldShowPrompt()) {
+      // Check if we're in a PWA context
+      if (window.matchMedia("(display-mode: standalone)").matches) {
+        showInstallPrompt.value = false;
+      }
     }
-  }
-})
+  },
+);
 
 onMounted(() => {
   // Only show prompt if not already installed and not dismissed recently
-  if (shouldShowPrompt() && !window.matchMedia('(display-mode: standalone)').matches) {
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleAppInstalled)
+  if (
+    shouldShowPrompt() &&
+    !window.matchMedia("(display-mode: standalone)").matches
+  ) {
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
   }
-})
+});
 
 onUnmounted(() => {
-  window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-  window.removeEventListener('appinstalled', handleAppInstalled)
-})
+  window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  window.removeEventListener("appinstalled", handleAppInstalled);
+});
 </script>

@@ -1,42 +1,42 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import MapView from '../views/MapView.vue'
-import PlotsView from '../views/PlotsView.vue'
-import PlotDetail from '../views/PlotDetail.vue'
-import LocationsView from '../views/Locations.vue'
-import Settings from '../views/Settings.vue'
+import { createRouter, createWebHistory } from "vue-router";
+import MapView from "../views/MapView.vue";
+import PlotsView from "../views/PlotsView.vue";
+import PlotDetail from "../views/PlotDetail.vue";
+import LocationsView from "../views/Locations.vue";
+import Settings from "../views/Settings.vue";
 
 const routes = [
   {
-    path: '/',
-    name: 'Map',
-    component: MapView
+    path: "/",
+    name: "Map",
+    component: MapView,
   },
   {
-    path: '/plots',
-    name: 'Plots',
-    component: PlotsView
+    path: "/plots",
+    name: "Plots",
+    component: PlotsView,
   },
   {
-    path: '/plots/:id',
-    name: 'PlotDetail',
+    path: "/plots/:id",
+    name: "PlotDetail",
     component: PlotDetail,
-    props: true
+    props: true,
   },
   {
-    path: '/locations',
-    name: 'Locations',
-    component: LocationsView
+    path: "/locations",
+    name: "Locations",
+    component: LocationsView,
   },
   {
-    path: '/settings',
-    name: 'Settings',
-    component: Settings
-  }
-]
+    path: "/settings",
+    name: "Settings",
+    component: Settings,
+  },
+];
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
-})
+  routes,
+});
 
-export default router 
+export default router;

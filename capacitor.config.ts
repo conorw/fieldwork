@@ -1,28 +1,28 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: 'com.conorwoods.fieldwork',
-  appName: 'FieldWork',
-  webDir: 'dist',
+  appId: "com.conorwoods.fieldwork",
+  appName: "FieldWork",
+  webDir: "dist",
   server: {
-    androidScheme: 'https'
+    androidScheme: "https",
   },
   plugins: {
     Camera: {
-      permissions: ['camera', 'photos']
+      permissions: ["camera", "photos"],
     },
     App: {
-      launchUrl: 'https://fieldwork.conorwoods.com'
-    }
+      launchUrl: "https://fieldwork.conorwoods.com",
+    },
   },
   ios: {
-    contentInset: 'automatic'
+    contentInset: "automatic",
   },
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: true
-  }
+    webContentsDebuggingEnabled: true,
+  },
 };
 
 export default config;

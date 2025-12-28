@@ -4,66 +4,73 @@
 
 // Re-export ToastMessage type for backward compatibility (if needed by components)
 export interface ToastMessage {
-  readonly id: string
-  readonly title: string
-  readonly message: string
-  readonly type: 'success' | 'error' | 'info' | 'warning'
-  readonly duration?: number
+  readonly id: string;
+  readonly title: string;
+  readonly message: string;
+  readonly type: "success" | "error" | "info" | "warning";
+  readonly duration?: number;
   readonly actions?: readonly {
-    readonly label: string
-    readonly action: () => void
-  }[]
+    readonly label: string;
+    readonly action: () => void;
+  }[];
 }
 
 type ToastAddFunction = (options: {
-  severity: 'success' | 'error' | 'info' | 'warn'
-  summary: string
-  detail: string
-  life?: number
-}) => void
+  severity: "success" | "error" | "info" | "warn";
+  summary: string;
+  detail: string;
+  life?: number;
+}) => void;
 
 class ToastService {
   // Store a reference to PrimeVue's toast.add function
   // This allows the service to work outside component contexts
-  private toastAdd: ToastAddFunction | null = null
+  private toastAdd: ToastAddFunction | null = null;
 
   // Public getter to check if initialized (for fallback initialization)
   get isInitialized(): boolean {
-    return this.toastAdd !== null
+    return this.toastAdd !== null;
   }
 
   // Initialize toast instance (call this from App.vue or a root component)
   init(toastAdd: ToastAddFunction) {
-    this.toastAdd = toastAdd
+    this.toastAdd = toastAdd;
   }
 
-  private addToast(severity: 'success' | 'error' | 'info' | 'warn', title: string, message: string, duration: number) {
+  private addToast(
+    severity: "success" | "error" | "info" | "warn",
+    title: string,
+    message: string,
+    duration: number,
+  ) {
     if (!this.toastAdd) {
-      console.warn('ToastService: Not initialized. Call toastService.init() from App.vue setup.')
-      return
+      console.warn(
+        "ToastService: Not initialized. Call toastService.init() from App.vue setup.",
+      );
+      return;
     }
     this.toastAdd({
       severity,
       summary: title,
       detail: message,
-      life: duration
-    })
+      life: duration,
+    });
   }
 
   success(title: string, message: string, duration = 5000) {
-    this.addToast('success', title, message, duration)
+    this.addToast("success", title, message, duration);
   }
 
   error(title: string, message: string, duration = 7000) {
-    this.addToast('error', title, message, duration)
+    this.addToast("error", title, message, duration);
   }
 
   info(title: string, message: string, duration = 5000) {
-    this.addToast('info', title, message, duration)
+    this.addToast("info", title, message, duration);
   }
 
   warning(title: string, message: string, duration = 5000) {
-    this.addToast('warn', title, message, duration)
+    this.addToast("warn", title, message, duration);
   }
 
   // Legacy methods for backward compatibility
@@ -80,33 +87,29 @@ class ToastService {
     if (personsCount > 0) {
       this.success(
         `Analysis Complete`,
-        `Found ${personsCount} ${personsCount === 1 ? 'person' : 'persons'} buried in this plot`,
-        6000
-      )
+        `Found ${personsCount} ${personsCount === 1 ? "person" : "persons"} buried in this plot`,
+        6000,
+      );
     } else {
       this.info(
         `Analysis Complete`,
         `No persons found on this headstone`,
-        5000
-      )
+        5000,
+      );
     }
   }
 
   headstoneAnalysisFailed(errorMessage?: string) {
     this.error(
       `Analysis Failed`,
-      errorMessage || 'Unable to analyze headstone image',
-      7000
-    )
+      errorMessage || "Unable to analyze headstone image",
+      7000,
+    );
   }
 
   headstoneAnalysisQueued() {
-    this.info(
-      `Analysis Queued`,
-      `Headstone analysis will begin shortly`,
-      3000
-    )
+    this.info(`Analysis Queued`, `Headstone analysis will begin shortly`, 3000);
   }
 }
 
-export const toastService = new ToastService()
+export const toastService = new ToastService();
