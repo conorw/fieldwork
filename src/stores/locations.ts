@@ -100,7 +100,7 @@ export const useLocationsStore = defineStore("locations", () => {
       let results: any[] = []
       
       // Get user's location memberships and owned locations
-      if (authStore.user) {
+      if (authStore.user && powerSyncStore.powerSync) {
         // Get locations where user is owner OR member
         // Use a simpler query that handles both cases
         results = await powerSyncStore.powerSync.getAll(
@@ -110,7 +110,7 @@ export const useLocationsStore = defineStore("locations", () => {
            WHERE l.owner_id = ? OR lm.user_id = ?`,
           [authStore.user.id, authStore.user.id, authStore.user.id, authStore.user.id]
         )
-      } else {
+      } else if (powerSyncStore.powerSync) {
         // Fallback: load all locations if not authenticated (shouldn't happen with auth guards)
         results = await powerSyncStore.powerSync.getAll(
           "SELECT * FROM locations",
@@ -308,6 +308,7 @@ export const useLocationsStore = defineStore("locations", () => {
       date_created: location.dateCreated,
       date_modified: new Date().toISOString(), // Add date_modified field
       created_by: location.createdBy,
+      owner_id: location.ownerId || null, // Include owner_id
       is_public:
         updates.isPublic !== undefined
           ? updates.isPublic.toString()

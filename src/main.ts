@@ -133,7 +133,7 @@ const authStore = useAuthStore();
       console.log("User not authenticated, skipping PowerSync initialization");
       console.log("PowerSync will initialize when user logs in");
     }
-  } catch (error: Error) {
+  } catch (error: unknown) {
     console.error("Failed to initialize auth store:", error);
   }
   

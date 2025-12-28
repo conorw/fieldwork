@@ -55,7 +55,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { createSupabaseClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePowerSyncStore } from '@/stores/powersync'
 import Card from 'primevue/card'

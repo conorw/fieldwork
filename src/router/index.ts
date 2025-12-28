@@ -74,7 +74,7 @@ const router = createRouter({
 });
 
 // Navigation guard
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
   
   // Ensure auth is initialized (this should already be done in main.ts, but ensure it here too)

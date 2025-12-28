@@ -82,7 +82,7 @@ const toast = useToast()
 
 const locationId = route.params.id as string
 const location = ref<any>(null)
-const userRole = ref<string | null>(null)
+const userRole = ref<string | undefined>(undefined)
 const isSaving = ref(false)
 
 const loadLocation = async () => {
@@ -149,7 +149,7 @@ const loadLocation = async () => {
           [locationId, authStore.user.id]
         ) as any
         
-        userRole.value = memberData?.role || null
+        userRole.value = memberData?.role || undefined
         console.log('📍 [LocationSettings] User role from location_members:', userRole.value)
       }
       
