@@ -40,20 +40,9 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       schema: AppSchema,
       database: {
         dbFilename: "fieldwork-powersync.db",
-        debugMode: false, // Reduced verbosity
-      },
-      flags: {
-        // Use WebWorker for background sync operations https://docs.powersync.com/resources/troubleshooting
-        enableMultiTabs: false,
-        broadcastLogs: false, // Reduced verbosity
-      },
+        debugMode: false
+      }
     });
-    // Add ability to clear database on schema mismatch
-    // Uncomment the next line to reset the database and clear the schema mismatch warning
-    // db.close({ clearData: true }).then(() => {
-    //   console.log('Database cleared due to schema mismatch')
-    //   window.location.reload()
-    // })
   } catch (dbError) {
     console.error("PowerSync: Failed to create database instance:", dbError);
     console.error("PowerSync: Error details:", {

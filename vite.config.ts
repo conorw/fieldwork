@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
-import vercel from "vite-plugin-vercel";
+// import vercel from "vite-plugin-vercel"; // Temporarily disabled - doesn't support Vite 7 yet
 import tailwindcss from "@tailwindcss/vite";
 // VitePWA import removed - plugin temporarily disabled
 
@@ -11,7 +11,7 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     wasm(),
-    vercel(),
+    // vercel(), // Temporarily disabled - vite-plugin-vercel@9.1.1 doesn't support Vite 7
     // VitePWA plugin temporarily disabled to fix service worker registration errors
     // Re-enable when service worker issues are resolved
   ],
