@@ -266,6 +266,81 @@ main {
   min-height: 0;
 }
 
+/* Mobile PWA fixes for PlotCreationWizard */
+@media (max-width: 768px) {
+  /* Ensure Drawer content is properly sized on mobile */
+  .p-drawer-content {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  
+  /* Ensure Drawer body content is scrollable */
+  .p-drawer-content-wrapper {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  /* Ensure Card components are visible on mobile */
+  .p-card {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+  
+  .p-card-body {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .p-card-content {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Ensure InputText components are visible and properly sized on mobile */
+  .p-inputtext {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    min-height: 44px !important; /* iOS touch target size */
+    position: relative !important;
+    z-index: 1 !important;
+  }
+  
+  /* Ensure Dropdown components are visible on mobile */
+  .p-dropdown {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    min-height: 44px !important; /* iOS touch target size */
+    position: relative !important;
+    z-index: 1 !important;
+  }
+  
+  /* Ensure labels are visible */
+  label {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Ensure grid items are visible */
+  .grid > div {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}
+
 /* Fix for iOS Safari viewport height issues */
 html {
   height: 100%;

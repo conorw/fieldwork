@@ -8,7 +8,7 @@
     @hide="closeWizard"
   >
     <!-- Content -->
-    <div class="h-[90vh] flex flex-col">
+    <div class="flex flex-col" style="height: calc(100vh - 60px); min-height: 0;">
       <!-- Step 1: Take Photo -->
       <div v-if="currentStep === 0" class="flex-1 flex flex-col">
         <div class="flex-1 flex flex-col justify-center overflow-hidden">
@@ -243,8 +243,8 @@
       </div>
 
       <!-- Step 2/3: Plot Details -->
-      <div v-if="(props.initialLocation && currentStep === 2) || (!props.initialLocation && currentStep === 1)" class="flex-1 flex flex-col">
-        <div class="flex-1 overflow-y-auto">
+      <div v-if="(props.initialLocation && currentStep === 2) || (!props.initialLocation && currentStep === 1)" class="flex-1 flex flex-col min-h-0">
+        <div class="flex-1 overflow-y-auto min-h-0">
           <div class="space-y-4 p-4">
             <!-- Plot Information -->
             <Card>
