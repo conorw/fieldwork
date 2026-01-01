@@ -48,26 +48,6 @@ export async function analyzeGravePositions(
     const image1Base64 = await blobToBase64(photo1.image.blob);
     const image2Base64 = await blobToBase64(photo2.image.blob);
 
-    // Create analysis prompt
-    const prompt = `Analyze these two consecutive grave photos from a cemetery survey.
-
-Photo 1: First grave photo
-Photo 2: Second grave photo
-
-Questions:
-1. Is Photo 2's grave to the LEFT, RIGHT, DIRECTLY IN FRONT, BEHIND, or SAME POSITION as Photo 1's grave?
-2. Estimate the distance between graves in meters (typical range 1-3m for graves in a row)
-3. Are the graves aligned in a row? (Yes/No)
-4. Any visual markers (trees, paths, other graves) that help determine relative position?
-
-Respond in JSON format with:
-- relativeDirection: "left" | "right" | "front" | "behind" | "same"
-- estimatedDistance: number (meters)
-- alignedInRow: boolean
-- confidence: number (0-1, how confident you are in the analysis)
-- visualMarkers: string[] (optional, any visual markers noted)
-- reasoning: string (optional, brief explanation)`;
-
     // Call API endpoint
     const response = await fetch(API_ENDPOINT, {
       method: "POST",
@@ -164,7 +144,16 @@ export function applyAIPositionCorrections(
     return basePositions.map((pos) => ({ ...pos, accuracy: 10 }));
   }
 
-  const correctedPositions = [...basePositions];
+  // Create corrected positions array with proper typing
+  const correctedPositions: Array<{ latitude: number; longitude: number; accuracy: number }> = basePositions.map((pos) => {
+    const posWithAccuracy = pos as { latitude: number; longitude: number; accuracy?: number };
+    return {
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      accuracy: posWithAccuracy.accuracy || 10,
+    };
+  });
+  
   const R = 6371000; // Earth's radius in meters
 
   // Apply corrections based on AI analysis
@@ -185,9 +174,6 @@ export function applyAIPositionCorrections(
     if (analysis.confidence < 0.3) {
       continue;
     }
-
-    const photo1 = photos[photo1Index];
-    const photo2 = photos[photo2Index];
 
     // Calculate direction from photo1 to photo2 based on GPS
     const bearing = calculateBearing(
@@ -220,23 +206,21 @@ export function applyAIPositionCorrections(
     const aiWeight = analysis.confidence;
     const gpsWeight = 1 - aiWeight;
 
+    const baseAccuracy = correctedPositions[photo2Index].accuracy;
     correctedPositions[photo2Index] = {
       latitude:
-        basePositions[photo2Index].latitude * gpsWeight +
-        (basePositions[photo1Index].latitude + latOffset) * aiWeight,
+        correctedPositions[photo2Index].latitude * gpsWeight +
+        (correctedPositions[photo1Index].latitude + latOffset) * aiWeight,
       longitude:
-        basePositions[photo2Index].longitude * gpsWeight +
-        (basePositions[photo1Index].longitude + lonOffset) * aiWeight,
+        correctedPositions[photo2Index].longitude * gpsWeight +
+        (correctedPositions[photo1Index].longitude + lonOffset) * aiWeight,
       accuracy:
-        basePositions[photo2Index].accuracy * gpsWeight +
+        baseAccuracy * gpsWeight +
         (distance * 0.1) * aiWeight, // AI adds small accuracy improvement
     };
   }
 
-  return correctedPositions.map((pos) => ({
-    ...pos,
-    accuracy: pos.accuracy || 10,
-  }));
+  return correctedPositions;
 }
 
 /**

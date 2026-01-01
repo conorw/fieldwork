@@ -202,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useMapStore } from "../stores/map";
 import { useLocationsStore } from "../stores/locations";
 import { useSettingsStore } from "../stores/settings";
@@ -211,7 +211,6 @@ import { useDeviceOrientation } from "../composables/useDeviceOrientation";
 import {
   collectGPSReadings,
   averageGPSReadings,
-  type GPSReading,
 } from "../utils/gpsAveraging";
 import type {
   BatchCaptureSession,
@@ -246,9 +245,6 @@ const isCapturing = ref(false);
 const isProcessing = ref(false);
 const currentAccuracy = ref(0);
 const session = ref<BatchCaptureSession | null>(null);
-
-// Computed
-const photoCount = computed(() => photos.value.length);
 
 // Initialize session
 const initializeSession = () => {

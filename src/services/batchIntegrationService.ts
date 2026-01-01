@@ -6,7 +6,7 @@
  * 4. Create plots on the map
  */
 
-import type { BatchCaptureSession, ProcessedBatch } from "../types/batchCapture";
+import type { BatchCaptureSession } from "../types/batchCapture";
 import { processBatchCapture } from "./batchProcessingService";
 import {
   analyzeBatchPositions,
@@ -16,7 +16,6 @@ import { headstoneAnalysisService } from "../utils/headstoneAnalysisService";
 import {
   createPlotsFromBatch,
   preparePlotDataForInsertion,
-  type BatchPlotData,
 } from "../utils/batchPlotCreation";
 import { usePowerSyncStore } from "../stores/powersync";
 import { useMapStore } from "../stores/map";

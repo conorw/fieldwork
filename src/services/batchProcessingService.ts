@@ -301,7 +301,7 @@ export async function processBatchCapture(
 export function calculatePositionsWithSpacing(
   photos: BatchCapturePhoto[],
   spacing: number, // meters
-  direction: number, // degrees, direction perpendicular to movement
+  _direction: number, // degrees, direction perpendicular to movement (unused for now)
 ): ProcessedBatchPhoto[] {
   if (photos.length === 0) return [];
 
