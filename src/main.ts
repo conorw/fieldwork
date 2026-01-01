@@ -6,6 +6,23 @@ globalThis.Buffer = Buffer;
 // Initialize console logger early to capture all logs
 import "./utils/consoleLogger";
 
+// Provide cx utility function EARLY for PrimeVue (class name concatenation)
+// This fixes "e.cx is not a function" errors in production builds
+// Must be available before PrimeVue imports/components are loaded
+// Using function declaration (not arrow) helps with minification and hoisting
+function cx(...classes: (string | undefined | null | false)[]): string {
+  return classes.filter(Boolean).join(' ');
+}
+
+// Make cx available globally BEFORE any PrimeVue code runs
+// This ensures it's available when PrimeVue components are created
+if (typeof window !== 'undefined') {
+  (window as any).cx = cx;
+  (globalThis as any).cx = cx;
+  // Also try common PrimeVue internal property names
+  (window as any).__PRIMEVUE_CX__ = cx;
+}
+
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
@@ -27,6 +44,22 @@ import ConfirmationService from "primevue/confirmationservice";
 import Aura from "@primeuix/themes/aura";
 import "primeicons/primeicons.css";
 import "./style.css";
+
+// Patch Aura theme to ensure cx function is available
+// This is a workaround for production build issues where cx might not be accessible
+if (Aura && typeof Aura === 'object') {
+  // Ensure Aura theme has access to cx
+  if (!(Aura as any).cx) {
+    (Aura as any).cx = cx;
+  }
+  // Also patch the options if they exist
+  if ((Aura as any).options && !(Aura as any).options.cx) {
+    (Aura as any).options = {
+      ...(Aura as any).options,
+      cx,
+    };
+  }
+}
 
 // PrimeVue component imports for global registration
 // Only importing components that are actually used in the app
@@ -68,17 +101,9 @@ const app = createApp(App);
 app.use(pinia);
 app.use(router);
 
-// Provide cx utility function for PrimeVue (class name concatenation)
-// This fixes "e.cx is not a function" errors on mobile
-// PrimeVue v4 with Aura theme expects this utility to be available
-const cx = (...classes: (string | undefined | null | false)[]): string => {
-  return classes.filter(Boolean).join(' ');
-};
-
-// Make cx available globally as fallback (some PrimeVue internals may access it this way)
-if (typeof window !== 'undefined') {
-  (window as any).cx = cx;
-}
+// cx function is already defined at the top of the file
+// Store reference to prevent minification issues
+const cxRef = cx;
 
 app.use(PrimeVue, {
   theme: {
@@ -88,8 +113,13 @@ app.use(PrimeVue, {
       darkModeSelector: "system",
       cssLayer: false,
       // Provide cx utility for class name concatenation
-      cx,
+      // This is the primary way PrimeVue v4 expects it
+      cx: cxRef,
     },
+  },
+  // Also provide through pt (passthrough) for components that might need it
+  pt: {
+    cx: cxRef,
   },
 });
 app.use(ToastService);

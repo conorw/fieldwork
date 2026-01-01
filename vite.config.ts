@@ -222,6 +222,8 @@ export default defineConfig({
       "@powersync/web > js-logger",
       "buffer",
       "event-iterator",
+      "primevue",
+      "@primeuix/themes",
     ],
     exclude: ["@journeyapps/wa-sqlite", "@powersync/web"],
     esbuildOptions: {
