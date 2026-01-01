@@ -3,6 +3,9 @@ import { Buffer } from "buffer";
 window.Buffer = Buffer;
 globalThis.Buffer = Buffer;
 
+// Initialize console logger early to capture all logs
+import "./utils/consoleLogger";
+
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";

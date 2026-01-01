@@ -534,12 +534,94 @@
           </Card>
         </div>
       </AccordionTab>
+
+      <!-- Console Logs -->
+      <AccordionTab>
+        <template #header>
+          <div class="flex items-center justify-between w-full">
+            <span>Console Logs</span>
+            <div class="text-sm text-surface-500">
+              {{ filteredLogs.length }} logs
+            </div>
+          </div>
+        </template>
+
+        <div class="space-y-3">
+          <!-- Controls -->
+          <div class="flex flex-wrap gap-2">
+            <Button
+              @click="clearLogs"
+              severity="secondary"
+              size="small"
+              label="Clear Logs"
+              icon="pi pi-trash"
+            />
+            <Button
+              @click="exportLogs"
+              severity="secondary"
+              size="small"
+              label="Export"
+              icon="pi pi-download"
+            />
+            <div class="flex-1"></div>
+            <Dropdown
+              v-model="logLevelFilter"
+              :options="logLevelOptions"
+              placeholder="Filter by level"
+              class="w-40"
+              size="small"
+            />
+          </div>
+
+          <!-- Logs Display -->
+          <div
+            ref="logsContainer"
+            class="bg-surface-900 text-surface-100 rounded-lg p-3 font-mono text-xs overflow-auto"
+            style="max-height: 500px; min-height: 200px;"
+          >
+            <div v-if="filteredLogs.length === 0" class="text-surface-400 text-center py-4">
+              No logs to display
+            </div>
+            <div
+              v-for="log in filteredLogs"
+              :key="log.id"
+              class="mb-1 pb-1 border-b border-surface-700 last:border-0"
+              :class="{
+                'text-green-400': log.level === 'info',
+                'text-yellow-400': log.level === 'warn',
+                'text-red-400': log.level === 'error',
+                'text-blue-400': log.level === 'debug',
+                'text-surface-300': log.level === 'log',
+              }"
+            >
+              <div class="flex items-start gap-2">
+                <span class="text-surface-500 text-xs shrink-0">
+                  {{ formatLogTime(log.timestamp) }}
+                </span>
+                <span
+                  class="shrink-0 font-semibold uppercase text-xs"
+                  :class="{
+                    'text-green-400': log.level === 'info',
+                    'text-yellow-400': log.level === 'warn',
+                    'text-red-400': log.level === 'error',
+                    'text-blue-400': log.level === 'debug',
+                    'text-surface-300': log.level === 'log',
+                  }"
+                >
+                  {{ log.level }}
+                </span>
+                <span class="flex-1 break-words">{{ log.message }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AccordionTab>
     </Accordion>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useOnline } from "@vueuse/core";
 import { usePowerSyncStore } from "../stores/powersync";
@@ -548,9 +630,11 @@ import { useSettingsStore } from "../stores/settings";
 import { storageAnalytics } from "../utils/storageAnalytics";
 import type { StorageSummary } from "../utils/storageAnalytics";
 import { localLLMService } from "../services/localLLMService";
+import { consoleLogger, type LogEntry } from "../utils/consoleLogger";
 
 // PrimeVue imports
 import InputText from "primevue/inputtext";
+import Dropdown from "primevue/dropdown";
 
 const router = useRouter();
 const powerSyncStore = usePowerSyncStore();
@@ -564,6 +648,27 @@ const storageLoading = ref(false);
 const searchQuery = ref("");
 const deletingLocationId = ref<string | null>(null);
 const localModelState = ref(localLLMService.getState());
+
+// Console logs state
+const logs = ref<LogEntry[]>([]);
+const logLevelFilter = ref<string | null>(null);
+const logsContainer = ref<HTMLElement | null>(null);
+
+const logLevelOptions = [
+  { label: 'All', value: null },
+  { label: 'Log', value: 'log' },
+  { label: 'Info', value: 'info' },
+  { label: 'Warn', value: 'warn' },
+  { label: 'Error', value: 'error' },
+  { label: 'Debug', value: 'debug' },
+];
+
+const filteredLogs = computed(() => {
+  if (!logLevelFilter.value) {
+    return logs.value;
+  }
+  return logs.value.filter((log) => log.level === logLevelFilter.value);
+});
 
 // Map settings (reactive copy)
 const mapSettings = ref({ ...settingsStore.mapSettings });
@@ -727,7 +832,59 @@ watch(
   { deep: true },
 );
 
+// Console logs methods
+const clearLogs = () => {
+  consoleLogger.clearLogs();
+};
+
+const exportLogs = () => {
+  const logText = logs.value
+    .map(
+      (log) =>
+        `[${formatLogTime(log.timestamp)}] [${log.level.toUpperCase()}] ${log.message}`,
+    )
+    .join('\n');
+
+  const blob = new Blob([logText], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `console-logs-${new Date().toISOString()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const formatLogTime = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const ms = date.getMilliseconds().toString().padStart(3, '0');
+  return `${timeStr}.${ms}`;
+};
+
+const scrollToBottom = () => {
+  if (logsContainer.value) {
+    logsContainer.value.scrollTop = logsContainer.value.scrollHeight;
+  }
+};
+
 onMounted(async () => {
   await refreshData();
+
+  // Initialize console logger subscription
+  logs.value = consoleLogger.getLogs();
+  consoleLogger.subscribe((newLogs) => {
+    logs.value = newLogs;
+    // Auto-scroll to bottom when new logs arrive
+    nextTick(() => {
+      scrollToBottom();
+    });
+  });
 });
 </script>
