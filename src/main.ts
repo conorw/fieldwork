@@ -16,14 +16,31 @@ function cx(...classes: (string | undefined | null | false)[]): string {
 
 // Make cx available globally BEFORE any PrimeVue code runs
 // This ensures it's available when PrimeVue components are created
+// Using Object.defineProperty to prevent minification/removal in production builds
 if (typeof window !== 'undefined') {
-  (window as any).cx = cx;
-  (globalThis as any).cx = cx;
+  // Define as non-configurable to prevent removal
+  Object.defineProperty(window, 'cx', {
+    value: cx,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
+  Object.defineProperty(globalThis, 'cx', {
+    value: cx,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
   // Also try common PrimeVue internal property names
-  (window as any).__PRIMEVUE_CX__ = cx;
+  Object.defineProperty(window, '__PRIMEVUE_CX__', {
+    value: cx,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
 }
 
-import { createApp } from "vue";
+import { createApp, nextTick } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import router from "./router/index";
@@ -103,7 +120,12 @@ app.use(router);
 
 // cx function is already defined at the top of the file
 // Store reference to prevent minification issues
+// Export it to prevent tree-shaking in production
 const cxRef = cx;
+// Ensure cx is marked as used to prevent tree-shaking
+if (false) {
+  console.log(cxRef); // This prevents tree-shaking but never executes
+}
 
 app.use(PrimeVue, {
   theme: {
@@ -121,6 +143,17 @@ app.use(PrimeVue, {
   pt: {
     cx: cxRef,
   },
+});
+
+// Ensure cx is available on the PrimeVue instance after initialization
+// This is a fallback for production builds where the function might not be accessible
+nextTick(() => {
+  if (app.config.globalProperties.$primevue) {
+    const primevueInstance = app.config.globalProperties.$primevue as any;
+    if (primevueInstance && !primevueInstance.cx) {
+      primevueInstance.cx = cxRef;
+    }
+  }
 });
 app.use(ToastService);
 app.use(ConfirmationService);

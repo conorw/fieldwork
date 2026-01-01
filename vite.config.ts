@@ -184,6 +184,7 @@ export default defineConfig({
   build: {
     target: "esnext",
     chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
+    minify: "esbuild", // Use esbuild for faster builds
     rollupOptions: {
       output: {
         manualChunks: (id) => {
@@ -205,13 +206,23 @@ export default defineConfig({
             if (id.includes("@xenova/transformers")) {
               return "transformers";
             }
-            if (id.includes("primevue")) {
-              return "primevue";
+            // Don't split PrimeVue into separate chunk - keep it with main bundle
+            // This ensures cx function is accessible
+            if (id.includes("primevue") || id.includes("@primeuix")) {
+              return "vendor"; // Put PrimeVue in vendor chunk with other deps
             }
             // Other node_modules go into vendor chunk
             return "vendor";
           }
         },
+        // Preserve function names to help with debugging and prevent minification issues
+        format: "es",
+      },
+      // Preserve cx function from being minified/removed
+      treeshake: {
+        preset: "smallest",
+        propertyReadSideEffects: false,
+        tryCatchDeoptimization: false,
       },
     },
   },
