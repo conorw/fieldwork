@@ -2,6 +2,8 @@
  * Shared utilities for location-related operations
  */
 
+import { fromLonLat, toLonLat } from "ol/proj";
+
 export interface Location {
   latitude: number;
   longitude: number;
@@ -107,33 +109,42 @@ export const generatePlotGeometry = (
   const halfWidth = widthDegrees / 2; // Half of North-South dimension
   const halfHeight = heightDegrees / 2; // Half of East-West dimension
 
-  let corners = [
-    [location.longitude - halfHeight, location.latitude - halfWidth], // Bottom-left
-    [location.longitude + halfHeight, location.latitude - halfWidth], // Bottom-right
-    [location.longitude + halfHeight, location.latitude + halfWidth], // Top-right
-    [location.longitude - halfHeight, location.latitude + halfWidth], // Top-left
-    [location.longitude - halfHeight, location.latitude - halfWidth], // Close polygon
+  const centerLon = location.longitude;
+  const centerLat = location.latitude;
+  const center = fromLonLat([centerLon, centerLat]);
+  const angleRad = (direction * Math.PI) / 180;
+
+  // Create unrotated rectangle corners in lat/lng
+  const latLonCorners = [
+    [centerLon - halfHeight, centerLat - halfWidth], // Bottom-left
+    [centerLon + halfHeight, centerLat - halfWidth], // Bottom-right
+    [centerLon + halfHeight, centerLat + halfWidth], // Top-right
+    [centerLon - halfHeight, centerLat + halfWidth], // Top-left
+    [centerLon - halfHeight, centerLat - halfWidth], // Close polygon
   ];
+
+  // Convert corners to map coordinates (EPSG:3857) for proper rotation
+  // Rotation in lat/lon space causes skewing due to longitude convergence
+  let mapCorners = latLonCorners.map(([lon, lat]) => fromLonLat([lon, lat]));
 
   // Apply rotation if direction is not 0
   // Direction: 0° = North, 90° = East (clockwise)
   // Rectangle is created North-South by default, so we rotate by the direction angle
-  const centerLon = location.longitude;
-  const centerLat = location.latitude;
-  const angleRad = (direction * Math.PI) / 180;
-
   if (direction !== 0) {
-    corners = corners.map(([lon, lat]) => {
+    const [centerX, centerY] = center;
+    mapCorners = mapCorners.map(([x, y]) => {
       // Translate to origin
-      const x = lon - centerLon;
-      const y = lat - centerLat;
+      const translatedX = x - centerX;
+      const translatedY = y - centerY;
 
-      // Rotate
-      const rotatedX = x * Math.cos(angleRad) - y * Math.sin(angleRad);
-      const rotatedY = x * Math.sin(angleRad) + y * Math.cos(angleRad);
+      // Rotate in map coordinate space (where rotations work correctly)
+      const rotatedX =
+        translatedX * Math.cos(angleRad) - translatedY * Math.sin(angleRad);
+      const rotatedY =
+        translatedX * Math.sin(angleRad) + translatedY * Math.cos(angleRad);
 
       // Translate back
-      return [rotatedX + centerLon, rotatedY + centerLat];
+      return [rotatedX + centerX, rotatedY + centerY];
     });
   }
 
@@ -141,21 +152,22 @@ export const generatePlotGeometry = (
   // The foot is the edge opposite to the direction the user is facing
   // User should be at the center of the foot edge (short side)
   // We shift the rectangle by half the width in the direction the user is facing
-  const shiftDistance = halfWidth; // Distance from center to foot edge
+  const shiftDistanceMeters = widthMeters / 2; // Distance from center to foot edge in meters
 
-  // Calculate shift components based on user direction
+  // Calculate shift in map coordinates based on user direction
   // Direction: 0° = North, so cos(0°) = 1 (shift north), sin(0°) = 0 (no east shift)
   // We want to move the polygon away from the user in the direction they're facing
-  const shiftLat = shiftDistance * Math.cos(angleRad); // North-South shift
-  const shiftLon =
-    (shiftDistance * Math.sin(angleRad)) /
-    Math.cos((centerLat * Math.PI) / 180); // East-West shift (adjusted for latitude)
+  const shiftX = shiftDistanceMeters * Math.sin(angleRad); // East-West shift (x increases east)
+  const shiftY = shiftDistanceMeters * Math.cos(angleRad); // North-South shift (y increases north)
 
-  // Apply shift to all corners
-  corners = corners.map(([lon, lat]) => {
-    // Apply shift - ADD to move the polygon away from the user in their facing direction
-    return [lon + shiftLon, lat + shiftLat];
+  // Apply shift to all corners in map coordinate space
+  mapCorners = mapCorners.map(([x, y]) => {
+    // Shift in map coordinates
+    return [x + shiftX, y + shiftY];
   });
+
+  // Convert back to lat/lng for GeoJSON
+  const corners = mapCorners.map(([x, y]) => toLonLat([x, y]));
 
   // Convert to GeoJSON Polygon format
   const polygon = {
