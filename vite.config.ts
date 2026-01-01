@@ -4,7 +4,7 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 // import vercel from "vite-plugin-vercel"; // Temporarily disabled - doesn't support Vite 7 yet
 import tailwindcss from "@tailwindcss/vite";
-// VitePWA import removed - plugin temporarily disabled
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
@@ -12,8 +12,154 @@ export default defineConfig({
     tailwindcss(),
     wasm(),
     // vercel(), // Temporarily disabled - vite-plugin-vercel@9.1.1 doesn't support Vite 7
-    // VitePWA plugin temporarily disabled to fix service worker registration errors
-    // Re-enable when service worker issues are resolved
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["icons/**/*", "fonts/**/*"],
+      manifest: {
+        name: "FieldWork - Cemetery Plot Management",
+        short_name: "FieldWork",
+        description: "Professional cemetery plot documentation and field data collection app. Create, manage, and document cemetery plots with offline-first capabilities, GPS integration, and comprehensive plot management tools.",
+        theme_color: "#3b82f6",
+        background_color: "#ffffff",
+        display: "standalone",
+        orientation: "any",
+        scope: "/",
+        start_url: "/",
+        icons: [
+          {
+            src: "/icons/icon-72x72.png",
+            sizes: "72x72",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-96x96.png",
+            sizes: "96x96",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-128x128.png",
+            sizes: "128x128",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-144x144.png",
+            sizes: "144x144",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-152x152.png",
+            sizes: "152x152",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "maskable"
+          },
+          {
+            src: "/icons/icon-384x384.png",
+            sizes: "384x384",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any"
+          },
+          {
+            src: "/icons/icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable"
+          }
+        ],
+        shortcuts: [
+          {
+            name: "Map View",
+            short_name: "Map",
+            description: "Interactive map for plot management",
+            url: "/",
+            icons: [
+              {
+                src: "/icons/icon-192x192.png",
+                sizes: "192x192",
+                type: "image/png"
+              }
+            ]
+          },
+          {
+            name: "Settings",
+            short_name: "Settings",
+            description: "App settings and facility management",
+            url: "/settings",
+            icons: [
+              {
+                src: "/icons/icon-192x192.png",
+                sizes: "192x192",
+                type: "image/png"
+              }
+            ]
+          }
+        ],
+        screenshots: [
+          {
+            src: "/screenshots/map-view-wide.png",
+            sizes: "1280x720",
+            type: "image/png",
+            form_factor: "wide",
+            label: "Interactive map view with plot management tools"
+          },
+          {
+            src: "/screenshots/settings-wide.png",
+            sizes: "1280x720",
+            type: "image/png",
+            form_factor: "wide",
+            label: "Settings and configuration panel"
+          },
+          {
+            src: "/screenshots/plot-detail-narrow.png",
+            sizes: "640x1136",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "Mobile plot detail view with management tools"
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "images-cache",
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          }
+        ]
+      },
+      devOptions: {
+        enabled: true,
+        type: "module"
+      }
+    })
   ],
   resolve: {
     alias: {
