@@ -36,7 +36,6 @@ export const useAuthStore = defineStore('auth', () => {
         }
         
         if (currentSession) {
-          console.log('✅ Restoring session from storage:', currentSession.user.email)
           session.value = currentSession
           user.value = currentSession.user
         } else {

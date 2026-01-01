@@ -9,6 +9,15 @@ export interface LogEntry {
   level: 'log' | 'info' | 'warn' | 'error' | 'debug';
   message: string;
   args: any[];
+  errorDetails?: {
+    name?: string;
+    message?: string;
+    stack?: string;
+    fileName?: string;
+    lineNumber?: number;
+    columnNumber?: number;
+    cause?: any;
+  };
 }
 
 class ConsoleLogger {
@@ -65,8 +74,39 @@ class ConsoleLogger {
   }
 
   private addLog(level: LogEntry['level'], args: any[]) {
+    // Extract error details if present
+    let errorDetails: LogEntry['errorDetails'] | undefined;
+    const errorArg = args.find((arg) => arg instanceof Error);
+    
+    if (errorArg instanceof Error) {
+      errorDetails = {
+        name: errorArg.name,
+        message: errorArg.message,
+        stack: errorArg.stack,
+        cause: (errorArg as any).cause,
+      };
+
+      // Try to extract file/line info from stack trace
+      if (errorArg.stack) {
+        const stackLines = errorArg.stack.split('\n');
+        if (stackLines.length > 1) {
+          // Parse first stack frame: "at functionName (file:///path/to/file.js:123:45)"
+          const match = stackLines[1].match(/\((.+):(\d+):(\d+)\)/);
+          if (match) {
+            errorDetails.fileName = match[1];
+            errorDetails.lineNumber = parseInt(match[2], 10);
+            errorDetails.columnNumber = parseInt(match[3], 10);
+          }
+        }
+      }
+    }
+
     const message = args
       .map((arg) => {
+        if (arg instanceof Error) {
+          // For errors, include name and message
+          return `${arg.name}: ${arg.message}`;
+        }
         if (typeof arg === 'object') {
           try {
             return JSON.stringify(arg, null, 2);
@@ -84,6 +124,7 @@ class ConsoleLogger {
       level,
       message,
       args,
+      errorDetails,
     };
 
     this.logs.push(entry);

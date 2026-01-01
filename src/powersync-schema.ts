@@ -168,15 +168,6 @@ const location_requests = new Table(
   { indexes: { idx_location_requests_location_id: ["location_id"], idx_location_requests_user_id: ["user_id"] } },
 );
 
-console.log("PowerSync Schema: Creating AppSchema with tables:", {
-  plots,
-  settings,
-  plot_images,
-  persons,
-  person_images,
-  locations,
-});
-
 export const AppSchema = new Schema({
   plots: plots,
   settings: settings,
@@ -188,10 +179,6 @@ export const AppSchema = new Schema({
   location_invites: location_invites,
   location_requests: location_requests,
 });
-
-console.log("PowerSync Schema: AppSchema created:", AppSchema);
-console.log("PowerSync Schema: AppSchema types:", AppSchema.types);
-console.log("PowerSync Schema: AppSchema props:", AppSchema.props);
 
 // TypeScript types for PowerSync
 export type Database = (typeof AppSchema)["types"];

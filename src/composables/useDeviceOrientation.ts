@@ -23,10 +23,6 @@ export function useDeviceOrientation() {
 
       // Request permission for iOS 13+
       const DeviceOrientationEventConstructor = DeviceOrientationEvent as any;
-      console.log(
-        "DeviceOrientationEventConstructor:",
-        DeviceOrientationEventConstructor,
-      );
       if (
         typeof DeviceOrientationEventConstructor.requestPermission ===
         "function"

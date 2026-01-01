@@ -45,16 +45,10 @@ export const useLocationsStore = defineStore("locations", () => {
   
   const loadLocations = async () => {
     const startTime = performance.now();
-    console.log(
-      "📍 [LocationsStore] Starting loadLocations, isLoading:",
-      isLoading.value,
-    );
 
     // If already loading, wait for the existing load to complete
     if (isLoading.value && loadPromise) {
-      console.log("📍 [LocationsStore] Already loading, waiting for existing load to complete...");
       await loadPromise;
-      console.log("📍 [LocationsStore] Existing load completed");
       return;
     }
 
@@ -116,39 +110,8 @@ export const useLocationsStore = defineStore("locations", () => {
           "SELECT * FROM locations",
         )
       }
-      
-      // Debug logging to see what pmtiles_url values are in PowerSync
-      console.log("📍 [LocationsStore] Raw PowerSync query results:", {
-        count: results.length,
-        results: results.map((loc: any) => ({
-          id: loc.id,
-          name: loc.name,
-          pmtiles_url: loc.pmtiles_url,
-          pmtiles_urlType: typeof loc.pmtiles_url,
-          pmtiles_urlLength: loc.pmtiles_url?.length,
-          pmtiles_urlIsNull: loc.pmtiles_url === null,
-          pmtiles_urlIsUndefined: loc.pmtiles_url === undefined,
-          pmtiles_urlIsEmpty: loc.pmtiles_url === "",
-          allKeys: Object.keys(loc),
-        })),
-      });
-      
-      // Check if pmtiles_url column exists in results
-      if (results.length > 0) {
-        const firstResult = results[0];
-        console.log("📍 [LocationsStore] First result keys:", Object.keys(firstResult));
-        console.log("📍 [LocationsStore] First result pmtiles_url:", {
-          value: firstResult.pmtiles_url,
-          type: typeof firstResult.pmtiles_url,
-          exists: 'pmtiles_url' in firstResult,
-        });
-      }
-      
-      const queryEnd = performance.now();
-      console.log(
-        `📍 [LocationsStore] Query took ${(queryEnd - queryStart).toFixed(2)}ms, got ${results.length} locations`,
-      );
 
+      
       const mapStart = performance.now();
       if (authStore.user) {
         locations.value = results.map((loc: any) => {
@@ -179,38 +142,6 @@ export const useLocationsStore = defineStore("locations", () => {
           ownerId: loc.owner_id,
         }))
       }
-      
-      // Debug logging to verify pmtiles_url values after mapping
-      console.log("📍 [LocationsStore] Locations after mapping:", 
-        locations.value.map(loc => ({
-          id: loc.id,
-          name: loc.name,
-          pmtilesUrl: loc.pmtilesUrl,
-          hasPmtilesUrl: !!loc.pmtilesUrl,
-          pmtilesUrlType: typeof loc.pmtilesUrl,
-          pmtilesUrlLength: loc.pmtilesUrl?.length,
-          pmtilesUrlIsUndefined: loc.pmtilesUrl === undefined,
-          pmtilesUrlIsNull: loc.pmtilesUrl === null,
-          pmtilesUrlIsEmpty: loc.pmtilesUrl === "",
-        }))
-      );
-      
-      // Also log the selected location if it exists
-      if (selectedLocationId.value) {
-        const selectedLoc = getLocationById(selectedLocationId.value);
-        console.log("📍 [LocationsStore] Currently selected location after load:", {
-          id: selectedLocationId.value,
-          found: !!selectedLoc,
-          pmtilesUrl: selectedLoc?.pmtilesUrl,
-          hasPmtilesUrl: !!selectedLoc?.pmtilesUrl,
-        });
-      }
-      
-      const mapEnd = performance.now();
-      console.log(
-        `📍 [LocationsStore] Mapping took ${(mapEnd - mapStart).toFixed(2)}ms`,
-      );
-
       // Ensure selectedLocationId is set before selecting location
       // This ensures queries (like usePlots) have a valid location ID immediately
       if (selectedLocationId.value) {
@@ -231,11 +162,6 @@ export const useLocationsStore = defineStore("locations", () => {
         // Auto-select first location if none selected
         selectLocation(locations.value[0].id);
       }
-
-        const totalTime = performance.now() - startTime;
-        console.log(
-          `📍 [LocationsStore] loadLocations completed in ${totalTime.toFixed(2)}ms`,
-        );
       } catch (err) {
         error.value = `Failed to load locations: ${err}`;
         console.error("Error loading locations:", err);

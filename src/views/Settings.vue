@@ -585,7 +585,7 @@
             <div
               v-for="log in filteredLogs"
               :key="log.id"
-              class="mb-1 pb-1 border-b border-surface-700 last:border-0"
+              class="mb-2 pb-2 border-b border-surface-700 last:border-0"
               :class="{
                 'text-green-400': log.level === 'info',
                 'text-yellow-400': log.level === 'warn',
@@ -610,7 +610,51 @@
                 >
                   {{ log.level }}
                 </span>
-                <span class="flex-1 break-words">{{ log.message }}</span>
+                <div class="flex-1 break-words space-y-1">
+                  <div>{{ log.message }}</div>
+                  
+                  <!-- Error Details -->
+                  <div
+                    v-if="log.errorDetails"
+                    class="mt-2 pl-4 border-l-2 border-red-500/50 space-y-1 text-xs"
+                  >
+                    <div v-if="log.errorDetails.name" class="text-red-300">
+                      <span class="font-semibold">Error Name:</span> {{ log.errorDetails.name }}
+                    </div>
+                    <div v-if="log.errorDetails.message" class="text-red-300">
+                      <span class="font-semibold">Message:</span> {{ log.errorDetails.message }}
+                    </div>
+                    <div
+                      v-if="log.errorDetails.fileName || log.errorDetails.lineNumber"
+                      class="text-surface-400"
+                    >
+                      <span class="font-semibold">Location:</span>
+                      <span v-if="log.errorDetails.fileName">
+                        {{ log.errorDetails.fileName.split('/').pop() }}
+                      </span>
+                      <span v-if="log.errorDetails.lineNumber">
+                        :{{ log.errorDetails.lineNumber }}
+                      </span>
+                      <span v-if="log.errorDetails.columnNumber">
+                        :{{ log.errorDetails.columnNumber }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="log.errorDetails.stack"
+                      class="text-surface-500 mt-2 whitespace-pre-wrap font-mono text-xs max-h-40 overflow-auto"
+                    >
+                      <div class="font-semibold mb-1">Stack Trace:</div>
+                      <div class="pl-2">{{ log.errorDetails.stack }}</div>
+                    </div>
+                    <div
+                      v-if="log.errorDetails.cause"
+                      class="text-surface-400 mt-2"
+                    >
+                      <span class="font-semibold">Cause:</span>
+                      <pre class="mt-1 text-xs whitespace-pre-wrap">{{ formatErrorCause(log.errorDetails.cause) }}</pre>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -839,11 +883,32 @@ const clearLogs = () => {
 
 const exportLogs = () => {
   const logText = logs.value
-    .map(
-      (log) =>
-        `[${formatLogTime(log.timestamp)}] [${log.level.toUpperCase()}] ${log.message}`,
-    )
-    .join('\n');
+    .map((log) => {
+      let text = `[${formatLogTime(log.timestamp)}] [${log.level.toUpperCase()}] ${log.message}`;
+      
+      // Add error details if present
+      if (log.errorDetails) {
+        text += '\n  Error Details:';
+        if (log.errorDetails.name) {
+          text += `\n    Name: ${log.errorDetails.name}`;
+        }
+        if (log.errorDetails.message) {
+          text += `\n    Message: ${log.errorDetails.message}`;
+        }
+        if (log.errorDetails.fileName || log.errorDetails.lineNumber) {
+          text += `\n    Location: ${log.errorDetails.fileName || 'unknown'}:${log.errorDetails.lineNumber || '?'}:${log.errorDetails.columnNumber || '?'}`;
+        }
+        if (log.errorDetails.stack) {
+          text += `\n    Stack Trace:\n${log.errorDetails.stack.split('\n').map(line => `      ${line}`).join('\n')}`;
+        }
+        if (log.errorDetails.cause) {
+          text += `\n    Cause: ${formatErrorCause(log.errorDetails.cause)}`;
+        }
+      }
+      
+      return text;
+    })
+    .join('\n\n');
 
   const blob = new Blob([logText], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
@@ -866,6 +931,20 @@ const formatLogTime = (timestamp: number): string => {
   });
   const ms = date.getMilliseconds().toString().padStart(3, '0');
   return `${timeStr}.${ms}`;
+};
+
+const formatErrorCause = (cause: any): string => {
+  if (cause instanceof Error) {
+    return `${cause.name}: ${cause.message}${cause.stack ? '\n' + cause.stack : ''}`;
+  }
+  if (typeof cause === 'object') {
+    try {
+      return JSON.stringify(cause, null, 2);
+    } catch {
+      return String(cause);
+    }
+  }
+  return String(cause);
 };
 
 const scrollToBottom = () => {
