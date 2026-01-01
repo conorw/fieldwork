@@ -141,6 +141,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
@@ -176,11 +177,34 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
+    chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
     rollupOptions: {
       output: {
-        manualChunks: {
-          openlayers: ["ol"],
-          "ol-extensions": ["ol-ext"],
+        manualChunks: (id) => {
+          // Split node_modules into separate chunks
+          if (id.includes("node_modules")) {
+            // Large libraries get their own chunks
+            if (id.includes("ol")) {
+              return "openlayers";
+            }
+            if (id.includes("ol-ext")) {
+              return "ol-extensions";
+            }
+            if (id.includes("@powersync")) {
+              return "powersync";
+            }
+            if (id.includes("@supabase")) {
+              return "supabase";
+            }
+            if (id.includes("@xenova/transformers")) {
+              return "transformers";
+            }
+            if (id.includes("primevue")) {
+              return "primevue";
+            }
+            // Other node_modules go into vendor chunk
+            return "vendor";
+          }
         },
       },
     },
