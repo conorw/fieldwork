@@ -159,11 +159,13 @@ export const generatePlotGeometry = (
     });
   }
 
-  // Shift the rectangle so the user is positioned at the FOOT of the grave
+  // Shift the rectangle so the user is positioned AT the FOOT of the grave (outside the rectangle)
   // The foot is the edge opposite to the direction the user is facing
-  // User should be at the center of the foot edge (short side)
-  // We shift the rectangle by half the width in the direction the user is facing
-  const shiftDistanceMeters = widthMeters / 2; // Distance from center to foot edge in meters
+  // User should be positioned just outside the foot edge (short side), not on top of it
+  // We shift the rectangle by half the width PLUS a buffer to position user outside
+  // The buffer needs to be at least half the height (short side) to ensure user is outside
+  const bufferMeters = heightMeters / 2 + 0.5; // Buffer = half height + small margin to ensure user is outside
+  const shiftDistanceMeters = widthMeters / 2 + bufferMeters; // Distance from center to foot edge + buffer
 
   // Calculate shift in map coordinates based on ORIGINAL user direction (not rotated)
   // Direction: 0° = North, so cos(0°) = 1 (shift north), sin(0°) = 0 (no east shift)
@@ -175,6 +177,7 @@ export const generatePlotGeometry = (
   // Apply shift to all corners in map coordinate space
   mapCorners = mapCorners.map(([x, y]) => {
     // Shift in map coordinates - move rectangle away from user in their facing direction
+    // This positions the user outside the rectangle at the foot edge
     return [x + shiftX, y + shiftY];
   });
 

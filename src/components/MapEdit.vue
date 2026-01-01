@@ -554,11 +554,14 @@ const createPolygonWithLocation = async (location) => {
     rotatedCorners = corners.map(([lon, lat]) => fromLonLat([lon, lat]));
   }
 
-  // Shift the rectangle so the user is positioned at the FOOT of the grave
+  // Shift the rectangle so the user is positioned AT the FOOT of the grave (outside the rectangle)
   // The foot is the edge closest to the user's facing direction
-  // Calculate the shift needed to position user at foot
-  // User should be at the center of the foot edge (short side)
-  const shiftDistance = halfLongSideDegrees; // Distance from center to foot edge
+  // Calculate the shift needed to position user at foot (outside the rectangle, not on it)
+  // User should be positioned just outside the foot edge (short side)
+  // The buffer needs to be at least half the height (short side) to ensure user is outside
+  const bufferMeters = heightMeters / 2 + 0.5; // Buffer = half height + small margin to ensure user is outside
+  const bufferDegrees = (bufferMeters / earthRadius) * (180 / Math.PI);
+  const shiftDistance = halfLongSideDegrees + bufferDegrees; // Distance from center to foot edge + buffer
 
   // Calculate shift components based on ORIGINAL user direction (not corrected)
   // We want to move the polygon away from the user in the direction they're facing
@@ -573,6 +576,7 @@ const createPolygonWithLocation = async (location) => {
     const [lon, lat] = toLonLat([x, y]);
 
     // Apply shift - ADD to move the polygon away from the user in their facing direction
+    // This positions the user outside the rectangle at the foot edge
     const shiftedLat = lat + shiftLat;
     const shiftedLon = lon + shiftLon;
 
