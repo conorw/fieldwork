@@ -255,7 +255,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label
-                      class="block text-sm font-medium text-surface-700 mb-1"
+                      class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1"
                       >Plot Number</label
                     >
                     <InputText
@@ -266,7 +266,7 @@
                   </div>
                   <div>
                     <label
-                      class="block text-sm font-medium text-surface-700 mb-1"
+                      class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1"
                       >Section</label
                     >
                     <InputText
@@ -277,7 +277,7 @@
                   </div>
                   <div>
                     <label
-                      class="block text-sm font-medium text-surface-700 mb-1"
+                      class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1"
                       >Row</label
                     >
                     <InputText
@@ -288,7 +288,7 @@
                   </div>
                   <div>
                     <label
-                      class="block text-sm font-medium text-surface-700 mb-1"
+                      class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1"
                       >Status</label
                     >
                     <Dropdown
@@ -419,6 +419,14 @@ import { useLocationsStore } from "../stores/locations";
 import { usePlots } from "../stores/powersync";
 import MapEdit from "./MapEdit.vue";
 import { headstoneAnalysisService } from "../utils/headstoneAnalysisService";
+
+// PrimeVue components
+import Drawer from "primevue/drawer";
+import Button from "primevue/button";
+import Card from "primevue/card";
+import InputText from "primevue/inputtext";
+import Dropdown from "primevue/dropdown";
+import Image from "primevue/image";
 
 // Capacitor Camera service
 import { CapacitorCameraService } from "../services/capacitorCamera";
@@ -1267,11 +1275,19 @@ const createPlot = async () => {
       if (mapStore.map) {
         // Add the plot to the map first if it's not already there
         mapStore.addPlotMarker(newPlot);
-        wizardLogger.debug("Plot marker added, now zooming to plot");
+        wizardLogger.debug("Plot marker added");
 
-        // Then zoom to it and show the popup
-        mapStore.zoomToPlot(newPlot);
-        wizardLogger.debug("Zoom to plot initiated");
+        // On mobile devices, don't zoom or select the plot to avoid obscuring the camera button
+        const isMobile = window.innerWidth < 768; // Standard mobile breakpoint
+        
+        if (!isMobile) {
+          // Then zoom to it and show the popup (desktop only)
+          wizardLogger.debug("Desktop detected, zooming to plot");
+          mapStore.zoomToPlot(newPlot);
+          wizardLogger.debug("Zoom to plot initiated");
+        } else {
+          wizardLogger.debug("Mobile detected, skipping zoom/selection to avoid obscuring camera button");
+        }
       } else {
         wizardLogger.warn("Map not available for zooming");
       }

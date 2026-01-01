@@ -452,8 +452,14 @@ const handlePhotoPlotCreated = async (newPlot) => {
     try {
       // Add the plot to the map first if it's not already there
       await mapStore.addPlotMarker(newPlot);
-      // Then zoom to it and show the popup
-      await mapStore.zoomToPlot(newPlot);
+      
+      // On mobile devices, don't zoom or select the plot to avoid obscuring the camera button
+      const isMobile = window.innerWidth < 768; // Standard mobile breakpoint
+      
+      if (!isMobile) {
+        // Then zoom to it and show the popup (desktop only)
+        await mapStore.zoomToPlot(newPlot);
+      }
     } catch (error) {
       console.error("MapView: Error handling zoom to plot:", error);
     }
