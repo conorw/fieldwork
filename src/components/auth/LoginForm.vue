@@ -3,10 +3,12 @@
     <Card>
       <template #header>
         <div class="p-4">
-          <h2 class="text-2xl font-semibold">
+          <h2
+            class="text-2xl font-semibold text-surface-900 dark:text-surface-100"
+          >
             {{ isSignUp ? "Create Account" : "Welcome!" }}
           </h2>
-          <p class="text-surface-600 mt-1">
+          <p class="text-surface-600 dark:text-surface-400 mt-1">
             {{
               isSignUp
                 ? "Sign up to get started"
@@ -62,7 +64,9 @@
               <div class="absolute inset-0 flex items-center">
                 <div class="w-full border-t border-surface-300"></div>
               </div>
-              <div class="relative bg-white px-4 text-sm text-surface-500">
+              <div
+                class="relative bg-surface-0 px-4 text-sm text-surface-600 dark:text-surface-400"
+              >
                 Or continue with email
               </div>
             </div>
@@ -72,7 +76,10 @@
           <form @submit.prevent="handleEmailPassword">
             <div class="flex flex-col gap-4">
               <div>
-                <label class="block text-sm font-medium mb-1">Email</label>
+                <label
+                  class="block text-sm font-medium mb-1 text-surface-900 dark:text-surface-100"
+                  >Email</label
+                >
                 <InputText
                   v-model="email"
                   type="email"
@@ -84,7 +91,10 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium mb-1">Password</label>
+                <label
+                  class="block text-sm font-medium mb-1 text-surface-900 dark:text-surface-100"
+                  >Password</label
+                >
                 <Password
                   v-model="password"
                   placeholder="Enter your password"

@@ -14,13 +14,13 @@ const routes = [
     path: "/auth",
     name: "Auth",
     component: Auth,
-    meta: { requiresAuth: false },
+    meta: { requiresAuth: false, hideNavbar: true },
   },
   {
     path: "/auth/callback",
     name: "AuthCallback",
     component: AuthCallback,
-    meta: { requiresAuth: false },
+    meta: { requiresAuth: false, hideNavbar: true },
   },
   {
     path: "/onboarding",
