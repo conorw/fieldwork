@@ -438,6 +438,7 @@ import {
 import {
   waitForGPSStability,
 } from "../utils/gpsStability";
+import { useDeviceOrientation } from "../composables/useDeviceOrientation";
 
 const isVisible = defineModel("isVisible", { type: Boolean, default: false });
 
@@ -469,6 +470,9 @@ const { showSuccess, showError } = useToastService();
 // Capacitor Camera service
 const cameraService = CapacitorCameraService.getInstance();
 
+// Device orientation
+const { userDirection, startOrientationListener, stopOrientationListener } = useDeviceOrientation();
+
 // State
 const currentStep = ref(0);
 const photoData = ref(null);
@@ -482,7 +486,6 @@ const isCheckingGPS = ref(false);
 // Plot data
 const selectedPlotSize = ref(DEFAULT_PLOT_SIZE);
 const currentLocation = ref(null);
-const userDirection = ref(0);
 const tempPlotId = ref(null); // Store temp plot ID for analysis association
 const plotGeometry = ref(null); // Store plot geometry from map
 const plotFeature = ref(null); // Store plot feature from map
@@ -613,10 +616,15 @@ watch(
         isCheckingGPS.value = false;
         wizardLogger.debug("Skipping GPS monitoring - location already specified:", props.initialLocation);
       }
+      
+      // Start device orientation tracking
+      startOrientationListener();
     } else {
       // Stop GPS monitoring when wizard closes
       isCheckingGPS.value = false;
       gpsStability.value = null;
+      // Stop device orientation tracking
+      stopOrientationListener();
     }
   },
 );
@@ -769,9 +777,7 @@ const initializeLocation = async () => {
       }
     }
 
-    // Initialize user direction
-    userDirection.value = 0; // Default to North
-
+    // User direction is now managed by useDeviceOrientation composable
     wizardLogger.debug("Location initialization complete:", {
       currentLocation: currentLocation.value,
       userDirection: userDirection.value,

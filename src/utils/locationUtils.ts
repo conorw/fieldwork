@@ -89,35 +89,40 @@ export const generatePlotGeometry = (
   }
 
   // Convert feet to meters
-  const widthMeters = plotSize.width * 0.3048;
-  const heightMeters = plotSize.height * 0.3048;
+  const widthMeters = plotSize.width * 0.3048; // Long side (head to foot)
+  const heightMeters = plotSize.height * 0.3048; // Short side (left to right)
 
   // Convert meters to degrees (approximate)
   const latDegreesPerMeter = 1 / 111320;
   const lonDegreesPerMeter =
     1 / (111320 * Math.cos((location.latitude * Math.PI) / 180));
 
-  const widthDegrees = widthMeters * lonDegreesPerMeter;
-  const heightDegrees = heightMeters * latDegreesPerMeter;
+  // Width (long side) should go North-South, Height (short side) should go East-West
+  // So we swap the degrees: width uses lat (North-South), height uses lon (East-West)
+  const widthDegrees = widthMeters * latDegreesPerMeter; // North-South
+  const heightDegrees = heightMeters * lonDegreesPerMeter; // East-West
 
   // Create rectangle corners in lat/lng
-  const halfWidth = widthDegrees / 2;
-  const halfHeight = heightDegrees / 2;
+  // Rectangle is created with width going North-South (latitude) and height going East-West (longitude)
+  const halfWidth = widthDegrees / 2; // Half of North-South dimension
+  const halfHeight = heightDegrees / 2; // Half of East-West dimension
 
   let corners = [
-    [location.longitude - halfWidth, location.latitude - halfHeight], // Bottom-left
-    [location.longitude + halfWidth, location.latitude - halfHeight], // Bottom-right
-    [location.longitude + halfWidth, location.latitude + halfHeight], // Top-right
-    [location.longitude - halfWidth, location.latitude + halfHeight], // Top-left
-    [location.longitude - halfWidth, location.latitude - halfHeight], // Close polygon
+    [location.longitude - halfHeight, location.latitude - halfWidth], // Bottom-left
+    [location.longitude + halfHeight, location.latitude - halfWidth], // Bottom-right
+    [location.longitude + halfHeight, location.latitude + halfWidth], // Top-right
+    [location.longitude - halfHeight, location.latitude + halfWidth], // Top-left
+    [location.longitude - halfHeight, location.latitude - halfWidth], // Close polygon
   ];
 
   // Apply rotation if direction is not 0
-  if (direction !== 0) {
-    const centerLon = location.longitude;
-    const centerLat = location.latitude;
-    const angleRad = (direction * Math.PI) / 180;
+  // Direction: 0° = North, 90° = East (clockwise)
+  // Rectangle is created North-South by default, so we rotate by the direction angle
+  const centerLon = location.longitude;
+  const centerLat = location.latitude;
+  const angleRad = (direction * Math.PI) / 180;
 
+  if (direction !== 0) {
     corners = corners.map(([lon, lat]) => {
       // Translate to origin
       const x = lon - centerLon;
@@ -131,6 +136,26 @@ export const generatePlotGeometry = (
       return [rotatedX + centerLon, rotatedY + centerLat];
     });
   }
+
+  // Shift the rectangle so the user is positioned at the FOOT of the grave
+  // The foot is the edge opposite to the direction the user is facing
+  // User should be at the center of the foot edge (short side)
+  // We shift the rectangle by half the width in the direction the user is facing
+  const shiftDistance = halfWidth; // Distance from center to foot edge
+
+  // Calculate shift components based on user direction
+  // Direction: 0° = North, so cos(0°) = 1 (shift north), sin(0°) = 0 (no east shift)
+  // We want to move the polygon away from the user in the direction they're facing
+  const shiftLat = shiftDistance * Math.cos(angleRad); // North-South shift
+  const shiftLon =
+    (shiftDistance * Math.sin(angleRad)) /
+    Math.cos((centerLat * Math.PI) / 180); // East-West shift (adjusted for latitude)
+
+  // Apply shift to all corners
+  corners = corners.map(([lon, lat]) => {
+    // Apply shift - ADD to move the polygon away from the user in their facing direction
+    return [lon + shiftLon, lat + shiftLat];
+  });
 
   // Convert to GeoJSON Polygon format
   const polygon = {
