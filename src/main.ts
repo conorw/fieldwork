@@ -181,12 +181,22 @@ window.addEventListener("beforeinstallprompt", (e) => {
   // Stash the event so it can be triggered later
   deferredPrompt = e;
   console.log("PWA install prompt available");
+  // Dispatch custom event so InstallPrompt component can pick it up
+  window.dispatchEvent(new CustomEvent("pwa-install-prompt-available"));
 });
 
 window.addEventListener("appinstalled", () => {
   console.log("PWA was installed");
   deferredPrompt = null;
+  // Dispatch custom event so InstallPrompt component knows it's installed
+  window.dispatchEvent(new CustomEvent("pwa-installed"));
 });
+
+// Expose deferred prompt globally for InstallPrompt component
+(window as any).__deferredPrompt = () => deferredPrompt;
+(window as any).__clearDeferredPrompt = () => {
+  deferredPrompt = null;
+};
 
 // Capacitor App State Handling
 CapacitorApp.addListener(

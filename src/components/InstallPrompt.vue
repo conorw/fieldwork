@@ -36,7 +36,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { useRoute } from "vue-router";
+import { useAuthStore } from "../stores/auth";
 import { App as CapacitorApp } from "@capacitor/app";
 
 // PrimeVue components
@@ -49,29 +51,58 @@ const showInstallPrompt = ref(false);
 const installing = ref(false);
 const installIcon = "/icons/icon-192x192.png";
 
-// Install prompt handling
-let deferredPrompt: any = null;
+const route = useRoute();
+const authStore = useAuthStore();
+
+// Install prompt handling - get from global storage
+const getDeferredPrompt = () => {
+  return (window as any).__deferredPrompt?.() || null;
+};
+
+const checkAndShowPrompt = () => {
+  // Don't show if already installed
+  if (window.matchMedia("(display-mode: standalone)").matches) {
+    return;
+  }
+
+  // Don't show if dismissed recently
+  if (!shouldShowPrompt()) {
+    return;
+  }
+
+  // Check if deferred prompt exists
+  const prompt = getDeferredPrompt();
+  if (prompt) {
+    showInstallPrompt.value = true;
+  }
+};
 
 const handleBeforeInstallPrompt = (e: Event) => {
   e.preventDefault();
-  deferredPrompt = e;
-  showInstallPrompt.value = true;
+  // The prompt is already stored globally in main.ts
+  // Just check if we should show it
+  checkAndShowPrompt();
+};
+
+const handlePromptAvailable = () => {
+  // Custom event fired when prompt becomes available
+  checkAndShowPrompt();
 };
 
 const handleAppInstalled = () => {
   console.log("App was installed");
   showInstallPrompt.value = false;
-  deferredPrompt = null;
 };
 
 const installApp = async () => {
-  if (!deferredPrompt) return;
+  const prompt = getDeferredPrompt();
+  if (!prompt) return;
 
   installing.value = true;
 
   try {
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
 
     if (outcome === "accepted") {
       console.log("User accepted the install prompt");
@@ -79,7 +110,11 @@ const installApp = async () => {
       console.log("User dismissed the install prompt");
     }
 
-    deferredPrompt = null;
+    // Clear the deferred prompt after use
+    if ((window as any).__clearDeferredPrompt) {
+      (window as any).__clearDeferredPrompt();
+    }
+    
     showInstallPrompt.value = false;
   } catch (error) {
     console.error("Error during install:", error);
@@ -106,6 +141,35 @@ const shouldShowPrompt = () => {
   return true;
 };
 
+// Watch for authentication state changes - show prompt after login
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) {
+      // Wait a bit after login to show the prompt
+      setTimeout(() => {
+        checkAndShowPrompt();
+      }, 1000);
+    }
+  },
+  { immediate: true }
+);
+
+// Watch route changes - don't show on auth routes
+watch(
+  () => route.meta.hideNavbar,
+  () => {
+    if (route.meta.hideNavbar) {
+      showInstallPrompt.value = false;
+    } else {
+      // Check for prompt when entering authenticated routes
+      nextTick(() => {
+        checkAndShowPrompt();
+      });
+    }
+  }
+);
+
 // Capacitor app state handling
 CapacitorApp.addListener(
   "appStateChange",
@@ -114,9 +178,11 @@ CapacitorApp.addListener(
       // Check if we're in a PWA context
       if (window.matchMedia("(display-mode: standalone)").matches) {
         showInstallPrompt.value = false;
+      } else {
+        checkAndShowPrompt();
       }
     }
-  },
+  }
 );
 
 onMounted(() => {
@@ -127,11 +193,18 @@ onMounted(() => {
   ) {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
+    window.addEventListener("pwa-install-prompt-available", handlePromptAvailable);
+    window.addEventListener("pwa-installed", handleAppInstalled);
+    
+    // Check if prompt already exists (captured before component mounted)
+    checkAndShowPrompt();
   }
 });
 
 onUnmounted(() => {
   window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   window.removeEventListener("appinstalled", handleAppInstalled);
+  window.removeEventListener("pwa-install-prompt-available", handlePromptAvailable);
+  window.removeEventListener("pwa-installed", handleAppInstalled);
 });
 </script>
