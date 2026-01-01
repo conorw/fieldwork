@@ -447,6 +447,13 @@ import {
   waitForGPSStability,
 } from "../utils/gpsStability";
 import { useDeviceOrientation } from "../composables/useDeviceOrientation";
+import {
+  extractEXIFGPSFromDataURL,
+  selectBestGPS,
+} from "../utils/exifGPS";
+import {
+  applyOrientationConstraint,
+} from "../utils/gpsOrientationConstraint";
 
 const isVisible = defineModel("isVisible", { type: Boolean, default: false });
 
@@ -828,14 +835,25 @@ const takePhoto = async () => {
     // Start collecting GPS readings in parallel with photo capture
     const gpsCollectionPromise = (async () => {
       try {
+        // Collect GPS readings with heading information
         const readings = await collectGPSReadings(
           async () => {
             const location = await mapStore.getGPSLocation();
+            // Try to get GPS heading from the location if available
+            // GPS heading is more accurate than device orientation when available
+            let heading = userDirection.value;
+            // Check if location has heading property (from Capacitor geolocation)
+            if ('heading' in location && location.heading !== undefined && location.heading !== null) {
+              heading = location.heading;
+              console.log("PlotCreationWizard: Using GPS heading:", heading);
+            }
+            
             return {
               latitude: location.latitude,
               longitude: location.longitude,
               accuracy: location.accuracy,
               timestamp: location.timestamp || Date.now(),
+              heading: heading,
             };
           },
           {
@@ -846,10 +864,32 @@ const takePhoto = async () => {
           },
         );
 
+        // Apply orientation constraint if we have a movement direction
+        // This projects GPS readings onto the movement line, reducing perpendicular drift
+        let processedReadings = readings;
+        if (readings.length > 0 && userDirection.value !== null) {
+          const movementDirection = readings[0].heading || userDirection.value;
+          processedReadings = applyOrientationConstraint(
+            readings,
+            movementDirection,
+            {
+              projectOntoLine: true,
+              filterByDeviation: true,
+              maxDeviation: 5, // Filter readings more than 5m perpendicular to movement
+            },
+          );
+          console.log("PlotCreationWizard: Applied orientation constraint:", {
+            original: readings.length,
+            filtered: processedReadings.length,
+            direction: movementDirection,
+          });
+        }
+
         // Average the readings
-        const averaged = averageGPSReadings(readings, true);
+        const averaged = averageGPSReadings(processedReadings, true);
         console.log("PlotCreationWizard: GPS averaged:", {
           original: readings.length,
+          processed: processedReadings.length,
           filtered: averaged.readingsCount,
           accuracy: averaged.accuracy,
           stdDev: averaged.standardDeviation,
@@ -883,12 +923,47 @@ const takePhoto = async () => {
     const result = await cameraService.takeGravePhoto();
 
     // Wait for GPS averaging to complete
-    await gpsCollectionPromise;
+    const averagedGPS = await gpsCollectionPromise;
 
     if (result.dataUrl) {
       // Convert data URL to blob for analysis
       const blob = cameraService.dataUrlToBlob(result.dataUrl);
       const file = new File([blob], "grave-photo.jpg", { type: "image/jpeg" });
+
+      // Extract EXIF GPS data from photo (camera GPS is often more accurate)
+      let exifGPS = null;
+      try {
+        exifGPS = await extractEXIFGPSFromDataURL(result.dataUrl);
+        if (exifGPS) {
+          console.log("PlotCreationWizard: EXIF GPS extracted:", exifGPS);
+        }
+      } catch (error) {
+        console.warn("PlotCreationWizard: Failed to extract EXIF GPS:", error);
+      }
+
+      // Combine EXIF GPS with app GPS for best accuracy
+      let finalLocation = currentLocation.value;
+      if (exifGPS && averagedGPS) {
+        const bestGPS = selectBestGPS(exifGPS, {
+          latitude: averagedGPS.latitude,
+          longitude: averagedGPS.longitude,
+          accuracy: averagedGPS.accuracy,
+        });
+        finalLocation = {
+          latitude: bestGPS.latitude,
+          longitude: bestGPS.longitude,
+          accuracy: bestGPS.accuracy,
+        };
+        console.log("PlotCreationWizard: Best GPS selected:", {
+          source: bestGPS.source,
+          accuracy: bestGPS.accuracy,
+          exifAccuracy: exifGPS.accuracy,
+          appAccuracy: averagedGPS.accuracy,
+        });
+      }
+
+      // Update current location with best GPS
+      currentLocation.value = finalLocation;
 
       // Store the photo data
       photoData.value = {

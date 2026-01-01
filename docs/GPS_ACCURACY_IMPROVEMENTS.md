@@ -31,6 +31,98 @@ The app currently captures a single GPS reading when taking a photo, which can r
 
 **Configuration:** See `src/utils/gpsAveraging.ts`
 
+### 2. GPS Stability Monitoring (✅ Implemented)
+
+**What it does:** Monitors GPS readings to ensure stability before allowing photo capture.
+
+**Benefits:**
+- Prevents capture with unstable GPS
+- Ensures consistent accuracy
+- Provides user feedback on GPS status
+
+**How it works:**
+- Monitors GPS readings continuously
+- Checks for consistent accuracy and position
+- Disables photo capture until GPS is stable
+- Shows visual indicator to user
+
+**Usage:** Automatically applied in `PlotCreationWizard` when taking photos.
+
+**Configuration:** See `src/utils/gpsStability.ts`
+
+### 3. EXIF GPS Extraction (✅ Implemented)
+
+**What it does:** Extracts GPS coordinates from photo EXIF metadata (camera GPS is often more accurate).
+
+**Benefits:**
+- Uses camera's GPS (often more accurate than app GPS)
+- Provides backup if app GPS fails
+- Can compare with app GPS for validation
+
+**How it works:**
+- Extracts GPS data from photo EXIF metadata using `exifr` library
+- Estimates accuracy from GPS DOP (Dilution of Precision)
+- Falls back to app GPS if EXIF GPS unavailable
+
+**Usage:** Automatically applied when photos are captured.
+
+**Configuration:** See `src/utils/exifGPS.ts`
+
+### 4. Hybrid GPS Approach (✅ Implemented)
+
+**What it does:** Combines EXIF GPS with app GPS for best accuracy.
+
+**Benefits:**
+- Uses best available GPS source
+- Provides weighted average when both sources are similar
+- Improves overall accuracy
+
+**How it works:**
+- Compares EXIF GPS accuracy with app GPS accuracy
+- Uses EXIF GPS if it's more accurate
+- Uses weighted average if accuracies are similar (within 20%)
+- Falls back to app GPS if EXIF unavailable
+
+**Usage:** Automatically applied when photos are captured.
+
+**Configuration:** See `src/utils/exifGPS.ts` - `selectBestGPS()` function
+
+### 5. GPS Heading Integration (✅ Implemented)
+
+**What it does:** Uses GPS heading when available instead of relying solely on device orientation.
+
+**Benefits:**
+- GPS heading is more accurate than device orientation
+- Better direction accuracy for plot positioning
+- Reduces dependency on compass calibration
+
+**How it works:**
+- Checks if GPS reading includes heading information
+- Uses GPS heading if available, falls back to device orientation
+- Applied during GPS reading collection
+
+**Usage:** Automatically applied when collecting GPS readings.
+
+**Configuration:** See `PlotCreationWizard.vue` - GPS collection logic
+
+### 6. Device Orientation Constraint (✅ Implemented)
+
+**What it does:** Uses compass/device orientation to constrain GPS readings to movement line.
+
+**Benefits:**
+- Reduces GPS drift perpendicular to movement
+- Maintains straight line alignment
+- Filters readings that deviate too far from movement direction
+
+**How it works:**
+- Projects GPS readings onto movement line defined by device orientation
+- Filters readings that deviate more than 5m perpendicular to movement
+- Applied before GPS averaging
+
+**Usage:** Automatically applied when collecting GPS readings with device orientation available.
+
+**Configuration:** See `src/utils/gpsOrientationConstraint.ts`
+
 ## Additional Approaches to Consider
 
 ### 2. Kalman Filtering
@@ -175,12 +267,15 @@ The app currently captures a single GPS reading when taking a photo, which can r
 
 ## Recommended Implementation Priority
 
-1. ✅ **GPS Averaging** - Already implemented
-2. **Wait for Better Accuracy** - Enhance current implementation with UI feedback
-3. **Relative Positioning** - Add "straight line mode" for systematic capture
-4. **Device Orientation Integration** - Use compass to constrain GPS readings
-5. **EXIF Data Extraction** - Add as backup/validation
-6. **Post-Processing Correction** - Allow manual adjustment
+1. ✅ **GPS Averaging** - Implemented
+2. ✅ **GPS Stability Monitoring** - Implemented
+3. ✅ **EXIF GPS Extraction** - Implemented
+4. ✅ **Hybrid GPS Approach** - Implemented
+5. ✅ **GPS Heading Integration** - Implemented
+6. ✅ **Device Orientation Constraint** - Implemented
+7. **Wait for Better Accuracy** - Enhance current implementation with UI feedback
+8. **Relative Positioning** - Add "straight line mode" for systematic capture
+9. **Post-Processing Correction** - Allow manual adjustment
 
 ## Configuration Options
 
