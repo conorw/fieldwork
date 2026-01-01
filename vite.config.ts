@@ -14,7 +14,7 @@ export default defineConfig({
     // vercel(), // Temporarily disabled - vite-plugin-vercel@9.1.1 doesn't support Vite 7
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/**/*", "fonts/**/*"],
+      includeAssets: ["icons/**/*", "fonts/**/*", "screenshots/**/*"],
       manifest: {
         name: "FieldWork - Cemetery Plot Management",
         short_name: "FieldWork",
@@ -142,6 +142,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
+        // Explicitly include screenshots in precache manifest
+        additionalManifestEntries: [
+          { url: "/screenshots/map-view-wide.png", revision: null },
+          { url: "/screenshots/settings-wide.png", revision: null },
+          { url: "/screenshots/plot-detail-narrow.png", revision: null },
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
