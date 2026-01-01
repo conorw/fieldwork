@@ -112,14 +112,26 @@ export const generatePlotGeometry = (
   const centerLon = location.longitude;
   const centerLat = location.latitude;
   const center = fromLonLat([centerLon, centerLat]);
-  const angleRad = (direction * Math.PI) / 180;
+  
+  // Store the original direction for shift calculations
+  const originalDirection = direction;
+  const originalDirectionRad = (originalDirection * Math.PI) / 180;
+  
+  // Convert device orientation to rotation angle for map coordinates
+  // Device orientation: 0° = North, 90° = East (clockwise)
+  // Rectangle is created as North-South by default
+  // To point it in the device direction, we need to rotate it
+  // Formula matches MapEdit.vue: rotation = -device_angle + 180
+  const openlayersDirection = (360 - originalDirection + 180) % 360;
+  const rotationRad = (openlayersDirection * Math.PI) / 180;
 
   // Create unrotated rectangle corners in lat/lng
+  // Rectangle is created with width (long side) going North-South
   const latLonCorners = [
-    [centerLon - halfHeight, centerLat - halfWidth], // Bottom-left
-    [centerLon + halfHeight, centerLat - halfWidth], // Bottom-right
-    [centerLon + halfHeight, centerLat + halfWidth], // Top-right
-    [centerLon - halfHeight, centerLat + halfWidth], // Top-left
+    [centerLon - halfHeight, centerLat - halfWidth], // Bottom-left (South-West)
+    [centerLon + halfHeight, centerLat - halfWidth], // Bottom-right (South-East)
+    [centerLon + halfHeight, centerLat + halfWidth], // Top-right (North-East)
+    [centerLon - halfHeight, centerLat + halfWidth], // Top-left (North-West)
     [centerLon - halfHeight, centerLat - halfWidth], // Close polygon
   ];
 
@@ -128,20 +140,19 @@ export const generatePlotGeometry = (
   let mapCorners = latLonCorners.map(([lon, lat]) => fromLonLat([lon, lat]));
 
   // Apply rotation if direction is not 0
-  // Direction: 0° = North, 90° = East (clockwise)
-  // Rectangle is created North-South by default, so we rotate by the direction angle
-  if (direction !== 0) {
+  // Rotate in map coordinate space (where rotations work correctly)
+  if (originalDirection !== 0) {
     const [centerX, centerY] = center;
     mapCorners = mapCorners.map(([x, y]) => {
       // Translate to origin
       const translatedX = x - centerX;
       const translatedY = y - centerY;
 
-      // Rotate in map coordinate space (where rotations work correctly)
+      // Rotate in map coordinate space
       const rotatedX =
-        translatedX * Math.cos(angleRad) - translatedY * Math.sin(angleRad);
+        translatedX * Math.cos(rotationRad) - translatedY * Math.sin(rotationRad);
       const rotatedY =
-        translatedX * Math.sin(angleRad) + translatedY * Math.cos(angleRad);
+        translatedX * Math.sin(rotationRad) + translatedY * Math.cos(rotationRad);
 
       // Translate back
       return [rotatedX + centerX, rotatedY + centerY];
@@ -154,15 +165,16 @@ export const generatePlotGeometry = (
   // We shift the rectangle by half the width in the direction the user is facing
   const shiftDistanceMeters = widthMeters / 2; // Distance from center to foot edge in meters
 
-  // Calculate shift in map coordinates based on user direction
+  // Calculate shift in map coordinates based on ORIGINAL user direction (not rotated)
   // Direction: 0° = North, so cos(0°) = 1 (shift north), sin(0°) = 0 (no east shift)
   // We want to move the polygon away from the user in the direction they're facing
-  const shiftX = shiftDistanceMeters * Math.sin(angleRad); // East-West shift (x increases east)
-  const shiftY = shiftDistanceMeters * Math.cos(angleRad); // North-South shift (y increases north)
+  // In map coordinates: x increases east, y increases north
+  const shiftX = shiftDistanceMeters * Math.sin(originalDirectionRad); // East-West shift (x increases east)
+  const shiftY = shiftDistanceMeters * Math.cos(originalDirectionRad); // North-South shift (y increases north)
 
   // Apply shift to all corners in map coordinate space
   mapCorners = mapCorners.map(([x, y]) => {
-    // Shift in map coordinates
+    // Shift in map coordinates - move rectangle away from user in their facing direction
     return [x + shiftX, y + shiftY];
   });
 
