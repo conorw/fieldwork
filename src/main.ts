@@ -6,41 +6,7 @@ globalThis.Buffer = Buffer;
 // Initialize console logger early to capture all logs
 import "./utils/consoleLogger";
 
-// Provide cx utility function EARLY for PrimeVue (class name concatenation)
-// This fixes "e.cx is not a function" errors in production builds
-// Must be available before PrimeVue imports/components are loaded
-// Using function declaration (not arrow) helps with minification and hoisting
-function cx(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(' ');
-}
-
-// Make cx available globally BEFORE any PrimeVue code runs
-// This ensures it's available when PrimeVue components are created
-// Using Object.defineProperty to prevent minification/removal in production builds
-if (typeof window !== 'undefined') {
-  // Define as non-configurable to prevent removal
-  Object.defineProperty(window, 'cx', {
-    value: cx,
-    writable: false,
-    configurable: false,
-    enumerable: true,
-  });
-  Object.defineProperty(globalThis, 'cx', {
-    value: cx,
-    writable: false,
-    configurable: false,
-    enumerable: true,
-  });
-  // Also try common PrimeVue internal property names
-  Object.defineProperty(window, '__PRIMEVUE_CX__', {
-    value: cx,
-    writable: false,
-    configurable: false,
-    enumerable: true,
-  });
-}
-
-import { createApp, nextTick } from "vue";
+import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import router from "./router/index";
@@ -61,22 +27,6 @@ import ConfirmationService from "primevue/confirmationservice";
 import Aura from "@primeuix/themes/aura";
 import "primeicons/primeicons.css";
 import "./style.css";
-
-// Patch Aura theme to ensure cx function is available
-// This is a workaround for production build issues where cx might not be accessible
-if (Aura && typeof Aura === 'object') {
-  // Ensure Aura theme has access to cx
-  if (!(Aura as any).cx) {
-    (Aura as any).cx = cx;
-  }
-  // Also patch the options if they exist
-  if ((Aura as any).options && !(Aura as any).options.cx) {
-    (Aura as any).options = {
-      ...(Aura as any).options,
-      cx,
-    };
-  }
-}
 
 // PrimeVue component imports for global registration
 // Only importing components that are actually used in the app
@@ -118,15 +68,6 @@ const app = createApp(App);
 app.use(pinia);
 app.use(router);
 
-// cx function is already defined at the top of the file
-// Store reference to prevent minification issues
-// Export it to prevent tree-shaking in production
-const cxRef = cx;
-// Ensure cx is marked as used to prevent tree-shaking
-if (false) {
-  console.log(cxRef); // This prevents tree-shaking but never executes
-}
-
 app.use(PrimeVue, {
   theme: {
     preset: Aura,
@@ -134,26 +75,8 @@ app.use(PrimeVue, {
       prefix: "p",
       darkModeSelector: "system",
       cssLayer: false,
-      // Provide cx utility for class name concatenation
-      // This is the primary way PrimeVue v4 expects it
-      cx: cxRef,
     },
   },
-  // Also provide through pt (passthrough) for components that might need it
-  pt: {
-    cx: cxRef,
-  },
-});
-
-// Ensure cx is available on the PrimeVue instance after initialization
-// This is a fallback for production builds where the function might not be accessible
-nextTick(() => {
-  if (app.config.globalProperties.$primevue) {
-    const primevueInstance = app.config.globalProperties.$primevue as any;
-    if (primevueInstance && !primevueInstance.cx) {
-      primevueInstance.cx = cxRef;
-    }
-  }
 });
 app.use(ToastService);
 app.use(ConfirmationService);

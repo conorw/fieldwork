@@ -185,46 +185,6 @@ export default defineConfig({
     target: "esnext",
     chunkSizeWarningLimit: 2000, // Increase warning limit to 2MB (vendor chunk can be large)
     minify: "esbuild", // Use esbuild for faster builds
-    rollupOptions: {
-      output: {
-        manualChunks: (id) => {
-          // Split node_modules into separate chunks
-          if (id.includes("node_modules")) {
-            // Large libraries get their own chunks
-            if (id.includes("ol")) {
-              return "openlayers";
-            }
-            if (id.includes("ol-ext")) {
-              return "ol-extensions";
-            }
-            if (id.includes("@powersync")) {
-              return "powersync";
-            }
-            if (id.includes("@supabase")) {
-              return "supabase";
-            }
-            if (id.includes("@xenova/transformers")) {
-              return "transformers";
-            }
-            // Split PrimeVue into its own chunk for better caching
-            // cx function is now globally available and protected, so this is safe
-            if (id.includes("primevue") || id.includes("@primeuix")) {
-              return "primevue";
-            }
-            // Other node_modules go into vendor chunk
-            return "vendor";
-          }
-        },
-        // Preserve function names to help with debugging and prevent minification issues
-        format: "es",
-      },
-      // Preserve cx function from being minified/removed
-      treeshake: {
-        preset: "smallest",
-        propertyReadSideEffects: false,
-        tryCatchDeoptimization: false,
-      },
-    },
   },
   optimizeDeps: {
     include: [
