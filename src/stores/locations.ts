@@ -44,8 +44,6 @@ export const useLocationsStore = defineStore("locations", () => {
   let loadPromise: Promise<void> | null = null;
   
   const loadLocations = async () => {
-    const startTime = performance.now();
-
     // If already loading, wait for the existing load to complete
     if (isLoading.value && loadPromise) {
       await loadPromise;
@@ -90,8 +88,7 @@ export const useLocationsStore = defineStore("locations", () => {
     // Store the promise so other callers can wait for it
     loadPromise = (async () => {
       try {
-        const queryStart = performance.now();
-      let results: any[] = []
+        let results: any[] = []
       
       // Get user's location memberships and owned locations
       if (authStore.user && powerSyncStore.powerSync) {
@@ -111,8 +108,6 @@ export const useLocationsStore = defineStore("locations", () => {
         )
       }
 
-      
-      const mapStart = performance.now();
       if (authStore.user) {
         locations.value = results.map((loc: any) => {
           try {
