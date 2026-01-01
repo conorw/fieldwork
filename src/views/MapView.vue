@@ -30,32 +30,53 @@
         @context-menu-action="handleContextMenuAction"
       />
 
-      <!-- Camera Button Overlay -->
-      <button
-        @click="startPlotCreationWizard"
-        class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center justify-center w-12 h-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-        title="Create from Photo"
-      >
-        <svg
-          class="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <!-- Camera Buttons Overlay -->
+      <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2">
+        <button
+          @click="startPlotCreationWizard"
+          class="flex items-center justify-center w-12 h-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+          title="Create from Photo"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-          />
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-        </svg>
-      </button>
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        </button>
+        <button
+          @click="startBatchCapture"
+          class="flex items-center justify-center w-12 h-12 rounded-full bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+          title="Batch Capture"
+        >
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+      </div>
 
       <!-- Drawing Instructions Overlay -->
       <div
@@ -242,6 +263,13 @@
     @close="handlePlotCreationWizardClose"
     @plot-created="handlePhotoPlotCreated"
   />
+
+  <!-- Batch Capture Wizard -->
+  <BatchCaptureWizard
+    :is-visible="showBatchCaptureWizard"
+    @close="handleBatchCaptureClose"
+    @batch-completed="handleBatchCompleted"
+  />
 </template>
 
 <script setup>
@@ -255,6 +283,7 @@ import {
 } from "../stores/powersync";
 import { useLocationsStore } from "../stores/locations";
 import PlotCreationWizard from "../components/PlotCreationWizard.vue";
+import BatchCaptureWizard from "../components/BatchCaptureWizard.vue";
 import MapEdit from "../components/MapEdit.vue";
 import MapComponent from "../components/MapComponent.vue";
 import ThumbnailViewer from "../components/ThumbnailViewer.vue";
@@ -273,6 +302,8 @@ const router = useRouter();
 const mapComponent = ref(null);
 const layerControl = ref(null);
 const showPlotCreationWizard = ref(false);
+const showBatchCaptureWizard = ref(false);
+const isProcessingBatch = ref(false);
 const showMapEdit = ref(false);
 
 // Context menu state
@@ -463,6 +494,67 @@ const handlePhotoPlotCreated = async (newPlot) => {
 const handlePlotCreationWizardClose = () => {
   showPlotCreationWizard.value = false;
   persistentContextLocation.value = null;
+};
+
+// Batch capture handlers
+const startBatchCapture = () => {
+  showBatchCaptureWizard.value = true;
+};
+
+const handleBatchCaptureClose = () => {
+  showBatchCaptureWizard.value = false;
+};
+
+const handleBatchCompleted = async (session) => {
+  try {
+    isProcessingBatch.value = true;
+    showBatchCaptureWizard.value = false;
+
+    // Import batch integration service
+    const { processCompleteBatch } = await import(
+      "../services/batchIntegrationService"
+    );
+    const { useSettingsStore } = await import("../stores/settings");
+    const settingsStore = useSettingsStore();
+
+    // Process the batch
+    const result = await processCompleteBatch(session, {
+      enableAIPositioning: true, // Can be made configurable via settings
+      plotSize: {
+        width: 8, // Default plot size
+        height: 4,
+      },
+    });
+
+    // Show success message
+    const { useToastService } = await import("../utils/toastService");
+    const { showSuccess, showError } = useToastService();
+
+    if (result.errors.length > 0) {
+      showError(
+        `Batch processed with ${result.errors.length} error(s). ${result.plotsCreated} plots created, ${result.personsExtracted} persons extracted.`,
+      );
+      console.error("Batch processing errors:", result.errors);
+    } else {
+      showSuccess(
+        `Successfully created ${result.plotsCreated} plots with ${result.personsExtracted} persons extracted!`,
+      );
+    }
+
+    // Refetch plots to update the list
+    if (typeof refetchPlots === "function") {
+      refetchPlots();
+    }
+  } catch (error) {
+    console.error("Error processing batch:", error);
+    const { useToastService } = await import("../utils/toastService");
+    const { showError } = useToastService();
+    showError(
+      `Failed to process batch: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  } finally {
+    isProcessingBatch.value = false;
+  }
 };
 
 const handlePlotEditSave = (updatedPlot) => {

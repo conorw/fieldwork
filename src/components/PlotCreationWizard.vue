@@ -356,7 +356,6 @@ import { useToastService } from "../utils/toastService";
 import {
   collectGPSReadings,
   averageGPSReadings,
-  type GPSReading,
 } from "../utils/gpsAveraging";
 
 const isVisible = defineModel("isVisible", { type: Boolean, default: false });

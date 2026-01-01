@@ -43,6 +43,16 @@ export const useSettingsStore = defineStore("settings", () => {
   // Analysis mode setting (OpenAI API or local browser inference)
   const analysisMode = useStorage<AnalysisMode>("analysisMode", "openai");
 
+  // Batch capture settings
+  const batchCaptureSettings = useStorage("batchCaptureSettings", {
+    defaultGraveSpacing: 2.0, // meters
+    gpsAveragingCount: 3, // number of GPS readings to average
+    gpsAveragingInterval: 500, // milliseconds between readings
+    minGPSAccuracy: 20, // meters - minimum accuracy threshold
+    enableAIPositioning: true, // enable AI positioning refinement
+    autoExtractPersonDetails: true, // automatically extract person details from photos
+  });
+
   // Computed properties for easy access
   const minZoom = computed(() => mapSettings.value.minZoom);
   const maxZoom = computed(() => mapSettings.value.maxZoom);
@@ -324,11 +334,21 @@ export const useSettingsStore = defineStore("settings", () => {
   // Initialize with GPS location after loading saved settings
   initializeWithGPS();
 
+  // Batch capture settings getters/setters
+  const updateBatchCaptureSettings = (newSettings: Partial<typeof batchCaptureSettings.value>) => {
+    batchCaptureSettings.value = { ...batchCaptureSettings.value, ...newSettings };
+  };
+
+  const getBatchCaptureSettings = () => {
+    return batchCaptureSettings.value;
+  };
+
   return {
     // State
     mapSettings,
     tileDownloadState,
     analysisMode,
+    batchCaptureSettings,
 
     // Computed properties
     minZoom,
@@ -353,5 +373,7 @@ export const useSettingsStore = defineStore("settings", () => {
     clearTileDownloadState,
     setAnalysisMode,
     getAnalysisMode,
+    updateBatchCaptureSettings,
+    getBatchCaptureSettings,
   };
 });
