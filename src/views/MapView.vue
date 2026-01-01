@@ -109,13 +109,6 @@
         </div>
       </div>
 
-      <!-- Layer Control -->
-      <LayerControl
-        :map-instance="mapStore.map"
-        @layer-visibility-changed="handleLayerVisibilityChanged"
-        ref="layerControl"
-      />
-
       <!-- Plot Info Panel -->
       <div
         v-if="selectedPlot"
@@ -259,9 +252,7 @@ import PlotCreationWizard from "../components/PlotCreationWizard.vue";
 import MapEdit from "../components/MapEdit.vue";
 import MapComponent from "../components/MapComponent.vue";
 import ThumbnailViewer from "../components/ThumbnailViewer.vue";
-import LayerControl from "../components/LayerControl.vue";
 import { useRouter } from "vue-router";
-import { updateLayerVisibility, refreshMapLayers } from "../utils/tileSource";
 import { isLocationWithinBounds } from "../utils/locationUtils";
 import { toLonLat } from "ol/proj";
 
@@ -272,7 +263,6 @@ const locationsStore = useLocationsStore();
 const router = useRouter();
 
 const mapComponent = ref(null);
-const layerControl = ref(null);
 const showPlotCreationWizard = ref(false);
 const showMapEdit = ref(false);
 
@@ -765,14 +755,4 @@ const viewImage = (image) => {
   }
 };
 
-// Handle layer visibility changes
-const handleLayerVisibilityChanged = (visibilityData) => {
-  // Update the global layer visibility state
-  updateLayerVisibility(visibilityData.featureLayers);
-
-  // Refresh the map layers to apply changes
-  if (mapStore.map) {
-    refreshMapLayers(mapStore.map);
-  }
-};
 </script>
