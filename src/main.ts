@@ -67,6 +67,19 @@ const app = createApp(App);
 
 app.use(pinia);
 app.use(router);
+
+// Provide cx utility function for PrimeVue (class name concatenation)
+// This fixes "e.cx is not a function" errors on mobile
+// PrimeVue v4 with Aura theme expects this utility to be available
+const cx = (...classes: (string | undefined | null | false)[]): string => {
+  return classes.filter(Boolean).join(' ');
+};
+
+// Make cx available globally as fallback (some PrimeVue internals may access it this way)
+if (typeof window !== 'undefined') {
+  (window as any).cx = cx;
+}
+
 app.use(PrimeVue, {
   theme: {
     preset: Aura,
@@ -74,6 +87,8 @@ app.use(PrimeVue, {
       prefix: "p",
       darkModeSelector: "system",
       cssLayer: false,
+      // Provide cx utility for class name concatenation
+      cx,
     },
   },
 });
