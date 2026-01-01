@@ -266,7 +266,7 @@ main {
   min-height: 0;
 }
 
-/* Mobile PWA fixes - Android and iOS */
+/* Mobile PWA fixes for PlotCreationWizard */
 @media (max-width: 768px) {
   /* Ensure Drawer content is properly sized on mobile */
   .p-drawer-content {
@@ -310,11 +310,9 @@ main {
     visibility: visible !important;
     opacity: 1 !important;
     width: 100% !important;
-    min-height: 44px !important; /* Touch target size */
+    min-height: 44px !important; /* iOS touch target size */
     position: relative !important;
     z-index: 1 !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
   }
   
   /* Ensure Dropdown components are visible on mobile */
@@ -323,32 +321,9 @@ main {
     visibility: visible !important;
     opacity: 1 !important;
     width: 100% !important;
-    min-height: 44px !important; /* Touch target size */
+    min-height: 44px !important; /* iOS touch target size */
     position: relative !important;
     z-index: 1 !important;
-  }
-  
-  .p-dropdown-label {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-  
-  /* Ensure Select components are visible on mobile (PrimeVue Select) */
-  .p-select {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 100% !important;
-    min-height: 44px !important; /* Touch target size */
-    position: relative !important;
-    z-index: 1 !important;
-  }
-  
-  .p-select-label {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
   }
   
   /* Ensure labels are visible */
@@ -360,111 +335,6 @@ main {
   
   /* Ensure grid items are visible */
   .grid > div {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-  
-  /* Android-specific fixes */
-  @supports (-webkit-touch-callout: none) {
-    /* iOS specific */
-  }
-  
-  /* Android Chrome PWA specific */
-  @media (display-mode: standalone) {
-    /* Ensure viewport is properly sized */
-    html {
-      height: 100% !important;
-      height: -webkit-fill-available !important;
-    }
-    
-    body {
-      height: 100% !important;
-      height: -webkit-fill-available !important;
-      min-height: 100% !important;
-      min-height: -webkit-fill-available !important;
-    }
-    
-    /* Fix for Android input rendering */
-    input[type="text"],
-    input[type="search"],
-    textarea,
-    select {
-      -webkit-appearance: none !important;
-      appearance: none !important;
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      background-color: white !important;
-      color: black !important;
-    }
-  }
-  
-  /* Additional Android fixes - apply to all mobile */
-  /* Force PrimeVue components to render */
-  .p-component {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-  
-  /* Fix for Select component wrapper */
-  .p-select-wrapper,
-  .p-select,
-  .p-select-panel {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 100% !important;
-  }
-  
-  /* Fix for input wrapper elements */
-  .p-inputwrapper,
-  .p-inputwrapper-filled {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 100% !important;
-  }
-  
-  /* Ensure form elements are visible */
-  form input,
-  form select,
-  form textarea,
-  input.p-inputtext,
-  select.p-select,
-  .p-inputtext,
-  .p-select {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 100% !important;
-    min-height: 44px !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    background-color: white !important;
-    color: #1f2937 !important;
-    border: 1px solid #d1d5db !important;
-    border-radius: 6px !important;
-    padding: 0.5rem 0.75rem !important;
-    font-size: 1rem !important;
-    line-height: 1.5 !important;
-  }
-  
-  /* Ensure Card content is visible */
-  .p-card .p-card-content {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-  
-  /* Fix for grid layout on mobile */
-  .grid {
-    display: grid !important;
-    visibility: visible !important;
-  }
-  
-  .grid > * {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
