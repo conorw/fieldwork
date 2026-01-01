@@ -54,6 +54,83 @@
                   <p class="text-surface-600 mb-4">
                     Take a high-quality photo of the grave or headstone
                   </p>
+                  
+                  <!-- GPS Stability Indicator -->
+                  <div class="mt-4 p-3 rounded-lg" :class="{
+                    'bg-yellow-50 border border-yellow-200': isCheckingGPS || (gpsStability && !gpsStability.isStable),
+                    'bg-green-50 border border-green-200': gpsStability && gpsStability.isStable,
+                  }">
+                    <div class="flex items-center justify-center gap-2 mb-2">
+                      <svg
+                        v-if="isCheckingGPS"
+                        class="animate-spin h-5 w-5 text-yellow-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          class="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          stroke-width="4"
+                        />
+                        <path
+                          class="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      <svg
+                        v-else-if="gpsStability && gpsStability.isStable"
+                        class="h-5 w-5 text-green-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <svg
+                        v-else
+                        class="h-5 w-5 text-yellow-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <span class="text-sm font-medium" :class="{
+                        'text-yellow-700': isCheckingGPS || (gpsStability && !gpsStability.isStable),
+                        'text-green-700': gpsStability && gpsStability.isStable,
+                      }">
+                        {{ isCheckingGPS ? 'Checking GPS stability...' : gpsStability && gpsStability.isStable ? 'GPS Stable' : 'Waiting for stable GPS...' }}
+                      </span>
+                    </div>
+                    <div v-if="gpsStability" class="text-xs text-surface-600">
+                      <span v-if="gpsStability.accuracy !== Infinity">
+                        Accuracy: {{ gpsStability.accuracy.toFixed(1) }}m
+                        <span v-if="gpsStability.readings.length > 0">
+                          ({{ gpsStability.readings.length }} readings)
+                        </span>
+                      </span>
+                      <span v-else-if="currentLocation">
+                        Using map location (GPS unavailable)
+                      </span>
+                      <span v-else>
+                        GPS unavailable - location will be set manually
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </template>
             </Card>
@@ -70,6 +147,7 @@
               size="large"
               class="flex-1"
             />
+            <!-- Continue button - will advance to next step (map positioning if initialLocation, plot details otherwise) -->
             <Button
               @click="nextStep"
               label="Continue"
@@ -82,10 +160,10 @@
               <Button
                 class="pi pi-camera flex-1"
                 @click="takePhoto"
-                :disabled="isCapturing"
+                :disabled="isCapturing || (isCheckingGPS && (!gpsStability || (!gpsStability.isStable && !currentLocation)))"
                 size="large"
               >
-                {{ isCapturing ? "Taking Photo..." : "Take Photo" }}
+                {{ isCapturing ? "Taking Photo..." : isCheckingGPS && (!gpsStability || (!gpsStability.isStable && !currentLocation)) ? "Waiting for GPS..." : "Take Photo" }}
               </Button>
               <Button
                 class="pi pi-gallery flex-1"
@@ -104,8 +182,8 @@
         </div>
       </div>
 
-      <!-- Step 2: Map Positioning -->
-      <div v-if="currentStep === 1" class="flex-1 flex flex-col">
+      <!-- Step 2: Map Positioning (only shown when initialLocation is provided) -->
+      <div v-if="props.initialLocation && currentStep === 1" class="flex-1 flex flex-col">
         <div class="flex-1 flex flex-col overflow-hidden">
           <!-- Plot Size Selector -->
           <Card class="flex-shrink-0 mb-4">
@@ -135,7 +213,7 @@
                 :is-visible="true"
                 :is-photo-mode="true"
                 title="Position Plot"
-                instructions="Position the plot rectangle on the map by dragging it to the correct location."
+                instructions="Adjust the plot position and direction on the map by dragging and rotating."
                 :existing-plots="plots.data.value || []"
                 class="flex-1"
                 style="height: 100%; min-height: 400px"
@@ -164,8 +242,8 @@
         </div>
       </div>
 
-      <!-- Step 3: Plot Details -->
-      <div v-if="currentStep === 2" class="flex-1 flex flex-col">
+      <!-- Step 2/3: Plot Details -->
+      <div v-if="(props.initialLocation && currentStep === 2) || (!props.initialLocation && currentStep === 1)" class="flex-1 flex flex-col">
         <div class="flex-1 overflow-y-auto">
           <div class="space-y-4 p-4">
             <!-- Plot Information -->
@@ -357,11 +435,17 @@ import {
   collectGPSReadings,
   averageGPSReadings,
 } from "../utils/gpsAveraging";
+import {
+  waitForGPSStability,
+} from "../utils/gpsStability";
 
 const isVisible = defineModel("isVisible", { type: Boolean, default: false });
 
 const title = computed(() => {
-  return `Step ${currentStep.value + 1}: ${currentStep.value === 0 ? "Take Photo" : currentStep.value === 1 ? "Position Plot" : "Plot Details"}`;
+  const stepNames = props.initialLocation 
+    ? ["Take Photo", "Position Plot", "Plot Details"]
+    : ["Take Photo", "Plot Details"];
+  return `Step ${currentStep.value + 1}: ${stepNames[currentStep.value] || "Plot Details"}`;
 });
 
 const props = defineProps({
@@ -392,6 +476,8 @@ const isCapturing = ref(false);
 const isAnalyzing = ref(false);
 const analysisResult = ref(null);
 const isCreating = ref(false);
+const gpsStability = ref(null);
+const isCheckingGPS = ref(false);
 
 // Plot data
 const selectedPlotSize = ref(DEFAULT_PLOT_SIZE);
@@ -427,6 +513,80 @@ const statusOptions = [
   { label: "Unavailable", value: "Unavailable" },
 ];
 
+// Start GPS stability monitoring
+const startGPSMonitoring = async () => {
+  isCheckingGPS.value = true;
+  gpsStability.value = null;
+  
+  try {
+    const stability = await waitForGPSStability(
+      async () => {
+        try {
+          const location = await mapStore.getGPSLocation();
+          return {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+            timestamp: location.timestamp || Date.now(),
+          };
+        } catch (error) {
+          // If GPS fails (e.g., timeout on laptop), throw error to be handled
+          throw error;
+        }
+      },
+      {
+        minReadings: 3,
+        maxAccuracy: 15,
+        maxPositionVariance: 5,
+        maxAccuracyVariance: 3,
+        checkInterval: 1000,
+        maxWaitTime: 30000,
+        onProgress: (result) => {
+          gpsStability.value = result;
+        },
+      },
+    );
+    
+    gpsStability.value = stability;
+    
+    // Update current location with stable GPS
+    if (stability.isStable && stability.readings.length > 0) {
+      const lastReading = stability.readings[stability.readings.length - 1];
+      currentLocation.value = {
+        latitude: lastReading.latitude,
+        longitude: lastReading.longitude,
+        accuracy: stability.accuracy,
+      };
+    }
+  } catch (error) {
+    console.warn("GPS stability monitoring failed (device may not have GPS):", error);
+    
+    // For devices without GPS (like laptops), allow proceeding with manual location
+    // Set a "not available" state but don't block the user
+    gpsStability.value = {
+      isStable: false,
+      accuracy: Infinity,
+      readings: [],
+      stabilityScore: 0,
+    };
+    
+    // Try to use map store location as fallback
+    if (mapStore.currentLocation) {
+      currentLocation.value = mapStore.currentLocation;
+      console.log("Using map store location as fallback:", currentLocation.value);
+    } else if (props.initialLocation) {
+      currentLocation.value = props.initialLocation;
+      console.log("Using initial location as fallback:", currentLocation.value);
+    }
+    
+    // Don't show error - just allow manual location entry
+    // The camera button will still be disabled, but user can use "Skip Photo" or
+    // we can allow proceeding if location is available from map/initial location
+  } finally {
+    isCheckingGPS.value = false;
+  }
+};
+
 // Watch for visibility changes
 watch(
   () => props.isVisible,
@@ -437,20 +597,42 @@ watch(
       // Generate temp plot ID for analysis association
       tempPlotId.value = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       wizardLogger.debug("Generated temp plot ID:", tempPlotId.value);
+      
+      // Only start GPS stability monitoring if no initial location was provided
+      // If initialLocation is provided, the user has already specified the location
+      if (!props.initialLocation) {
+        startGPSMonitoring();
+      } else {
+        // Location already specified, mark GPS as stable (not needed)
+        gpsStability.value = {
+          isStable: true,
+          accuracy: 0, // Manual location has perfect accuracy
+          readings: [],
+          stabilityScore: 1.0,
+        };
+        isCheckingGPS.value = false;
+        wizardLogger.debug("Skipping GPS monitoring - location already specified:", props.initialLocation);
+      }
+    } else {
+      // Stop GPS monitoring when wizard closes
+      isCheckingGPS.value = false;
+      gpsStability.value = null;
     }
   },
 );
 
-// Watch for step changes and populate form when reaching Step 3
+// Watch for step changes and populate form when reaching plot details step
 watch(
   () => currentStep.value,
   async (newStep, oldStep) => {
     wizardLogger.debug("Step changed:", { from: oldStep, to: newStep });
 
-    if (newStep === 2) {
-      // Step 3 (0-indexed)
+    // Plot details step number depends on whether initialLocation is provided
+    const plotDetailsStep = props.initialLocation ? 2 : 1;
+    
+    if (newStep === plotDetailsStep) {
       wizardLogger.debug(
-        "Reached Step 3, populating form with defaults and analysis results",
+        `Reached Plot Details step (step ${plotDetailsStep}), populating form with defaults and analysis results`,
       );
       await populateFormWithDefaults();
 
@@ -463,7 +645,7 @@ watch(
   },
 );
 
-// Watch for analysis results and populate form if we're already on Step 3
+// Watch for analysis results and populate form if we're already on plot details step
 watch(
   () => analysisResult.value,
   (newResult, oldResult) => {
@@ -473,8 +655,11 @@ watch(
       currentStep: currentStep.value,
     });
 
-    if (newResult && newResult.success && currentStep.value === 2) {
-      wizardLogger.debug("Analysis completed while on Step 3, populating form");
+    // Plot details step number depends on whether initialLocation is provided
+    const plotDetailsStep = props.initialLocation ? 2 : 1;
+    
+    if (newResult && newResult.success && currentStep.value === plotDetailsStep) {
+      wizardLogger.debug(`Analysis completed while on Plot Details step (step ${plotDetailsStep}), populating form`);
       populateFormFromAnalysis(newResult);
     }
   },
@@ -487,12 +672,12 @@ watch(
   (newLocation, oldLocation) => {
     // Only update if:
     // 1. Wizard is visible
-    // 2. We're on the map step (step 1)
+    // 2. We're on the map step (step 1, only when initialLocation is provided)
     // 3. No initialLocation was provided (meaning user didn't manually select a location)
     // 4. We have a new location
     if (
       props.isVisible &&
-      currentStep.value === 1 &&
+      ((props.initialLocation && currentStep.value === 1) || (!props.initialLocation && currentStep.value === 0)) &&
       !props.initialLocation &&
       newLocation
     ) {
@@ -608,6 +793,8 @@ const resetWizard = () => {
   tempPlotId.value = null; // Reset temp plot ID
   plotGeometry.value = null; // Reset plot geometry
   plotFeature.value = null; // Reset plot feature
+  gpsStability.value = null;
+  isCheckingGPS.value = false;
 
   // Reset form fields
   plotNumber.value = "";
@@ -699,8 +886,40 @@ const takePhoto = async () => {
       console.log("PlotCreationWizard: Grave photo captured successfully");
       showSuccess("Photo captured successfully!");
 
+      // Generate plot geometry from GPS location and direction
+      // Only auto-generate if no initialLocation (user will adjust in map step if initialLocation provided)
+      if (!props.initialLocation && currentLocation.value && selectedPlotSize.value) {
+        plotGeometry.value = generatePlotGeometry(
+          currentLocation.value,
+          selectedPlotSize.value,
+          userDirection.value,
+        );
+        wizardLogger.debug("Generated plot geometry from GPS:", {
+          location: currentLocation.value,
+          size: selectedPlotSize.value,
+          direction: userDirection.value,
+          geometry: plotGeometry.value,
+        });
+      } else if (props.initialLocation && currentLocation.value && selectedPlotSize.value) {
+        // Generate initial geometry for map editing (user can adjust)
+        plotGeometry.value = generatePlotGeometry(
+          currentLocation.value,
+          selectedPlotSize.value,
+          userDirection.value,
+        );
+        wizardLogger.debug("Generated initial plot geometry for map editing:", {
+          location: currentLocation.value,
+          size: selectedPlotSize.value,
+          direction: userDirection.value,
+          geometry: plotGeometry.value,
+        });
+      }
+
       // Start analysis automatically
       analyzeHeadstoneImage();
+      
+      // Always advance to next step
+      nextStep();
     } else {
       throw new Error("No photo data received");
     }
@@ -802,7 +1021,11 @@ const analyzeHeadstoneImage = async () => {
 
 // Navigation functions
 const nextStep = () => {
-  if (currentStep.value < 2) {
+  // Max step depends on whether initialLocation is provided
+  // With initialLocation: Step 0 (photo) -> Step 1 (map) -> Step 2 (details) = max step 2
+  // Without initialLocation: Step 0 (photo) -> Step 1 (details) = max step 1
+  const maxStep = props.initialLocation ? 2 : 1;
+  if (currentStep.value < maxStep) {
     currentStep.value++;
   }
 };

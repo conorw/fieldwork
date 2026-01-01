@@ -117,13 +117,19 @@ export const useSettingsStore = defineStore("settings", () => {
           resolve([longitude, latitude]); // OpenLayers uses [lon, lat] format
         },
         (error) => {
-          console.warn("Failed to get GPS location:", error.message);
+          // Don't log timeout errors as warnings - they're expected on devices without GPS
+          if (error.code === 3) {
+            // TIMEOUT - device may not have GPS hardware
+            console.log("GPS timeout (device may not have GPS hardware), using default center");
+          } else {
+            console.warn("Failed to get GPS location:", error.message);
+          }
           console.log("Using default center (Ballycastle)");
           resolve(defaultMapConfig.defaultCenter);
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 5000, // Reduced timeout to fail faster on devices without GPS
           maximumAge: 60000, // Cache for 1 minute
         },
       );
@@ -161,8 +167,9 @@ export const useSettingsStore = defineStore("settings", () => {
       console.log("GPS location refreshed:", gpsCenter);
       return gpsCenter;
     } catch (error) {
-      console.error("Error refreshing GPS location:", error);
-      throw error;
+      console.warn("Error refreshing GPS location (device may not have GPS):", error);
+      // Don't throw - just return default center
+      return defaultMapConfig.defaultCenter;
     }
   };
 
