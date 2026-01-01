@@ -17,8 +17,8 @@
     <!-- Navigation -->
     <Toolbar class="border-0 border-b-1 surface-border">
       <template #start>
-        <h1 class="text-xl font-semibold text-surface-900">
-          Fieldwork ({{ locationName }})
+        <h1 class="text-xl font-semibold text-surface-900 max-w-[200px] sm:max-w-none truncate">
+          {{ locationName }}
         </h1>
       </template>
 
@@ -138,7 +138,7 @@ const toast = useToast();
 
 const isOnline = useOnline();
 const locationName = computed(
-  () => locationsStore.selectedLocation?.name || "Fieldwork",
+  () => locationsStore.selectedLocation?.name || "",
 );
 
 const userInitials = computed(() => {
