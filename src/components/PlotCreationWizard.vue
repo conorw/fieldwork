@@ -353,6 +353,11 @@ import { DEFAULT_PLOT_SIZE, getSimplifiedPlotSizes } from "../utils/plotSizes";
 import { wizardLogger } from "../utils/logger";
 import { generatePlotGeometry } from "../utils/locationUtils";
 import { useToastService } from "../utils/toastService";
+import {
+  collectGPSReadings,
+  averageGPSReadings,
+  type GPSReading,
+} from "../utils/gpsAveraging";
 
 const isVisible = defineModel("isVisible", { type: Boolean, default: false });
 
@@ -620,8 +625,65 @@ const takePhoto = async () => {
     );
     isCapturing.value = true;
 
+    // Start collecting GPS readings in parallel with photo capture
+    const gpsCollectionPromise = (async () => {
+      try {
+        const readings = await collectGPSReadings(
+          async () => {
+            const location = await mapStore.getGPSLocation();
+            return {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              accuracy: location.accuracy,
+              timestamp: location.timestamp || Date.now(),
+            };
+          },
+          {
+            count: 5, // Collect 5 readings
+            interval: 800, // 800ms between readings
+            minAccuracy: 15, // Only accept readings better than 15m
+            maxDuration: 8000, // Max 8 seconds
+          },
+        );
+
+        // Average the readings
+        const averaged = averageGPSReadings(readings, true);
+        console.log("PlotCreationWizard: GPS averaged:", {
+          original: readings.length,
+          filtered: averaged.readingsCount,
+          accuracy: averaged.accuracy,
+          stdDev: averaged.standardDeviation,
+        });
+
+        // Update current location with averaged result
+        currentLocation.value = {
+          latitude: averaged.latitude,
+          longitude: averaged.longitude,
+          accuracy: averaged.accuracy,
+        };
+
+        return averaged;
+      } catch (error) {
+        console.warn(
+          "PlotCreationWizard: GPS averaging failed, using single reading:",
+          error,
+        );
+        // Fallback to single reading
+        const location = await mapStore.getGPSLocation();
+        currentLocation.value = {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        };
+        return null;
+      }
+    })();
+
     // Use Capacitor Camera for high-quality grave photos
     const result = await cameraService.takeGravePhoto();
+
+    // Wait for GPS averaging to complete
+    await gpsCollectionPromise;
 
     if (result.dataUrl) {
       // Convert data URL to blob for analysis
