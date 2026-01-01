@@ -292,6 +292,35 @@ body {
   z-index: 1000;
 }
 
+/* Make zoom controls slightly opaque */
+.ol-zoom {
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+}
+
+.ol-zoom:hover {
+  opacity: 1;
+}
+
+.ol-zoom button {
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+}
+
+.ol-zoom button:hover {
+  opacity: 1;
+}
+
+/* Make layer control button slightly opaque */
+.layer-control-toggle {
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+}
+
+.layer-control-toggle:hover {
+  opacity: 1;
+}
+
 /* Ensure attribution is visible and properly positioned */
 .ol-attribution {
   bottom: 0.5rem !important;
