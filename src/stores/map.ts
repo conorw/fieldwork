@@ -16,6 +16,7 @@ import Style from "ol/style/Style";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 import Text from "ol/style/Text";
+import Icon from "ol/style/Icon";
 import Select from "ol/interaction/Select";
 import Point from "ol/geom/Point";
 
@@ -27,6 +28,9 @@ export const useMapStore = defineStore("map", () => {
   
   // Cache for first person surnames by plot ID (for label performance)
   const plotSurnameCache = ref<Map<string, string>>(new Map());
+  
+  // Cache for plot thumbnails by plot ID (for label performance)
+  const plotThumbnailCache = ref<Map<string, string>>(new Map());
   
   // Watch persons changes to invalidate cache
   watch(
@@ -112,6 +116,67 @@ export const useMapStore = defineStore("map", () => {
     return null;
   };
 
+  // Helper function to get plot thumbnail (with caching)
+  const getPlotThumbnail = (plotId: string): string | null => {
+    // Check cache first
+    if (plotThumbnailCache.value.has(plotId)) {
+      return plotThumbnailCache.value.get(plotId) || null;
+    }
+    
+    // Return null if not cached (will be loaded asynchronously)
+    return null;
+  };
+
+  // Load thumbnail for a plot (async, called when plot is added)
+  const loadPlotThumbnail = async (plotId: string): Promise<void> => {
+    // Skip if already cached
+    if (plotThumbnailCache.value.has(plotId)) {
+      return;
+    }
+    
+    try {
+      const powerSyncStore = usePowerSyncStore();
+      if (!powerSyncStore.powerSync) {
+        return;
+      }
+      
+      // Query for first thumbnail of this plot
+      const images = await powerSyncStore.powerSync.getAll(
+        "SELECT thumbnail_data, cloud_url, data FROM plot_images WHERE plot_id = ? ORDER BY date_created DESC LIMIT 1",
+        [plotId],
+      );
+      
+      if (images && images.length > 0) {
+        const image = images[0] as { thumbnail_data?: string; cloud_url?: string; data?: string };
+        let thumbnailUrl: string | null = null;
+        
+        // Prefer thumbnail_data, then cloud_url, then data
+        if (image.thumbnail_data) {
+          thumbnailUrl = `data:image/jpeg;base64,${image.thumbnail_data}`;
+        } else if (image.cloud_url) {
+          thumbnailUrl = image.cloud_url;
+        } else if (image.data) {
+          thumbnailUrl = `data:image/jpeg;base64,${image.data}`;
+        }
+        
+        if (thumbnailUrl) {
+          plotThumbnailCache.value.set(plotId, thumbnailUrl);
+          console.log(`[Thumbnail] Loaded thumbnail for plot ${plotId}`);
+          // Force style recalculation to show thumbnail
+          if (plotsLayer.value) {
+            plotsLayer.value.changed();
+          }
+        } else {
+          console.log(`[Thumbnail] No valid thumbnail data for plot ${plotId}`);
+        }
+      } else {
+        console.log(`[Thumbnail] No images found for plot ${plotId}`);
+      }
+    } catch (error) {
+      console.warn(`[Thumbnail] Failed to load thumbnail for plot ${plotId}:`, error);
+    }
+  };
+
   // Helper function to format plot label text
   const formatPlotLabel = (plot: any): string => {
     const parts: string[] = [];
@@ -175,6 +240,35 @@ export const useMapStore = defineStore("map", () => {
           const baseFontSize = 12;
           const fontSize = Math.min(baseFontSize + (currentZoom - minZoomForLabels) * 1.5, 18);
           
+          const styles: Style[] = [...baseStyles];
+          
+          // Check for thumbnail
+          const thumbnailUrl = getPlotThumbnail(plot.id);
+          
+          // Calculate thumbnail size based on zoom level
+          const baseThumbnailSize = 50;
+          const thumbnailSize = Math.min(
+            baseThumbnailSize + (currentZoom - minZoomForLabels) * 3,
+            80
+          );
+          
+          // Add thumbnail icon style if available
+          if (thumbnailUrl) {
+            const iconStyle = new Style({
+              geometry: centerPoint,
+              image: new Icon({
+                src: thumbnailUrl,
+                scale: thumbnailSize / 200, // Scale based on thumbnail size (200px base)
+                anchor: [0.5, 0.5], // Center anchor
+                anchorXUnits: "fraction",
+                anchorYUnits: "fraction",
+                opacity: 0.9,
+              }),
+              zIndex: 9, // Below text but above plot fill/stroke
+            });
+            styles.push(iconStyle);
+          }
+          
           // Create text style with background for readability
           const textStyle = new Style({
             geometry: centerPoint,
@@ -192,15 +286,17 @@ export const useMapStore = defineStore("map", () => {
                 color: "rgba(255, 255, 255, 0.8)", // Semi-transparent white background
               }),
               padding: [4, 6, 4, 6], // Padding around text
-              offsetY: 0, // Center vertically
+              offsetY: thumbnailUrl ? thumbnailSize / 2 + 10 : 0, // Position below thumbnail if present
               textAlign: "center",
               textBaseline: "middle",
             }),
-            zIndex: 10, // Above plot fill/stroke
+            zIndex: 10, // Above plot fill/stroke and thumbnail
           });
           
-          // Return base styles plus text style
-          return [...baseStyles, textStyle];
+          styles.push(textStyle);
+          
+          // Return base styles plus thumbnail and text styles
+          return styles;
         }
       }
     }
@@ -966,6 +1062,11 @@ export const useMapStore = defineStore("map", () => {
       if (plotsLayer.value) {
         const source = plotsLayer.value.getSource();
         source.addFeature(plotFeature);
+        
+        // Pre-load thumbnail for this plot (async, non-blocking)
+        loadPlotThumbnail(plot.id).catch((err) => {
+          console.warn("Failed to pre-load thumbnail:", err);
+        });
       }
     } catch (error) {
       console.error("Error adding plot marker:", error);
@@ -1008,6 +1109,11 @@ export const useMapStore = defineStore("map", () => {
 
       const source = plotsLayer.value.getSource();
       source.addFeature(plotFeature);
+      
+      // Pre-load thumbnail for this plot (async, non-blocking)
+      loadPlotThumbnail(plot.id).catch((err) => {
+        console.warn("Failed to pre-load thumbnail:", err);
+      });
     } catch (error) {
       console.error("Error adding plot marker:", error);
     }
@@ -1022,6 +1128,15 @@ export const useMapStore = defineStore("map", () => {
     }
   };
 
+  // Clear thumbnail cache for a plot
+  const clearPlotThumbnailCache = (plotId?: string): void => {
+    if (plotId) {
+      plotThumbnailCache.value.delete(plotId);
+    } else {
+      plotThumbnailCache.value.clear();
+    }
+  };
+
   // Remove plot marker from map
   const removePlotMarker = (plotId: string): void => {
     if (!plotsLayer.value) {
@@ -1029,8 +1144,9 @@ export const useMapStore = defineStore("map", () => {
       return;
     }
     
-    // Clear surname cache for this plot
+    // Clear surname and thumbnail cache for this plot
     clearPlotSurnameCache(plotId);
+    clearPlotThumbnailCache(plotId);
 
     try {
       const source = plotsLayer.value.getSource();
