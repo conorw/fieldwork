@@ -14,6 +14,9 @@ export interface CapacitorLocation {
 export class CapacitorGeolocationService {
   private static instance: CapacitorGeolocationService;
   private watchId: string | null = null;
+  private firstFixTime: number | null = null; // Track time to first fix for adaptive timeouts
+  private averageFixTime: number | null = null; // Track average fix time
+  private fixCount: number = 0; // Count of successful fixes
 
   static getInstance(): CapacitorGeolocationService {
     if (!CapacitorGeolocationService.instance) {
@@ -23,17 +26,56 @@ export class CapacitorGeolocationService {
   }
 
   /**
-   * Get current position with high accuracy
+   * Get adaptive timeout based on device performance
+   */
+  private getAdaptiveTimeout(): number {
+    // If we have average fix time, use it to determine timeout
+    if (this.averageFixTime !== null) {
+      // Use 3x the average fix time, but cap between 10s and 30s
+      const adaptiveTimeout = Math.max(10000, Math.min(30000, this.averageFixTime * 3));
+      return adaptiveTimeout;
+    }
+    
+    // Default timeout for first fix
+    return 30000; // 30 seconds
+  }
+
+  /**
+   * Record fix time for adaptive timeout calculation
+   */
+  private recordFixTime(fixTime: number): void {
+    this.fixCount++;
+    
+    if (this.firstFixTime === null) {
+      this.firstFixTime = fixTime;
+      this.averageFixTime = fixTime;
+    } else {
+      // Update running average
+      this.averageFixTime = (this.averageFixTime! * (this.fixCount - 1) + fixTime) / this.fixCount;
+    }
+  }
+
+  /**
+   * Get current position with high accuracy and adaptive timeout
    */
   async getCurrentPosition(): Promise<CapacitorLocation> {
+    const startTime = Date.now();
+    const timeout = this.getAdaptiveTimeout();
+    
     try {
-      console.log("CapacitorGeolocation: Requesting high accuracy position...");
+      console.log("CapacitorGeolocation: Requesting high accuracy position...", {
+        timeout: `${timeout}ms`,
+        averageFixTime: this.averageFixTime ? `${this.averageFixTime}ms` : 'N/A',
+      });
 
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
-        timeout: 30000, // 30 seconds timeout
+        timeout: timeout,
         maximumAge: 0, // Don't use cached position
       });
+
+      const fixTime = Date.now() - startTime;
+      this.recordFixTime(fixTime);
 
       const location: CapacitorLocation = {
         latitude: position.coords.latitude,
@@ -51,6 +93,7 @@ export class CapacitorGeolocationService {
         lng: location.longitude,
         accuracy: location.accuracy,
         altitude: location.altitude,
+        fixTime: `${fixTime}ms`,
       });
 
       return location;
@@ -61,18 +104,30 @@ export class CapacitorGeolocationService {
   }
 
   /**
-   * Watch position changes with high accuracy
+   * Watch position changes with high accuracy and adaptive timeout
    */
   async watchPosition(
     callback: (location: CapacitorLocation) => void,
   ): Promise<string> {
+    // Clear any existing watch first
+    if (this.watchId) {
+      await this.clearWatch();
+    }
+
     try {
-      console.log("CapacitorGeolocation: Starting position watch...");
+      const timeout = this.getAdaptiveTimeout();
+      console.log("CapacitorGeolocation: Starting position watch...", {
+        timeout: `${timeout}ms`,
+        averageFixTime: this.averageFixTime ? `${this.averageFixTime}ms` : 'N/A',
+      });
+
+      let firstUpdate = true;
+      const watchStartTime = Date.now();
 
       this.watchId = await Geolocation.watchPosition(
         {
           enableHighAccuracy: true,
-          timeout: 30000,
+          timeout: timeout,
           maximumAge: 0,
         },
         (position, err) => {
@@ -93,11 +148,24 @@ export class CapacitorGeolocationService {
               speed: position.coords.speed || undefined,
             };
 
-            console.log("CapacitorGeolocation: Position update:", {
-              lat: location.latitude,
-              lng: location.longitude,
-              accuracy: location.accuracy,
-            });
+            // Record fix time for first update
+            if (firstUpdate) {
+              const fixTime = Date.now() - watchStartTime;
+              this.recordFixTime(fixTime);
+              firstUpdate = false;
+              console.log("CapacitorGeolocation: First position update received:", {
+                lat: location.latitude,
+                lng: location.longitude,
+                accuracy: location.accuracy,
+                fixTime: `${fixTime}ms`,
+              });
+            } else {
+              console.log("CapacitorGeolocation: Position update:", {
+                lat: location.latitude,
+                lng: location.longitude,
+                accuracy: location.accuracy,
+              });
+            }
 
             callback(location);
           }

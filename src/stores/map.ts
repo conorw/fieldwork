@@ -15,13 +15,32 @@ import { fromLonLat, toLonLat } from "ol/proj";
 import Style from "ol/style/Style";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
+import Text from "ol/style/Text";
 import Select from "ol/interaction/Select";
+import Point from "ol/geom/Point";
 
 export const useMapStore = defineStore("map", () => {
   const map = ref<import("ol/Map").default | null>(null);
   const locationsStore = useLocationsStore();
   const personsStore = usePersonsStore();
   const capacitorGeolocation = CapacitorGeolocationService.getInstance();
+  
+  // Cache for first person surnames by plot ID (for label performance)
+  const plotSurnameCache = ref<Map<string, string>>(new Map());
+  
+  // Watch persons changes to invalidate cache
+  watch(
+    () => personsStore.persons.length,
+    () => {
+      // Clear cache when persons change (new person added/removed)
+      plotSurnameCache.value.clear();
+      // Force style recalculation if plots layer exists
+      if (plotsLayer.value) {
+        plotsLayer.value.changed();
+      }
+    },
+  );
+  
   const currentLocation = ref<{
     latitude: number;
     longitude: number;
@@ -68,13 +87,125 @@ export const useMapStore = defineStore("map", () => {
     map.value.addLayer(plotsLayer.value as any);
   };
 
-  // Dynamic style function for plot selection
+  // Helper function to get first person's surname for a plot (with caching)
+  const getFirstPersonSurname = (plotId: string): string | null => {
+    // Check cache first
+    if (plotSurnameCache.value.has(plotId)) {
+      return plotSurnameCache.value.get(plotId) || null;
+    }
+    
+    // Use personsByPlot computed property (already grouped, efficient)
+    const plotPersons = personsStore.personsByPlot[plotId];
+    if (plotPersons && plotPersons.length > 0) {
+      // Get first person (already sorted by surname, forename)
+      const firstPerson = plotPersons[0];
+      const surname = firstPerson.surname || null;
+      
+      // Cache the result
+      if (surname) {
+        plotSurnameCache.value.set(plotId, surname);
+      }
+      
+      return surname;
+    }
+    
+    return null;
+  };
+
+  // Helper function to format plot label text
+  const formatPlotLabel = (plot: any): string => {
+    const parts: string[] = [];
+    if (plot.section) parts.push(plot.section);
+    if (plot.row) parts.push(plot.row);
+    if (plot.number) parts.push(plot.number);
+    
+    const plotInfo = parts.length > 0 ? parts.join("-") : "";
+    
+    // Add first person's surname on a new line if available
+    const surname = getFirstPersonSurname(plot.id);
+    if (surname) {
+      return plotInfo ? `${plotInfo}\n${surname}` : surname;
+    }
+    
+    return plotInfo;
+  };
+
+  // Helper function to calculate polygon center point
+  const getPolygonCenter = (geometry: any): Point | null => {
+    if (!geometry) return null;
+    try {
+      // Use getInteriorPoint() for better label placement (avoids edges)
+      const interiorPoint = geometry.getInteriorPoint();
+      return interiorPoint;
+    } catch (error) {
+      // Fallback to extent center if getInteriorPoint fails
+      try {
+        const extent = geometry.getExtent();
+        const centerX = (extent[0] + extent[2]) / 2;
+        const centerY = (extent[1] + extent[3]) / 2;
+        return new Point([centerX, centerY]);
+      } catch (e) {
+        return null;
+      }
+    }
+  };
+
+  // Dynamic style function for plot selection with labels
   const getPlotStyle = (feature: any) => {
     const plot = feature.get("plot");
     if (!plot) return plotStyle;
 
     const isSelected = selectedPlot.value?.id === plot.id;
-    return isSelected ? selectedPlotStyle : plotStyle;
+    const baseStyles = isSelected ? selectedPlotStyle : plotStyle;
+    
+    // Get current zoom level
+    const currentZoom = map.value?.getView().getZoom() || 0;
+    const minZoomForLabels = 22;
+    
+    // Only show labels at closer zoom levels
+    if (currentZoom >= minZoomForLabels) {
+      const labelText = formatPlotLabel(plot);
+      
+      if (labelText) {
+        const geometry = feature.getGeometry();
+        const centerPoint = getPolygonCenter(geometry);
+        
+        if (centerPoint) {
+          // Calculate font size based on zoom level
+          const baseFontSize = 12;
+          const fontSize = Math.min(baseFontSize + (currentZoom - minZoomForLabels) * 1.5, 18);
+          
+          // Create text style with background for readability
+          const textStyle = new Style({
+            geometry: centerPoint,
+            text: new Text({
+              text: labelText,
+              font: `${fontSize}px sans-serif`,
+              fill: new Fill({
+                color: "#1f2937", // Dark gray text
+              }),
+              stroke: new Stroke({
+                color: "#ffffff", // White outline for contrast
+                width: 3,
+              }),
+              backgroundFill: new Fill({
+                color: "rgba(255, 255, 255, 0.8)", // Semi-transparent white background
+              }),
+              padding: [4, 6, 4, 6], // Padding around text
+              offsetY: 0, // Center vertically
+              textAlign: "center",
+              textBaseline: "middle",
+            }),
+            zIndex: 10, // Above plot fill/stroke
+          });
+          
+          // Return base styles plus text style
+          return [...baseStyles, textStyle];
+        }
+      }
+    }
+    
+    return baseStyles;
   };
 
   // Cached style objects - created once and reused
@@ -882,12 +1013,24 @@ export const useMapStore = defineStore("map", () => {
     }
   };
 
+  // Clear surname cache for a plot (call when persons change)
+  const clearPlotSurnameCache = (plotId?: string): void => {
+    if (plotId) {
+      plotSurnameCache.value.delete(plotId);
+    } else {
+      plotSurnameCache.value.clear();
+    }
+  };
+
   // Remove plot marker from map
   const removePlotMarker = (plotId: string): void => {
     if (!plotsLayer.value) {
       console.warn("Cannot remove plot marker: plots layer not available");
       return;
     }
+    
+    // Clear surname cache for this plot
+    clearPlotSurnameCache(plotId);
 
     try {
       const source = plotsLayer.value.getSource();
@@ -1150,6 +1293,9 @@ export const useMapStore = defineStore("map", () => {
         source.removeFeature(plotFeature);
       }
 
+      // Clear surname cache for this plot (persons may have changed)
+      clearPlotSurnameCache(plotId);
+      
       // Re-add the plot with updated geometry
       const { usePlots } = await import("./powersync");
       const plotsStore = usePlots();

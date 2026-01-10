@@ -328,22 +328,22 @@
                       />
                     </svg>
                     <p class="text-green-800 text-sm font-medium">
-                      Found {{ analysisResult.persons.length }} person(s) - will
+                      Found {{ analysisResult.persons?.length || 0 }} person(s) - will
                       be added when plot is created
                     </p>
                   </div>
 
                   <!-- Show found persons -->
                   <div
-                    v-if="analysisResult.persons.length > 0"
+                    v-if="analysisResult.persons && analysisResult.persons.length > 0"
                     class="mt-2 text-xs"
                   >
                     <div class="text-green-700 space-y-1">
                       <div
-                        v-for="(person, index) in analysisResult.persons.slice(
+                        v-for="(person, index) in analysisResult.persons?.slice(
                           0,
                           3,
-                        )"
+                        ) || []"
                         :key="index"
                       >
                         • {{ getPersonDisplayName(person) }}
@@ -352,7 +352,7 @@
                         >
                       </div>
                       <div
-                        v-if="analysisResult.persons.length > 3"
+                        v-if="analysisResult.persons && analysisResult.persons.length > 3"
                         class="text-green-600"
                       >
                         + {{ analysisResult.persons.length - 3 }} more
@@ -363,7 +363,7 @@
 
                 <!-- Detailed Person Information -->
                 <div
-                  v-for="(person, index) in analysisResult.persons"
+                  v-for="(person, index) in analysisResult.persons || []"
                   :key="index"
                   class="mb-2 p-2 bg-surface-50 rounded border border-surface-200"
                 >
@@ -411,12 +411,13 @@
   </Drawer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch, onMounted, computed } from "vue";
 import { useMapStore } from "../stores/map";
 import { usePowerSyncStore } from "../stores/powersync";
 import { useLocationsStore } from "../stores/locations";
 import { usePlots } from "../stores/powersync";
+import { useAuthStore } from "../stores/auth";
 import MapEdit from "./MapEdit.vue";
 import { headstoneAnalysisService } from "../utils/headstoneAnalysisService";
 
@@ -430,6 +431,9 @@ import Image from "primevue/image";
 
 // Capacitor Camera service
 import { CapacitorCameraService } from "../services/capacitorCamera";
+
+// Capacitor Geolocation service
+import CapacitorGeolocationService from "../services/capacitorGeolocation";
 
 // Convert photoData to File object for analysis
 import { base64ToBlob } from "../powersync-schema";
@@ -445,7 +449,10 @@ import {
 } from "../utils/gpsAveraging";
 import {
   waitForGPSStability,
+  checkGPSStability,
 } from "../utils/gpsStability";
+import type { GPSReading } from "../utils/gpsAveraging";
+import type { GPSStabilityResult } from "../utils/gpsStability";
 import { useDeviceOrientation } from "../composables/useDeviceOrientation";
 import {
   extractEXIFGPSFromDataURL,
@@ -464,12 +471,19 @@ const title = computed(() => {
   return `Step ${currentStep.value + 1}: ${stepNames[currentStep.value] || "Plot Details"}`;
 });
 
-const props = defineProps({
-  initialLocation: {
-    type: Object,
-    default: null,
-  },
-});
+const props = defineProps<{
+  initialLocation?: { latitude: number; longitude: number; accuracy?: number } | null;
+}>();
+
+// Helper to convert initialLocation to currentLocation format
+const normalizeLocation = (loc: typeof props.initialLocation): typeof currentLocation.value => {
+  if (!loc) return null;
+  return {
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    accuracy: loc.accuracy ?? 0,
+  };
+};
 
 const emit = defineEmits(["close", "plotCreated"]);
 
@@ -478,6 +492,7 @@ const mapStore = useMapStore();
 const powerSyncStore = usePowerSyncStore();
 const locationsStore = useLocationsStore();
 const plots = usePlots();
+const authStore = useAuthStore();
 
 // Toast service
 const { showSuccess, showError } = useToastService();
@@ -485,26 +500,34 @@ const { showSuccess, showError } = useToastService();
 // Capacitor Camera service
 const cameraService = CapacitorCameraService.getInstance();
 
+// Capacitor Geolocation service
+const geolocationService = CapacitorGeolocationService.getInstance();
+
 // Device orientation
 const { userDirection, startOrientationListener, stopOrientationListener } = useDeviceOrientation();
 
 // State
 const currentStep = ref(0);
-const photoData = ref(null);
+const photoData = ref<{ dataUrl: string; file?: File | Blob; blob?: Blob } | null>(null);
 const isCapturing = ref(false);
 const isAnalyzing = ref(false);
-const analysisResult = ref(null);
+const analysisResult = ref<{ success: boolean; persons?: any[] } | null>(null);
 const isCreating = ref(false);
-const gpsStability = ref(null);
+const gpsStability = ref<GPSStabilityResult | null>(null);
 const isCheckingGPS = ref(false);
+
+// GPS pre-warming: rolling buffer of GPS readings
+const gpsReadingsBuffer = ref<GPSReading[]>([]);
+const gpsWatchId = ref<string | null>(null);
+const maxBufferSize = 10; // Keep last 10 readings
 
 // Plot data
 const selectedPlotSize = ref(DEFAULT_PLOT_SIZE);
-const currentLocation = ref(null);
-const tempPlotId = ref(null); // Store temp plot ID for analysis association
-const plotGeometry = ref(null); // Store plot geometry from map
-const plotFeature = ref(null); // Store plot feature from map
-const mapEditRef = ref(null); // Reference to MapEdit component
+const currentLocation = ref<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+const tempPlotId = ref<string | null>(null); // Store temp plot ID for analysis association
+const plotGeometry = ref<any>(null); // Store plot geometry from map
+const plotFeature = ref<any>(null); // Store plot feature from map
+const mapEditRef = ref<any>(null); // Reference to MapEdit component
 
 // Use shared plot sizes
 const plotSizes = ref(getSimplifiedPlotSizes());
@@ -531,34 +554,150 @@ const statusOptions = [
   { label: "Unavailable", value: "Unavailable" },
 ];
 
-// Start GPS stability monitoring
+// Start GPS watch for pre-warming
+const startGPSWatch = async () => {
+  try {
+    // Check permissions first
+    const permissions = await geolocationService.checkPermissions();
+    if (permissions.location !== "granted") {
+      const newPermissions = await geolocationService.requestPermissions();
+      if (newPermissions.location !== "granted") {
+        console.warn("GPS permissions not granted, cannot start watch");
+        return;
+      }
+    }
+
+    // Clear any existing watch
+    if (gpsWatchId.value) {
+      await geolocationService.clearWatch();
+    }
+
+    // Start watchPosition for continuous GPS updates
+    gpsWatchId.value = await geolocationService.watchPosition((location) => {
+      // Convert CapacitorLocation to GPSReading
+      const reading: GPSReading = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        timestamp: location.timestamp,
+        heading: location.heading || userDirection.value || undefined,
+        speed: location.speed,
+      };
+
+      // Add to rolling buffer
+      gpsReadingsBuffer.value.push(reading);
+      
+      // Keep only recent readings
+      if (gpsReadingsBuffer.value.length > maxBufferSize) {
+        gpsReadingsBuffer.value.shift();
+      }
+
+      // Update stability check with new reading
+      checkGPSStabilityFromBuffer();
+    });
+
+    console.log("GPS watch started for pre-warming:", gpsWatchId.value);
+  } catch (error) {
+    console.warn("Failed to start GPS watch:", error);
+  }
+};
+
+// Stop GPS watch
+const stopGPSWatch = async () => {
+  if (gpsWatchId.value) {
+    try {
+      await geolocationService.clearWatch();
+      gpsWatchId.value = null;
+      console.log("GPS watch stopped");
+    } catch (error) {
+      console.warn("Error stopping GPS watch:", error);
+    }
+  }
+};
+
+// Check GPS stability from buffer
+const checkGPSStabilityFromBuffer = () => {
+  if (gpsReadingsBuffer.value.length < 3) {
+    return;
+  }
+
+  // Use recent readings for stability check
+  const recentReadings = gpsReadingsBuffer.value.slice(-5); // Use last 5 readings
+  
+  const stability = checkGPSStability(recentReadings, {
+    minReadings: 3,
+    maxAccuracy: 15,
+    maxPositionVariance: 5,
+    maxAccuracyVariance: 3,
+  });
+
+  gpsStability.value = stability;
+
+  // Update current location if stable
+  if (stability.isStable && recentReadings.length > 0) {
+    const lastReading = recentReadings[recentReadings.length - 1];
+    currentLocation.value = {
+      latitude: lastReading.latitude,
+      longitude: lastReading.longitude,
+      accuracy: stability.accuracy,
+    };
+  }
+};
+
+// Start GPS stability monitoring (now uses watchPosition via buffer)
 const startGPSMonitoring = async () => {
   isCheckingGPS.value = true;
   gpsStability.value = null;
+  gpsReadingsBuffer.value = [];
   
   try {
+    // Start GPS watch for continuous updates
+    await startGPSWatch();
+
+    // Wait a short time for initial GPS reading (devices without GPS will timeout quickly)
+    const initialWaitTime = 5000; // 5 seconds
+    const initialWaitStart = Date.now();
+    while (gpsReadingsBuffer.value.length === 0 && Date.now() - initialWaitStart < initialWaitTime) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // If we still have no readings after initial wait, GPS is likely not available
+    if (gpsReadingsBuffer.value.length === 0) {
+      console.log("No GPS readings received after initial wait - device may not have GPS hardware");
+      // Throw error to trigger fallback handling
+      throw new Error("GPS_TIMEOUT: No GPS readings available");
+    }
+
+    // Wait for stability using readings from buffer
     const stability = await waitForGPSStability(
       async () => {
-        try {
-          const location = await mapStore.getGPSLocation();
-          return {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-            timestamp: location.timestamp || Date.now(),
-          };
-        } catch (error) {
-          // If GPS fails (e.g., timeout on laptop), throw error to be handled
-          throw error;
+        // Wait for new reading from buffer
+        const initialLength = gpsReadingsBuffer.value.length;
+        let attempts = 0;
+        const maxAttempts = 20; // 10 seconds max wait (500ms * 20)
+        
+        while (gpsReadingsBuffer.value.length === initialLength && attempts < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          attempts++;
         }
+
+        // If buffer is still empty, throw timeout error
+        if (gpsReadingsBuffer.value.length === 0) {
+          throw new Error("GPS_TIMEOUT: No GPS readings available");
+        }
+
+        // Return most recent reading
+        const reading = gpsReadingsBuffer.value[gpsReadingsBuffer.value.length - 1];
+        return reading;
       },
       {
         minReadings: 3,
         maxAccuracy: 15,
         maxPositionVariance: 5,
         maxAccuracyVariance: 3,
-        checkInterval: 1000,
-        maxWaitTime: 30000,
+        checkInterval: 500, // Reduced to 500ms
+        maxWaitTime: 25000, // Reduced since we already waited 5 seconds
+        useProgressiveAccuracy: true,
         onProgress: (result) => {
           gpsStability.value = result;
         },
@@ -577,7 +716,19 @@ const startGPSMonitoring = async () => {
       };
     }
   } catch (error) {
-    console.warn("GPS stability monitoring failed (device may not have GPS):", error);
+    // Check if this is a GPS timeout/unavailable error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isGPSTimeout = error instanceof GeolocationPositionError && error.code === 3;
+    const isNoReadingsError = errorMessage.includes("GPS_TIMEOUT") || errorMessage.includes("No GPS readings");
+    
+    if (isGPSTimeout || isNoReadingsError) {
+      console.log("GPS not available on this device (likely no GPS hardware) - using fallback location");
+    } else {
+      console.warn("GPS stability monitoring failed:", error);
+    }
+    
+    // Stop GPS watch if it's running
+    await stopGPSWatch();
     
     // For devices without GPS (like laptops), allow proceeding with manual location
     // Set a "not available" state but don't block the user
@@ -593,7 +744,7 @@ const startGPSMonitoring = async () => {
       currentLocation.value = mapStore.currentLocation;
       console.log("Using map store location as fallback:", currentLocation.value);
     } else if (props.initialLocation) {
-      currentLocation.value = props.initialLocation;
+      currentLocation.value = normalizeLocation(props.initialLocation);
       console.log("Using initial location as fallback:", currentLocation.value);
     }
     
@@ -607,7 +758,7 @@ const startGPSMonitoring = async () => {
 
 // Watch for visibility changes
 watch(
-  () => props.isVisible,
+  () => isVisible.value,
   (newValue) => {
     if (newValue) {
       resetWizard();
@@ -638,6 +789,9 @@ watch(
       // Stop GPS monitoring when wizard closes
       isCheckingGPS.value = false;
       gpsStability.value = null;
+      // Stop GPS watch
+      stopGPSWatch();
+      gpsReadingsBuffer.value = [];
       // Stop device orientation tracking
       stopOrientationListener();
     }
@@ -699,7 +853,7 @@ watch(
     // 3. No initialLocation was provided (meaning user didn't manually select a location)
     // 4. We have a new location
     if (
-      props.isVisible &&
+      isVisible.value &&
       ((props.initialLocation && currentStep.value === 1) || (!props.initialLocation && currentStep.value === 0)) &&
       !props.initialLocation &&
       newLocation
@@ -729,7 +883,7 @@ watch(
         currentLocation.value = newLocation;
       }
     } else if (
-      props.isVisible &&
+      isVisible.value &&
       currentStep.value === 1 &&
       props.initialLocation
     ) {
@@ -746,7 +900,7 @@ watch(
 const initializeLocation = async () => {
   try {
     if (props.initialLocation) {
-      currentLocation.value = props.initialLocation;
+      currentLocation.value = normalizeLocation(props.initialLocation);
       wizardLogger.debug("Using initial location:", currentLocation.value);
     } else {
       // Get current location from map store
@@ -759,7 +913,7 @@ const initializeLocation = async () => {
           "No location available from map store, attempting geolocation...",
         );
         try {
-          const position = await new Promise((resolve, reject) => {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
               enableHighAccuracy: true,
               timeout: 10000,
@@ -770,7 +924,7 @@ const initializeLocation = async () => {
           currentLocation.value = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
+            accuracy: position.coords.accuracy || 0,
           };
           wizardLogger.debug(
             "Got location from geolocation:",
@@ -816,6 +970,8 @@ const resetWizard = () => {
   plotFeature.value = null; // Reset plot feature
   gpsStability.value = null;
   isCheckingGPS.value = false;
+  gpsReadingsBuffer.value = [];
+  // Note: Don't stop GPS watch here - it will be stopped when wizard closes
 
   // Reset form fields
   plotNumber.value = "";
@@ -835,34 +991,95 @@ const takePhoto = async () => {
     // Start collecting GPS readings in parallel with photo capture
     const gpsCollectionPromise = (async () => {
       try {
-        // Collect GPS readings with heading information
-        const readings = await collectGPSReadings(
-          async () => {
-            const location = await mapStore.getGPSLocation();
-            // Try to get GPS heading from the location if available
-            // GPS heading is more accurate than device orientation when available
-            let heading = userDirection.value;
-            // Check if location has heading property (from Capacitor geolocation)
-            if ('heading' in location && location.heading !== undefined && location.heading !== null) {
-              heading = location.heading;
-              console.log("PlotCreationWizard: Using GPS heading:", heading);
-            }
-            
-            return {
-              latitude: location.latitude,
-              longitude: location.longitude,
-              accuracy: location.accuracy,
-              timestamp: location.timestamp || Date.now(),
-              heading: heading,
-            };
-          },
-          {
-            count: 5, // Collect 5 readings
-            interval: 800, // 800ms between readings
-            minAccuracy: 15, // Only accept readings better than 15m
-            maxDuration: 8000, // Max 8 seconds
-          },
+        // Check if we have recent readings from stability monitoring
+        const recentReadings = gpsReadingsBuffer.value.filter(
+          (r) => Date.now() - r.timestamp < 10000 // Readings from last 10 seconds
         );
+        
+        const hasStableReadings = gpsStability.value?.isStable && recentReadings.length >= 3;
+        const stableAccuracy = gpsStability.value?.accuracy || Infinity;
+        
+        let readings: GPSReading[];
+        
+        if (hasStableReadings && stableAccuracy <= 15) {
+          // Reuse readings from stability monitoring
+          console.log("PlotCreationWizard: Reusing GPS readings from stability monitoring:", {
+            count: recentReadings.length,
+            accuracy: stableAccuracy,
+          });
+          readings = recentReadings.slice(-5); // Use last 5 readings
+          
+          // Optionally collect 1-2 additional readings for better accuracy
+          // but with optimized parameters
+          const additionalReadings = await collectGPSReadings(
+            async () => {
+              const location = await mapStore.getGPSLocation();
+              let heading: number | null = userDirection.value;
+              if ('heading' in location && location.heading !== undefined && location.heading !== null) {
+                heading = location.heading as number;
+              }
+              
+              return {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+                timestamp: location.timestamp || Date.now(),
+                heading: heading,
+              };
+            },
+            {
+              count: 2, // Only collect 2 additional readings
+              interval: 500, // Reduced interval to 500ms
+              minAccuracy: Math.max(10, stableAccuracy * 1.2) as number, // Accept readings up to 20% worse than stable accuracy
+              maxDuration: 2000, // Max 2 seconds
+            },
+          );
+          
+          // Combine readings
+          readings = [...readings, ...additionalReadings];
+        } else {
+          // Collect new readings with optimized parameters
+          const targetCount = recentReadings.length > 0 ? 3 : 5; // Fewer if we have some readings
+          const targetInterval = hasStableReadings ? 500 : 800; // Faster if we have stable readings
+          const targetMinAccuracy: number = stableAccuracy < Infinity ? Math.max(10, stableAccuracy * 1.2) : 15;
+          
+          console.log("PlotCreationWizard: Collecting new GPS readings:", {
+            count: targetCount,
+            interval: targetInterval,
+            minAccuracy: targetMinAccuracy,
+            hasRecentReadings: recentReadings.length > 0,
+          });
+          
+          readings = await collectGPSReadings(
+            async () => {
+              const location = await mapStore.getGPSLocation();
+              let heading: number | null = userDirection.value;
+              if ('heading' in location && location.heading !== undefined && location.heading !== null) {
+                heading = Number(location.heading);
+                console.log("PlotCreationWizard: Using GPS heading:", heading);
+              }
+              
+              return {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+                timestamp: location.timestamp || Date.now(),
+                heading: heading ?? undefined,
+              };
+            },
+            {
+              count: targetCount,
+              interval: targetInterval,
+              minAccuracy: targetMinAccuracy,
+              maxDuration: targetCount * targetInterval + 1000, // Slightly more than needed
+            },
+          );
+          
+          // Combine with recent readings if available
+          if (recentReadings.length > 0) {
+            readings = [...recentReadings.slice(-2), ...readings];
+          }
+        }
 
         // Apply orientation constraint if we have a movement direction
         // This projects GPS readings onto the movement line, reducing perpendicular drift
@@ -1014,7 +1231,8 @@ const takePhoto = async () => {
     }
   } catch (error) {
     console.error("PlotCreationWizard: Error taking grave photo:", error);
-    showError(`Failed to take photo: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    showError(`Failed to take photo: ${errorMessage}`);
   } finally {
     isCapturing.value = false;
   }
@@ -1047,7 +1265,8 @@ const pickFromGallery = async () => {
     }
   } catch (error) {
     console.error("PlotCreationWizard: Error picking from gallery:", error);
-    showError(`Failed to pick photo: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    showError(`Failed to pick photo: ${errorMessage}`);
   } finally {
     isCapturing.value = false;
   }
@@ -1079,30 +1298,38 @@ const analyzeHeadstoneImage = async () => {
     isAnalyzing.value = true;
     analysisResult.value = null;
 
+    const file = photoData.value.file;
+    if (!file) {
+      throw new Error("No file available for analysis");
+    }
+    const plotId = tempPlotId.value;
+    if (!plotId) {
+      throw new Error("No temp plot ID available for analysis");
+    }
     const result = await headstoneAnalysisService.analyzeHeadstoneImage(
-      photoData.value.file,
-      tempPlotId.value,
+      file as File,
+      plotId,
     );
 
     analysisResult.value = result;
 
     if (result.success) {
       showSuccess(
-        `Analysis completed successfully! Found ${result.persons.length} person(s).`,
+        `Analysis completed successfully! Found ${result.persons?.length || 0} person(s).`,
       );
 
       // Prepopulate form with analysis results
       populateFormFromAnalysis(result);
     } else {
-      showError(`Analysis failed: ${result.error}`);
+      showError(`Analysis failed: ${(result as any).error || 'Unknown error'}`);
     }
   } catch (error) {
     console.error("PlotCreationWizard: Error analyzing headstone:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     analysisResult.value = {
       success: false,
-      error: error.message || "Analysis failed",
     };
-    showError(`Analysis failed: ${error.message}`);
+    showError(`Analysis failed: ${errorMessage}`);
   } finally {
     isAnalyzing.value = false;
   }
@@ -1126,7 +1353,7 @@ const prevStep = () => {
 };
 
 // Plot size selection
-const selectPlotSize = (size) => {
+const selectPlotSize = (size: any) => {
   wizardLogger.debug("Selecting plot size:", size);
   wizardLogger.debug("Previous size:", selectedPlotSize.value);
   selectedPlotSize.value = size;
@@ -1134,7 +1361,7 @@ const selectPlotSize = (size) => {
 };
 
 // Get display name for person
-const getPersonDisplayName = (person) => {
+const getPersonDisplayName = (person: any) => {
   if (!person) return "Unknown Name";
 
   // Try different name field combinations
@@ -1197,7 +1424,7 @@ const handleMapSave = () => {
   // Store geometry and feature data for plot creation
   if (mapData.geometry) {
     // Convert OpenLayers geometry to serializable format
-    const serializedGeometry = mapData.geometry.map((coord) => [
+    const serializedGeometry = mapData.geometry.map((coord: any) => [
       coord[0],
       coord[1],
     ]);
@@ -1226,8 +1453,6 @@ const createPlot = async () => {
     isCreating.value = true;
 
     // Ensure PowerSync store is initialized before creating plot (only if authenticated)
-    const { useAuthStore } = await import('../stores/auth');
-    const authStore = useAuthStore();
     if (!powerSyncStore.isInitialized && authStore.isAuthenticated) {
       wizardLogger.debug(
         "PowerSync store not initialized, initializing now...",
@@ -1286,9 +1511,12 @@ const createPlot = async () => {
     // Prepare notes from analysis results
     let notes = "";
     if (analysisResult.value && analysisResult.value.success) {
-      notes = analysisResult.value.full_text_transcription || "";
+      notes = (analysisResult.value as any).full_text_transcription || "";
     }
 
+    const userId = authStore.user?.id || "anonymous";
+    const now = new Date().toISOString();
+    
     const plotData = {
       geometry: geometry,
       section: section.value,
@@ -1297,16 +1525,13 @@ const createPlot = async () => {
       status: status.value,
       location_id: selectedLocationId || null,
       temp_plot_id: tempPlotId.value || null, // Add temp plot ID for analysis association
-      type: photoData.value ? "Photo-Created" : "Manual-Created",
       notes: notes,
-      depth: 6,
-      location: {
-        latitude: currentLocation.value.latitude,
-        longitude: currentLocation.value.longitude,
-        accuracy: currentLocation.value.accuracy || 5,
-      },
-      createdAt: new Date().toISOString(),
-      // photos field removed - use plot_images table instead
+      date_created: now,
+      date_modified: now,
+      created_by: userId,
+      modified_by: userId,
+      // Note: type, depth, location, createdAt are not part of PlotRecord schema
+      // They may be stored elsewhere or handled differently
     };
 
     wizardLogger.debug("Creating plot with comprehensive data:", plotData);
@@ -1387,12 +1612,13 @@ const createPlot = async () => {
     wizardLogger.error("Error creating plot:", error);
 
     // Provide more specific error messages
+    const errorMsg = error instanceof Error ? error.message : String(error);
     let errorMessage = "Error creating plot. ";
-    if (error.message === "PowerSync client not available") {
+    if (errorMsg === "PowerSync client not available") {
       errorMessage += "Please try again - the system is still initializing.";
     } else if (
-      error.message.includes("network") ||
-      error.message.includes("connection")
+      errorMsg.includes("network") ||
+      errorMsg.includes("connection")
     ) {
       errorMessage += "Please check your internet connection and try again.";
     } else {
@@ -1407,8 +1633,8 @@ const createPlot = async () => {
 
 // Background processing function for photo upload
 const processRemainingOperationsInBackground = async (
-  newPlot,
-  preservedPhotoDataUrl,
+  newPlot: any,
+  preservedPhotoDataUrl: string,
 ) => {
   wizardLogger.debug(
     "Starting photo processing in background for plot:",
@@ -1474,9 +1700,11 @@ const processRemainingOperationsInBackground = async (
     wizardLogger.debug("Photo processing completed for plot:", newPlot.id);
   } catch (error) {
     wizardLogger.error("Error in photo processing:", error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     wizardLogger.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
+      message: errorMsg,
+      stack: errorStack,
     });
     // Don't throw - this is background processing, errors shouldn't affect the user experience
   }
@@ -1525,7 +1753,7 @@ const populateFormWithDefaults = async () => {
 };
 
 // Prepopulate form with analysis results
-const populateFormFromAnalysis = (result) => {
+const populateFormFromAnalysis = (result: any) => {
   wizardLogger.debug("Populating form from analysis results:", result);
   wizardLogger.debug("Analysis result structure:", {
     success: result.success,
@@ -1574,7 +1802,7 @@ const populateFormFromAnalysis = (result) => {
 
 // Initialize on mount
 onMounted(() => {
-  if (props.isVisible) {
+  if (isVisible.value) {
     initializeLocation();
   }
 });

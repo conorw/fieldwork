@@ -104,7 +104,8 @@ export function checkGPSStability(
 }
 
 /**
- * Monitor GPS and wait for stability
+ * Monitor GPS and wait for stability with progressive accuracy thresholds
+ * Supports both polling (getReading function) and watchPosition (onReading callback)
  */
 export async function waitForGPSStability(
   getReading: () => Promise<GPSReading>,
@@ -116,6 +117,7 @@ export async function waitForGPSStability(
     checkInterval?: number; // milliseconds between checks
     maxWaitTime?: number; // maximum time to wait in milliseconds
     onProgress?: (result: GPSStabilityResult) => void;
+    useProgressiveAccuracy?: boolean; // Enable progressive accuracy thresholds
   } = {},
 ): Promise<GPSStabilityResult> {
   const {
@@ -123,14 +125,34 @@ export async function waitForGPSStability(
     maxAccuracy = 15,
     maxPositionVariance = 5,
     maxAccuracyVariance = 3,
-    checkInterval = 1000, // Check every second
+    checkInterval = 500, // Reduced to 500ms for faster detection
     maxWaitTime = 30000, // Max 30 seconds
     onProgress,
+    useProgressiveAccuracy = true,
   } = options;
 
   const readings: GPSReading[] = [];
   const startTime = Date.now();
 
+  // Progressive accuracy thresholds: start lenient, get stricter over time
+  const getProgressiveAccuracy = (elapsedTime: number): number => {
+    if (!useProgressiveAccuracy) {
+      return maxAccuracy;
+    }
+    
+    // First 5 seconds: accept up to 20m
+    if (elapsedTime < 5000) {
+      return Math.max(maxAccuracy, 20);
+    }
+    // 5-15 seconds: accept up to 15m (or maxAccuracy if lower)
+    if (elapsedTime < 15000) {
+      return maxAccuracy;
+    }
+    // After 15 seconds: try to get better than maxAccuracy
+    return Math.max(10, maxAccuracy * 0.8);
+  };
+
+  // Polling mode (using getReading function)
   while (Date.now() - startTime < maxWaitTime) {
     try {
       // Get a new reading
@@ -144,9 +166,12 @@ export async function waitForGPSStability(
 
       // Check stability if we have enough readings
       if (readings.length >= minReadings) {
+        const elapsedTime = Date.now() - startTime;
+        const progressiveAccuracy = getProgressiveAccuracy(elapsedTime);
+        
         const stability = checkGPSStability(readings, {
           minReadings,
-          maxAccuracy,
+          maxAccuracy: progressiveAccuracy,
           maxPositionVariance,
           maxAccuracyVariance,
         });
