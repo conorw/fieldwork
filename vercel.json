@@ -2,8 +2,36 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/((?!api/|_next/|favicon.ico|icons/|assets/|node_modules|@vite|@id|src/|\\.js|\\.mjs|\\.css).*)",
+      "source": "/models/:path*",
+      "destination": "/models/:path*"
+    },
+    {
+      "source": "/wasm/:path*",
+      "destination": "/wasm/:path*"
+    },
+    {
+      "source": "/((?!api/|_next/|favicon.ico|icons/|assets/|models/|wasm/|node_modules|@vite|@id|src/|\\.js|\\.mjs|\\.css|\\.wasm|\\.onnx|\\.txt).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/wasm/:path*",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/wasm"
+        }
+      ]
+    },
+    {
+      "source": "/models/:path*",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/octet-stream"
+        }
+      ]
     }
   ]
 }

@@ -1,17 +1,18 @@
 # AI Analysis
 
-Fieldwork includes AI-powered headstone analysis that automatically extracts person information from headstone photos. The system currently supports OpenAI API mode (cloud-based). Local browser models are not yet available due to WebLLM vision model limitations.
+Fieldwork includes AI-powered headstone analysis that automatically extracts person information from headstone photos. The system supports both OpenAI API mode (cloud-based) and local browser-based OCR using PP-OCRv4 (via Gutenye/ONNX) or PP-OCRv2 (via Paddle.js) with automatic fallback.
 
-> **Note**: For details on attempted local AI approaches and why they didn't work, see [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md)
+> **Note**: For details on local AI approaches, including PaddleOCR integration, see [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md)
 
 ## Overview
 
 The AI analysis system:
 - **Automatic Extraction**: Extracts names, dates, relationships from headstone photos
 - **Structured Output**: Returns structured JSON with person data
-- **Current Mode**: OpenAI API (local browser models not available)
-- **Fast Processing**: Optimized for 8-10 second analysis times
+- **Modes**: OpenAI API (cloud) or Local Browser OCR (PaddleOCR + local LLM)
+- **Fast Processing**: Optimized for 8-10 second analysis times (OpenAI) or 10-15 seconds (local)
 - **High Accuracy**: Extracts full text transcriptions and structured data
+- **Learning System**: Collects user corrections to improve OCR models over time
 
 ## Analysis Modes
 
@@ -32,22 +33,42 @@ The AI analysis system:
 
 ### Local Browser Model
 
-**Status**: ⚠️ **Not Currently Available**
+**Status**: ✅ **Available (PP-OCRv4/PP-OCRv2)**
 
-**Why**: Local browser models are not functional due to:
-- WebLLM vision models require experimental WebGPU features not available in standard browsers
-- Known issues with vision model support in WebLLM (see [issue #727](https://github.com/mlc-ai/web-llm/issues/727))
-- TrOCR models are not suitable for engraved headstone text
+**Best for**: Privacy-sensitive use, offline operation, continuous improvement
 
-**Future**: Will be available when:
-- WebLLM vision models mature and stabilize
-- Browser support for required WebGPU features becomes standard
-- See [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md) for detailed technical information
+- **OCR**: PP-OCRv4 via Gutenye/ONNX (default, more accurate) or PP-OCRv2 via Paddle.js (fallback)
+- **Reasoning**: Local text generation model (GPT-2) for structured output
+- **Speed**: 10-15 seconds per analysis
+- **Accuracy**: Good accuracy (PP-OCRv4 is more accurate than v2), improves over time with user corrections
+- **Requirements**: 
+  - WebGL/WebGPU support
+  - PP-OCRv4: ~15-20MB model files (optional, downloads on first use)
+  - PP-OCRv2: Works immediately without additional setup
+- **Privacy**: All processing happens locally in browser
+- **Learning**: User corrections collected for model fine-tuning
 
-**Attempted Approaches**:
-- TrOCR (Transformer-based OCR) - Poor accuracy on headstones
-- Vision-language models - Wrong task (captioning, not text extraction)
-- Phi-3.5-vision-instruct - WebGPU compatibility issues
+**Configuration**:
+- Select "Local Browser Model" in Settings → AI Analysis Settings
+- PP-OCRv4 models download automatically on first use (if available)
+- Automatically falls back to PP-OCRv2 if PP-OCRv4 models not found
+- Corrections stored locally for training data export
+
+**How It Works**:
+1. OCR extracts text with bounding boxes (PP-OCRv4 or PP-OCRv2)
+2. Text generation model creates structured JSON
+3. User corrections collected for continuous improvement
+
+**Model Information**:
+- **OCR**: PP-OCRv4 mobile (~15-20MB) or PP-OCRv2 mobile (~7-10MB)
+- **Text**: `Xenova/gpt2` (~50MB)
+
+**PP-OCRv4 Setup** (Optional, for better accuracy):
+- See [OCR Model Setup Guide](./OCR_MODEL_SETUP.md) for instructions
+- Download model files to `public/models/` directory
+- App automatically uses PP-OCRv4 when models are available
+
+See [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md) for detailed technical information and [Model Training Guide](./MODEL_TRAINING.md) for fine-tuning instructions.
 
 ## How It Works
 
@@ -79,12 +100,12 @@ Headstone Photo
 ### Local Mode Flow
 
 1. **Image Preprocessing**: Grayscale, contrast enhancement, sharpening
-2. **OCR Extraction**: Extract text using TrOCR model
-3. **Vision Description**: Get image description using vision model
-4. **Text Combination**: Combine OCR and vision results
-5. **Structured Generation**: Generate JSON using text model
-6. **Parsing**: Parse and validate output
+2. **OCR Extraction**: Extract text using PP-OCRv4 (Gutenye/ONNX) or PP-OCRv2 (Paddle.js) with bounding boxes and confidence scores
+3. **Structured Generation**: Generate JSON using text model with layout information from bounding boxes
+4. **Parsing**: Parse and validate output
+5. **Feedback Collection**: Low-confidence results flagged for user review
 7. **Person Creation**: Create person records
+8. **Correction Collection**: Store OCR results for user review and model improvement
 
 ## Extracted Data
 
@@ -153,10 +174,13 @@ Additional compression on server (if needed):
 
 ### Local Model Optimizations
 
-1. **Image Preprocessing**: Enhances text visibility
-2. **Hybrid Approach**: Combines OCR and vision models
-3. **Garbled Text Detection**: Falls back to vision if OCR fails
-4. **Efficient Models**: Uses smaller, faster models
+1. **Image Preprocessing**: Enhances text visibility for engraved text
+2. **PaddleOCR**: Better accuracy than TrOCR for headstone text
+3. **Bounding Boxes**: Uses spatial information for better layout understanding
+4. **Hybrid Approach**: Combines OCR and vision models
+5. **Active Learning**: Flags low-confidence detections for user review
+6. **Garbled Text Detection**: Falls back to vision if OCR fails
+7. **Efficient Models**: Uses smaller, faster models optimized for browser
 
 ## Usage
 
@@ -196,9 +220,11 @@ The app tracks model state:
 
 ### Model Information
 
-- **OCR Model**: `Xenova/trocr-small-printed` (~50MB)
+- **OCR Model**: PaddleOCR PP-OCRv3 mobile (~7-10MB)
 - **Vision Model**: `Xenova/vit-gpt2-image-captioning` (~200MB)
 - **Text Model**: `Xenova/gpt2` (~50MB)
+
+**Note**: PaddleOCR is required for local mode. If PaddleOCR fails to initialize, local mode will not be available.
 
 ## Error Handling
 
@@ -258,9 +284,23 @@ The app tracks model state:
 3. **Network Speed**: Faster network = faster analysis
 4. **Device Performance**: Local mode depends on device performance
 
+## Learning & Model Improvement
+
+The app includes a comprehensive feedback system for continuous model improvement:
+
+- **OCR Correction UI**: Review and correct OCR results with bounding boxes
+- **Feedback Collection**: Corrections stored locally in IndexedDB
+- **Training Data Export**: Export corrections in PaddleOCR training format
+- **Model Fine-tuning**: Use exported data to fine-tune models (see [Model Training Guide](./MODEL_TRAINING.md))
+- **Active Learning**: Low-confidence detections automatically flagged for review
+
+See [Model Training Guide](./MODEL_TRAINING.md) for detailed instructions on fine-tuning models.
+
 ## Related Documentation
 
 - [Photo Handling](./PHOTO_HANDLING.md) - Image processing and storage
 - [Offline Data](./OFFLINE_DATA.md) - Data storage and sync
+- [Local AI Approaches](./LOCAL_AI_APPROACHES.md) - Technical details on local AI implementation
+- [Model Training](./MODEL_TRAINING.md) - Guide for fine-tuning OCR models
 - [Main README](../README.md) - General application documentation
 

@@ -1,3 +1,20 @@
+// CRITICAL: Polyfill CommonJS 'module' for @paddlejs-models/ocr (MUST be first, before ANY imports)
+// This ensures 'module' is available globally before any module code executes
+(function() {
+  'use strict';
+  if (typeof module === 'undefined') {
+    const moduleObj = { exports: {} };
+    // Set in all possible global scopes
+    (globalThis as any).module = moduleObj;
+    if (typeof window !== 'undefined') {
+      (window as any).module = moduleObj;
+    }
+    if (typeof global !== 'undefined') {
+      (global as any).module = moduleObj;
+    }
+  }
+})();
+
 // Polyfill Buffer for PowerSync (Node.js compatibility)
 import { Buffer } from "buffer";
 window.Buffer = Buffer;

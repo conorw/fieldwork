@@ -1,6 +1,7 @@
 // Local browser-based LLM service for headstone analysis
-// Uses a two-step approach: Vision model for image understanding + Text generation for structured output
+// Uses PP-OCRv4 (via Gutenye/ONNX) for text extraction + Text generation for structured output
 import { pipeline, env } from "@xenova/transformers";
+import { ocrService } from "./ocrService";
 import type { HeadstoneAnalysisResult } from "../utils/headstoneAnalysisService";
 import type { PersonData } from "../stores/persons";
 
@@ -13,8 +14,7 @@ interface ModelState {
   isLoading: boolean;
   loadProgress: number;
   error: string | null;
-  ocrPipeline: any | null;
-  visionPipeline: any | null;
+  ocrServiceReady: boolean;
   textPipeline: any | null;
 }
 
@@ -24,16 +24,11 @@ class LocalLLMService {
     isLoading: false,
     loadProgress: 0,
     error: null,
-    ocrPipeline: null,
-    visionPipeline: null,
+    ocrServiceReady: false,
     textPipeline: null,
   };
 
-  // Using publicly available Xenova models that are pre-converted for Transformers.js
-  // OCR model: For extracting text from images
-  private readonly OCR_MODEL = "Xenova/trocr-small-printed";
-  // Vision-language model: For understanding image content and describing what's seen
-  private readonly VISION_MODEL = "Xenova/vit-gpt2-image-captioning";
+  // Using PP-OCRv4 (Gutenye/ONNX) for text extraction
   // Text generation model: For creating structured JSON output
   private readonly TEXT_MODEL = "Xenova/gpt2";
 
@@ -43,6 +38,13 @@ class LocalLLMService {
   async initialize(): Promise<void> {
     if (this.modelState.isLoaded) {
       console.log("LocalLLMService: Models already loaded");
+        // Ensure OCR service is initialized even if other models are loaded
+      if (!this.modelState.ocrServiceReady) {
+        console.log("LocalLLMService: OCR service not initialized, initializing now...");
+        await ocrService.initialize();
+        this.modelState.ocrServiceReady = true;
+        console.log("✅ LocalLLMService: OCR service initialized");
+      }
       return;
     }
 
@@ -60,22 +62,24 @@ class LocalLLMService {
 
     try {
       console.log("🚀 LocalLLMService: Starting model initialization...");
-      console.log("📦 LocalLLMService: OCR model:", this.OCR_MODEL);
-      console.log("📦 LocalLLMService: Vision model:", this.VISION_MODEL);
+      console.log("📦 LocalLLMService: OCR: PP-OCRv4 via Gutenye/ONNX");
       console.log("📦 LocalLLMService: Text model:", this.TEXT_MODEL);
 
-      // Create a progress callback
+      // Initialize OCR service (0-40% progress) - REQUIRED
+      console.log(
+        "🔍 LocalLLMService: Initializing OCR service for text extraction...",
+      );
+      await ocrService.initialize();
+      this.modelState.ocrServiceReady = true;
+      this.modelState.loadProgress = 40;
+      console.log("✅ LocalLLMService: OCR service initialized");
+
+      // Create a progress callback for text model
       const progressCallback = (progress: any) => {
         if (progress.progress !== undefined) {
-          // Split progress between OCR (0-33%), vision (33-66%), and text (66-100%) models
-          const modelProgress = progress.progress * 0.33;
-          if (progress.model === this.OCR_MODEL) {
-            this.modelState.loadProgress = modelProgress * 100;
-          } else if (progress.model === this.VISION_MODEL) {
-            this.modelState.loadProgress = 33 + modelProgress * 100;
-          } else if (progress.model === this.TEXT_MODEL) {
-            this.modelState.loadProgress = 66 + modelProgress * 100;
-          }
+          // Progress for text model (40-100%)
+          const modelProgress = progress.progress * 0.6;
+          this.modelState.loadProgress = 40 + modelProgress * 100;
           console.log(
             `📥 LocalLLMService: Downloading models... ${this.modelState.loadProgress.toFixed(1)}%`,
           );
@@ -84,32 +88,6 @@ class LocalLLMService {
           console.log(`📥 LocalLLMService: ${progress.status}`);
         }
       };
-
-      // Load OCR model (text extraction from images)
-      console.log(
-        "🔍 LocalLLMService: Loading OCR model for text extraction...",
-      );
-      this.modelState.ocrPipeline = await pipeline(
-        "image-to-text",
-        this.OCR_MODEL,
-        {
-          progress_callback: progressCallback,
-        },
-      );
-      console.log("✅ LocalLLMService: OCR model loaded");
-
-      // Load vision-language model (image understanding)
-      console.log(
-        "👁️ LocalLLMService: Loading vision-language model for image understanding...",
-      );
-      this.modelState.visionPipeline = await pipeline(
-        "image-to-text",
-        this.VISION_MODEL,
-        {
-          progress_callback: progressCallback,
-        },
-      );
-      console.log("✅ LocalLLMService: Vision model loaded");
 
       // Load text generation model (for structured output)
       console.log("📝 LocalLLMService: Loading text generation model...");
@@ -194,14 +172,24 @@ class LocalLLMService {
         console.log(
           "✅ LocalLLMService: Models already loaded, ready to analyze",
         );
+        // If OCR service wasn't initialized before, initialize it now (REQUIRED)
+        if (!this.modelState.ocrServiceReady) {
+          console.log(
+            "🔄 LocalLLMService: OCR service not initialized, initializing now...",
+          );
+          await ocrService.initialize();
+          this.modelState.ocrServiceReady = true;
+          console.log("✅ LocalLLMService: OCR service initialized");
+        }
       }
 
       if (
-        !this.modelState.ocrPipeline ||
-        !this.modelState.visionPipeline ||
+        !this.modelState.ocrServiceReady ||
         !this.modelState.textPipeline
       ) {
-        throw new Error("Models not available");
+        throw new Error(
+          "Models not available. OCR or text models not loaded.",
+        );
       }
 
       console.log("🔍 LocalLLMService: Processing image...");
@@ -213,68 +201,44 @@ class LocalLLMService {
       );
       const imageUrl = URL.createObjectURL(processedImage);
 
-      // Step 1: Extract text using OCR model
+      // Step 1: Extract text using OCR (REQUIRED)
       console.log("📸 LocalLLMService: Extracting text using OCR...");
-      const ocrResult = await this.modelState.ocrPipeline(imageUrl);
-
       let ocrText = "";
-      if (Array.isArray(ocrResult) && ocrResult.length > 0) {
-        ocrText =
-          ocrResult[0]?.generated_text ||
-          ocrResult
-            .map((r: any) => r.generated_text || r.text || "")
-            .join("\n");
-      } else if (ocrResult?.generated_text) {
-        ocrText = ocrResult.generated_text;
-      } else if (typeof ocrResult === "string") {
-        ocrText = ocrResult;
+      let boundingBoxes: number[][][] = [];
+
+      if (!this.modelState.ocrServiceReady) {
+        throw new Error(
+          "OCR service not initialized. Cannot proceed with text extraction.",
+        );
       }
 
-      // Step 2: Get image description using vision-language model
-      console.log("👁️ LocalLLMService: Getting image description...");
-      const visionResult = await this.modelState.visionPipeline(imageUrl);
-
-      let imageDescription = "";
-      if (Array.isArray(visionResult) && visionResult.length > 0) {
-        imageDescription =
-          visionResult[0]?.generated_text ||
-          visionResult
-            .map((r: any) => r.generated_text || r.text || "")
-            .join("\n");
-      } else if (visionResult?.generated_text) {
-        imageDescription = visionResult.generated_text;
-      } else if (typeof visionResult === "string") {
-        imageDescription = visionResult;
-      }
+      // Use PP-OCRv4 OCR service
+      console.log("🔍 LocalLLMService: Using OCR service for text extraction");
+      const ocrResults = await ocrService.recognize(processedImage);
+      ocrText = ocrResults.map((r) => r.text).join("\n");
+      boundingBoxes = ocrResults.map((r) => r.bbox);
+      console.log(
+        `✅ LocalLLMService: OCR extracted ${ocrResults.length} text regions: "${ocrText.substring(0, 100)}..."`,
+      );
 
       URL.revokeObjectURL(imageUrl);
 
       console.log("📋 LocalLLMService: OCR extracted text:", ocrText);
-      console.log("📋 LocalLLMService: Image description:", imageDescription);
 
-      // Combine OCR text and image description for better context
-      // Use OCR text as primary, but supplement with image description
-      let extractedText = ocrText.trim();
-      if (imageDescription && imageDescription.trim().length > 0) {
-        // If OCR is poor quality, use image description as fallback
-        if (extractedText.length < 10 || this.isGarbledText(extractedText)) {
-          console.log(
-            "⚠️ LocalLLMService: OCR text appears garbled, using image description",
-          );
-          extractedText = imageDescription.trim();
-        } else {
-          // Combine both for better context
-          extractedText = `${extractedText}\n\nImage context: ${imageDescription}`;
-        }
-      }
+      // Use only OCR text - no image description fallback
+      const extractedText = ocrText.trim();
 
       if (!extractedText || extractedText.trim().length === 0) {
-        throw new Error("No text could be extracted from the image");
+        throw new Error("No text could be extracted from the image by OCR");
       }
 
       // Step 2: Generate structured JSON output using text generation model
+      // Enhance prompt with layout information from bounding boxes if available
       console.log("🤖 LocalLLMService: Generating structured output...");
-      const structuredPrompt = this.createStructuredPrompt(extractedText);
+      const structuredPrompt = this.createStructuredPrompt(
+        extractedText,
+        boundingBoxes,
+      );
 
       const textResult = await this.modelState.textPipeline(structuredPrompt, {
         max_new_tokens: 1024,
@@ -314,12 +278,32 @@ class LocalLLMService {
 
   /**
    * Create a prompt for structured JSON generation based on extracted text
+   * @param extractedText - OCR extracted text
+   * @param boundingBoxes - Optional bounding boxes for layout understanding
    */
-  private createStructuredPrompt(extractedText: string): string {
+  private createStructuredPrompt(
+    extractedText: string,
+    boundingBoxes?: number[][][],
+  ): string {
+    // Add layout information if bounding boxes are available
+    let layoutInfo = "";
+    if (boundingBoxes && boundingBoxes.length > 0) {
+      // Group text by vertical position (top to bottom) to understand layout
+      const textLines = extractedText.split("\n").filter((line) => line.trim());
+      layoutInfo = `\n\nLayout information (text positions from top to bottom):`;
+      textLines.forEach((line, idx) => {
+        if (boundingBoxes[idx]) {
+          const bbox = boundingBoxes[idx];
+          const avgY = bbox.reduce((sum, pt) => sum + pt[1], 0) / bbox.length;
+          layoutInfo += `\n- Line ${idx + 1} (Y position: ${avgY.toFixed(0)}): ${line}`;
+        }
+      });
+    }
+
     return `Extract deceased person information from this headstone text and return ONLY valid JSON.
 
 Headstone text:
-${extractedText}
+${extractedText}${layoutInfo}
 
 Analyze the text and extract:
 1. Complete transcription of all visible text (preserve line breaks)
@@ -474,7 +458,7 @@ JSON:`;
         raw_analysis: generatedText,
         metadata: {
           analysis_timestamp: new Date().toISOString(),
-          model_used: `${this.OCR_MODEL} + ${this.VISION_MODEL} + ${this.TEXT_MODEL}`,
+          model_used: `${ocrService.getModelVersion()} + ${this.TEXT_MODEL}`,
           confidence_level: "medium",
         },
       };
@@ -486,30 +470,6 @@ JSON:`;
     }
   }
 
-  /**
-   * Check if text appears to be garbled/nonsensical
-   */
-  private isGarbledText(text: string): boolean {
-    // Check for repeated words, excessive special characters, or very short words
-    const words = text.split(/\s+/);
-    const repeatedWords = new Set();
-    let garbledScore = 0;
-
-    for (const word of words) {
-      if (repeatedWords.has(word.toLowerCase())) {
-        garbledScore++;
-      }
-      repeatedWords.add(word.toLowerCase());
-
-      // Check for excessive special characters or very short words
-      if (word.length < 2 && word.length > 0) {
-        garbledScore++;
-      }
-    }
-
-    // If more than 30% of words are repeated or very short, likely garbled
-    return garbledScore > words.length * 0.3;
-  }
 
   /**
    * Preprocess image for better OCR results
@@ -632,15 +592,19 @@ JSON:`;
    * Reset model state (useful for error recovery)
    */
   reset(): void {
+    const wasOcrReady = this.modelState.ocrServiceReady;
     this.modelState = {
       isLoaded: false,
       isLoading: false,
       loadProgress: 0,
       error: null,
-      ocrPipeline: null,
-      visionPipeline: null,
+      ocrServiceReady: false,
       textPipeline: null,
     };
+      // Reset OCR service if it was initialized
+    if (wasOcrReady) {
+      ocrService.reset();
+    }
   }
 }
 

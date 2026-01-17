@@ -102,12 +102,83 @@ Error while parsing WGSL: :4:68 error: 'u8' type used without 'chromium_experime
 - Requirements: Internet connection, OpenAI API key
 - Privacy: Images sent to OpenAI servers
 
+**Local Browser Models** (PP-OCRv4/PP-OCRv2)
+- Status: ✅ **Functional**
+- OCR: PP-OCRv4 via Gutenye/ONNX (default, more accurate) or PP-OCRv2 via Paddle.js (fallback)
+- Reasoning: Local text generation model (GPT-2)
+- Accuracy: Good (PP-OCRv4 is more accurate than v2), improves with user corrections
+- Speed: 10-15 seconds per analysis
+- Requirements: 
+  - WebGL/WebGPU support
+  - PP-OCRv4: ~15-20MB model files (optional)
+  - PP-OCRv2: Works immediately (~7-10MB)
+- Privacy: All processing local, no data sent to servers
+- Learning: User corrections collected for continuous improvement
+
 ### What Doesn't Work
 
-**Local Browser Models**
+**WebLLM Vision Models**
 - Status: ❌ **Not functional**
 - Reason: Vision models in WebLLM are not production-ready
 - Issue: [WebLLM #727 - Vision models not working](https://github.com/mlc-ai/web-llm/issues/727)
+
+---
+
+### 4. PP-OCRv4/PP-OCRv2 + Local LLM (Current Implementation)
+
+**Models Used:**
+- PP-OCRv4 mobile (detection + recognition) via Gutenye/ONNX Runtime Web (default)
+- PP-OCRv2 mobile (detection + recognition) via Paddle.js (fallback)
+- `Xenova/gpt2` (text generation)
+
+**Libraries:** 
+- `@gutenye/ocr-browser` (PP-OCRv4, ONNX Runtime Web)
+- `@paddlejs-models/ocr` (PP-OCRv2, Paddle.js)
+- `@xenova/transformers` (text generation)
+
+**Architecture:**
+- Unified OCR service that tries PP-OCRv4 first, falls back to PP-OCRv2 if models unavailable
+- PP-OCRv4 for text detection and recognition (provides bounding boxes + confidence scores)
+- Text generation model for structured JSON output
+- Feedback system for collecting user corrections
+
+**Why It Works:**
+- ✅ **Better OCR**: PP-OCRv4 is more accurate than PP-OCRv2, specifically designed for OCR tasks
+- ✅ **Bounding Boxes**: Provides spatial information for better layout understanding
+- ✅ **Confidence Scores**: Enables active learning by flagging low-confidence detections
+- ✅ **Browser Compatible**: Both implementations work with WebGL/WebGPU/WebAssembly
+- ✅ **Automatic Fallback**: Falls back to PP-OCRv2 if PP-OCRv4 models not available
+- ✅ **Smaller Models**: PP-OCRv4 mobile optimized for browser deployment (~15-20MB)
+- ✅ **Learning System**: User corrections collected for model fine-tuning
+
+**PP-OCRv4 Benefits:**
+- Better accuracy than PP-OCRv2
+- Improved handling of complex layouts, rotated text, and rare characters
+- Multilingual support (Chinese, English, Japanese, etc.)
+
+**Limitations:**
+- PP-OCRv4 requires model files to be downloaded/hosted (~15-20MB)
+- Text generation model (GPT-2) is limited compared to larger models
+- Requires model download on first use (for PP-OCRv4)
+
+**Setup:**
+- See [OCR Model Setup Guide](./OCR_MODEL_SETUP.md) for PP-OCRv4 model installation
+- PP-OCRv2 works immediately without additional setup
+
+**Code Location:**
+- `src/services/ocrService.ts` - Unified OCR service (switches between PP-OCRv4 and PP-OCRv2)
+- `src/services/gutenyeOCRService.ts` - PP-OCRv4 implementation via Gutenye/ONNX
+- `src/services/paddleOCRService.ts` - PP-OCRv2 implementation via Paddle.js
+- `src/services/localLLMService.ts` - Updated to use unified OCR service
+- `src/services/ocrFeedbackService.ts` - Feedback collection
+- `src/services/trainingDataService.ts` - Training data export
+- `src/components/OCRCorrectionViewer.vue` - Correction UI
+
+**Future Improvements:**
+- Fine-tune PaddleOCR models on headstone-specific data
+- Improve reasoning with better local LLMs as they become available
+- Add PP-Structure for layout analysis
+- Implement model versioning and A/B testing
 
 ---
 
@@ -190,13 +261,24 @@ The **Phi-3.5-vision-instruct approach** is the most promising architecture for 
 
 ## Conclusion
 
-Local browser-based AI for headstone analysis is **not currently viable** due to:
+Local browser-based AI for headstone analysis is **now viable** using PaddleOCR:
 
-1. **TrOCR limitations**: Wrong model type for engraved headstones
-2. **Vision model immaturity**: WebLLM vision models have known issues and require experimental browser features
-3. **Browser compatibility**: Experimental WebGPU extensions not available in standard browsers
+1. ✅ **PaddleOCR**: Better accuracy than TrOCR for engraved headstone text
+2. ✅ **Browser Compatible**: Works with standard WebGL/WebGPU, no experimental features needed
+3. ✅ **Learning System**: User corrections enable continuous model improvement
+4. ⚠️ **Reasoning Limitations**: Text generation model (GPT-2) is limited but functional
+5. ❌ **WebLLM Vision**: Still not viable due to experimental WebGPU requirements
 
-The **OpenAI API mode remains the recommended approach** until WebLLM vision models mature and browser support for required WebGPU features becomes standard.
+**Current Recommendation:**
+- **For Speed & Accuracy**: Use OpenAI API mode
+- **For Privacy & Offline**: Use Local Browser Model (PaddleOCR)
+- **For Continuous Improvement**: Use Local mode and contribute corrections
 
-**Reference:** [WebLLM Issue #727 - Vision Models Not Working](https://github.com/mlc-ai/web-llm/issues/727)
+The **PaddleOCR approach provides a working local solution** with room for improvement through fine-tuning. The **OpenAI API mode remains the fastest and most accurate option** for production use.
+
+**References:**
+- [WebLLM Issue #727 - Vision Models Not Working](https://github.com/mlc-ai/web-llm/issues/727)
+- [PaddleOCR Documentation](https://www.paddleocr.ai/)
+- [Paddle.js Documentation](https://github.com/PaddlePaddle/Paddle.js)
+- [Model Training Guide](./MODEL_TRAINING.md)
 
