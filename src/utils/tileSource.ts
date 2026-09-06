@@ -266,14 +266,26 @@ export const createBestTileSource = async (
   // 1. Try PMTiles if supported and location has a valid PMTiles URL
   // Check for both null/undefined and empty string
   if (location?.pmtilesUrl && location.pmtilesUrl.trim() !== "") {
-    console.log(`${sourceName}: ✅ Location has valid PMTiles URL: ${location.pmtilesUrl}`);
-    console.log(`${sourceName}: Using PMTiles for ${location.name} from URL: ${location.pmtilesUrl}`);
+    console.log(
+      `${sourceName}: ✅ Location has valid PMTiles URL: ${location.pmtilesUrl}`,
+    );
+    console.log(
+      `${sourceName}: Using PMTiles for ${location.name} from URL: ${location.pmtilesUrl}`,
+    );
     try {
-      const tileSource = await createPMTilesTileSourceForLocation(location, sourceName);
-      console.log(`${sourceName}: ✅ Successfully created PMTiles tile source from location URL`);
+      const tileSource = await createPMTilesTileSourceForLocation(
+        location,
+        sourceName,
+      );
+      console.log(
+        `${sourceName}: ✅ Successfully created PMTiles tile source from location URL`,
+      );
       return tileSource;
     } catch (error) {
-      console.error(`${sourceName}: ❌ Failed to load PMTiles from location URL, falling back to online source:`, error);
+      console.error(
+        `${sourceName}: ❌ Failed to load PMTiles from location URL, falling back to online source:`,
+        error,
+      );
       console.error(`${sourceName}: Error details:`, {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
@@ -281,16 +293,21 @@ export const createBestTileSource = async (
       // Fall through to fallback
     }
   } else {
-    console.warn(`${sourceName}: ⚠️ Location does not have valid PMTiles URL:`, {
-      hasLocation: !!location,
-      pmtilesUrl: location?.pmtilesUrl,
-      isEmpty: location?.pmtilesUrl === "",
-      isUndefined: location?.pmtilesUrl === undefined,
-      isNull: location?.pmtilesUrl === null,
-    });
+    console.warn(
+      `${sourceName}: ⚠️ Location does not have valid PMTiles URL:`,
+      {
+        hasLocation: !!location,
+        pmtilesUrl: location?.pmtilesUrl,
+        isEmpty: location?.pmtilesUrl === "",
+        isUndefined: location?.pmtilesUrl === undefined,
+        isNull: location?.pmtilesUrl === null,
+      },
+    );
   }
-  
+
   // 3. Fallback to online pmtiles source
-  console.warn(`${sourceName}: ⚠️ Falling back to online PMTiles (location: ${location?.name || 'unknown'}, pmtilesUrl: ${location?.pmtilesUrl || 'none'})`);
+  console.warn(
+    `${sourceName}: ⚠️ Falling back to online PMTiles (location: ${location?.name || "unknown"}, pmtilesUrl: ${location?.pmtilesUrl || "none"})`,
+  );
   return createOnlinePMTilesTileSource(sourceName);
 };

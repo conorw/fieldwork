@@ -32,7 +32,7 @@ class PMTilesCacheManager {
     try {
       const cache = await this.getCache();
       const metadataKey = this.getMetadataKey(locationId);
-      
+
       // Get metadata first
       const metadataResponse = await cache.match(metadataKey);
       if (!metadataResponse) {
@@ -40,7 +40,7 @@ class PMTilesCacheManager {
       }
 
       const metadata: CacheMetadata = await metadataResponse.json();
-      
+
       // Check if cache is expired
       if (Date.now() - metadata.timestamp > CACHE_EXPIRY_MS) {
         console.log(`PMTiles cache expired for location ${locationId}`);
@@ -82,7 +82,7 @@ class PMTilesCacheManager {
   ): Promise<void> {
     try {
       const cache = await this.getCache();
-      
+
       // Create metadata
       const metadata: CacheMetadata = {
         locationId,
@@ -96,7 +96,10 @@ class PMTilesCacheManager {
 
       // Store metadata as JSON response
       const metadataKey = this.getMetadataKey(locationId);
-      console.log('📦 [PMTilesCache] Storing metadata with key:', metadataKey.url);
+      console.log(
+        "📦 [PMTilesCache] Storing metadata with key:",
+        metadataKey.url,
+      );
       const metadataResponse = new Response(JSON.stringify(metadata), {
         headers: { "Content-Type": "application/json" },
       });
@@ -104,7 +107,7 @@ class PMTilesCacheManager {
 
       // Store PMTiles data as ArrayBuffer response
       const dataKey = this.getDataKey(locationId);
-      console.log('📦 [PMTilesCache] Storing data with key:', dataKey.url);
+      console.log("📦 [PMTilesCache] Storing data with key:", dataKey.url);
       const dataResponse = new Response(data, {
         headers: { "Content-Type": "application/octet-stream" },
       });
@@ -165,7 +168,7 @@ class PMTilesCacheManager {
     try {
       const cache = await this.getCache();
       const keys = await cache.keys();
-      
+
       const entries: Array<{
         locationId: string;
         size: number;
@@ -225,7 +228,7 @@ class PMTilesCacheManager {
     // Use a relative URL with a unique prefix to avoid conflicts
     // The origin will be the current page origin, but this is just a cache key
     return new Request(`/pmtiles-cache/metadata/${locationId}`, {
-      method: 'GET',
+      method: "GET",
     });
   }
 
@@ -237,7 +240,7 @@ class PMTilesCacheManager {
   private getDataKey(locationId: string): Request {
     // Use a relative URL with a unique prefix to avoid conflicts
     return new Request(`/pmtiles-cache/data/${locationId}`, {
-      method: 'GET',
+      method: "GET",
     });
   }
 

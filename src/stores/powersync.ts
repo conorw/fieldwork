@@ -41,8 +41,8 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       schema: AppSchema,
       database: {
         dbFilename: "fieldwork-powersync.db",
-        debugMode: false
-      }
+        debugMode: false,
+      },
     });
   } catch (dbError) {
     console.error("PowerSync: Failed to create database instance:", dbError);
@@ -105,23 +105,23 @@ export const usePowerSyncStore = defineStore("powersync", () => {
           `[${new Date().toISOString()}] Initializing PowerSync store...`,
         );
         console.log("PowerSync: AppSchema:", AppSchema);
-        
+
         // Check if user is authenticated before connecting
-        const { useAuthStore } = await import('./auth');
+        const { useAuthStore } = await import("./auth");
         const authStore = useAuthStore();
-        
+
         // Ensure auth store is initialized first
         if (authStore.isLoading) {
           console.log("🔄 PowerSync: Waiting for auth store to initialize...");
           await authStore.init();
         }
-        
+
         // Check authentication status
         if (!authStore.isAuthenticated) {
           // Wait a bit for auth to initialize (handles race conditions)
           console.log("🔄 PowerSync: Waiting for authentication...");
           for (let i = 0; i < 30; i++) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
             // Re-check auth status
             if (authStore.isAuthenticated) {
               console.log("🔄 PowerSync: Authentication ready");
@@ -129,17 +129,19 @@ export const usePowerSyncStore = defineStore("powersync", () => {
             }
           }
         }
-        
+
         if (!authStore.isAuthenticated) {
           // Don't throw - just log and return null
           // PowerSync will initialize when user logs in
-          console.log("ℹ️ PowerSync: User not authenticated, skipping initialization. PowerSync will initialize when user logs in.");
+          console.log(
+            "ℹ️ PowerSync: User not authenticated, skipping initialization. PowerSync will initialize when user logs in.",
+          );
           isConnecting.value = false;
           initializationPromise = null;
           // Don't set isInitialized to true, so it can be initialized later
           return null;
         }
-        
+
         // Initialize the database first
         const connector = new SupabaseConnector();
         await db.connect(connector);
@@ -293,7 +295,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
     const authStore = useAuthStore();
     const userId = authStore.user?.id || "anonymous";
-    
+
     const newPlot = {
       ...plotData,
       geometry: serializedGeometry,
@@ -386,7 +388,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
     const authStore = useAuthStore();
     const userId = authStore.user?.id || "anonymous";
-    
+
     const updatedPlot: PlotRecord = {
       ...existingPlot, // Preserve all existing fields
       ...plotData, // Override with new data
@@ -461,9 +463,10 @@ export const usePowerSyncStore = defineStore("powersync", () => {
     locationData: Omit<LocationRecord, "id">,
   ): Promise<LocationRecord> => {
     if (!powerSync.value) throw new Error("PowerSync not initialized");
-    
+
     const authStore = useAuthStore();
-    if (!authStore.user) throw new Error("User must be authenticated to create a location");
+    if (!authStore.user)
+      throw new Error("User must be authenticated to create a location");
 
     const locationId = `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -502,10 +505,10 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         newLocation.is_public,
       ],
     );
-    
+
     // Create location_members entry for the owner
-    const memberId = `${locationId}_${authStore.user.id}`
-    const userEmail = authStore.user.email || null
+    const memberId = `${locationId}_${authStore.user.id}`;
+    const userEmail = authStore.user.email || null;
     await powerSync.value.execute(
       "INSERT INTO location_members (id, location_id, user_id, user_email, role, joined_at) VALUES (?, ?, ?, ?, ?, ?)",
       [
@@ -513,11 +516,11 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         locationId,
         authStore.user.id,
         userEmail,
-        'owner',
+        "owner",
         new Date().toISOString(),
       ],
     );
-    
+
     console.log(
       "PowerSync: Location inserted successfully, checking sync status...",
     );
@@ -534,12 +537,12 @@ export const usePowerSyncStore = defineStore("powersync", () => {
     console.log("PowerSync: Retrieved created location:", createdLocation);
 
     // Clear locations cache and reload to ensure new location is included
-    locationStore.locations = []
+    locationStore.locations = [];
     await locationStore.loadLocations();
 
     // Wait a bit for the location to be available
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     locationStore.selectLocation(createdLocation.id);
     return createdLocation;
   };
@@ -584,7 +587,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
       const authStore = useAuthStore();
       const userId = authStore.user?.id || "anonymous";
-      
+
       const personImage = {
         id: imageId,
         person_id: personId,
@@ -695,7 +698,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
         const authStore = useAuthStore();
         const userId = authStore.user?.id || "anonymous";
-        
+
         const fallbackImage = {
           id: imageId,
           person_id: personId,
@@ -793,7 +796,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
       const authStore = useAuthStore();
       const userId = authStore.user?.id || "anonymous";
-      
+
       const plotImage = {
         id: imageId,
         plot_id: plotId,
@@ -966,7 +969,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
         const authStore = useAuthStore();
         const userId = authStore.user?.id || "anonymous";
-        
+
         const fallbackImage = {
           id: imageId,
           plot_id: plotId,

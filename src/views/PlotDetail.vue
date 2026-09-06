@@ -32,14 +32,16 @@
                   @click="startEditing"
                   severity="primary"
                   icon="pi pi-pencil"
-                  v-tooltip.top="'Edit Details'"
+                  title="Edit Details"
+                  aria-label="Edit Details"
                 />
                 <Button
                   @click="deletePlot"
                   severity="danger"
                   :loading="deleting"
                   icon="pi pi-trash"
-                  v-tooltip.top="deleting ? 'Deleting...' : 'Delete Plot'"
+                  :title="deleting ? 'Deleting...' : 'Delete Plot'"
+                  :aria-label="deleting ? 'Deleting...' : 'Delete Plot'"
                 />
               </div>
 
@@ -49,14 +51,16 @@
                   severity="primary"
                   :loading="saving"
                   icon="pi pi-check"
-                  v-tooltip.top="saving ? 'Saving...' : 'Save Changes'"
+                  :title="saving ? 'Saving...' : 'Save Changes'"
+                  :aria-label="saving ? 'Saving...' : 'Save Changes'"
                 />
                 <Button
                   @click="cancelEditing"
                   severity="secondary"
                   :disabled="saving"
                   icon="pi pi-times"
-                  v-tooltip.top="'Cancel'"
+                  title="Cancel"
+                  aria-label="Cancel"
                 />
               </div>
             </div>
@@ -184,7 +188,8 @@
                   severity="primary"
                   size="small"
                   icon="pi pi-camera"
-                  v-tooltip.top="'Add Photo'"
+                  title="Add Photo"
+                  aria-label="Add Photo"
                 />
               </div>
             </template>
@@ -222,7 +227,8 @@
                   severity="primary"
                   size="small"
                   icon="pi pi-plus"
-                  v-tooltip.top="'Add Person'"
+                  title="Add Person"
+                  aria-label="Add Person"
                 />
               </div>
             </template>
@@ -1031,7 +1037,7 @@ const saveChanges = async () => {
   saving.value = true;
   try {
     const userId = authStore.user?.id || "anonymous";
-    
+
     // Update the plot with the edited data
     const updatedPlotData = {
       ...effectivePlot.value,
@@ -1528,7 +1534,7 @@ const savePerson = async () => {
   savingPerson.value = true;
   try {
     const userId = authStore.user?.id || "anonymous";
-    
+
     const personData = {
       ...personForm.value,
       plot_id: effectivePlot.value.id,

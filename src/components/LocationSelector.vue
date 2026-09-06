@@ -120,7 +120,9 @@
                 Select
               </button>
               <button
-                v-if="location.userRole === 'owner' || location.userRole === 'admin'"
+                v-if="
+                  location.userRole === 'owner' || location.userRole === 'admin'
+                "
                 @click="goToSettings(location.id)"
                 class="btn-secondary text-sm px-3 py-1"
                 title="View settings, members, invites, and join requests"

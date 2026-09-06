@@ -6,7 +6,7 @@
 export interface LogEntry {
   id: string;
   timestamp: number;
-  level: 'log' | 'info' | 'warn' | 'error' | 'debug';
+  level: "log" | "info" | "warn" | "error" | "debug";
   message: string;
   args: any[];
   errorDetails?: {
@@ -49,35 +49,35 @@ class ConsoleLogger {
   private setupConsoleCapture() {
     console.log = (...args: any[]) => {
       this.originalConsole.log(...args);
-      this.addLog('log', args);
+      this.addLog("log", args);
     };
 
     console.info = (...args: any[]) => {
       this.originalConsole.info(...args);
-      this.addLog('info', args);
+      this.addLog("info", args);
     };
 
     console.warn = (...args: any[]) => {
       this.originalConsole.warn(...args);
-      this.addLog('warn', args);
+      this.addLog("warn", args);
     };
 
     console.error = (...args: any[]) => {
       this.originalConsole.error(...args);
-      this.addLog('error', args);
+      this.addLog("error", args);
     };
 
     console.debug = (...args: any[]) => {
       this.originalConsole.debug(...args);
-      this.addLog('debug', args);
+      this.addLog("debug", args);
     };
   }
 
-  private addLog(level: LogEntry['level'], args: any[]) {
+  private addLog(level: LogEntry["level"], args: any[]) {
     // Extract error details if present
-    let errorDetails: LogEntry['errorDetails'] | undefined;
+    let errorDetails: LogEntry["errorDetails"] | undefined;
     const errorArg = args.find((arg) => arg instanceof Error);
-    
+
     if (errorArg instanceof Error) {
       errorDetails = {
         name: errorArg.name,
@@ -88,7 +88,7 @@ class ConsoleLogger {
 
       // Try to extract file/line info from stack trace
       if (errorArg.stack) {
-        const stackLines = errorArg.stack.split('\n');
+        const stackLines = errorArg.stack.split("\n");
         if (stackLines.length > 1) {
           // Parse first stack frame: "at functionName (file:///path/to/file.js:123:45)"
           const match = stackLines[1].match(/\((.+):(\d+):(\d+)\)/);
@@ -107,7 +107,7 @@ class ConsoleLogger {
           // For errors, include name and message
           return `${arg.name}: ${arg.message}`;
         }
-        if (typeof arg === 'object') {
+        if (typeof arg === "object") {
           try {
             return JSON.stringify(arg, null, 2);
           } catch {
@@ -116,7 +116,7 @@ class ConsoleLogger {
         }
         return String(arg);
       })
-      .join(' ');
+      .join(" ");
 
     const entry: LogEntry = {
       id: `${Date.now()}-${Math.random()}`,
@@ -166,4 +166,3 @@ class ConsoleLogger {
 
 // Singleton instance
 export const consoleLogger = new ConsoleLogger();
-

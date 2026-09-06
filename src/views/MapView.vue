@@ -235,7 +235,6 @@
     @close="handlePlotCreationWizardClose"
     @plot-created="handlePhotoPlotCreated"
   />
-
 </template>
 
 <script setup>
@@ -442,10 +441,10 @@ const handlePhotoPlotCreated = async (newPlot) => {
     try {
       // Add the plot to the map first if it's not already there
       await mapStore.addPlotMarker(newPlot);
-      
+
       // On mobile devices, don't zoom or select the plot to avoid obscuring the camera button
       const isMobile = window.innerWidth < 768; // Standard mobile breakpoint
-      
+
       if (!isMobile) {
         // Then zoom to it and show the popup (desktop only)
         await mapStore.zoomToPlot(newPlot);
@@ -461,7 +460,6 @@ const handlePlotCreationWizardClose = () => {
   showPlotCreationWizard.value = false;
   persistentContextLocation.value = null;
 };
-
 
 const handlePlotEditSave = (updatedPlot) => {
   // Update the selected plot in the store
@@ -754,5 +752,4 @@ const viewImage = (image) => {
     router.push(`/plots/${selectedPlot.value.id}`);
   }
 };
-
 </script>

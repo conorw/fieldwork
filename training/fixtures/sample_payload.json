@@ -1,0 +1,47 @@
+{
+  "locationId": "demo-location-id",
+  "version": "2026-01-01T00:00:00Z",
+  "webhookUrl": "https://example.com/api/train-headstone-webhook",
+  "examples": [
+    {
+      "imageUrl": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/bee.jpg",
+      "stoneType": "couple",
+      "target": {
+        "people": [
+          {
+            "full_name": "Jane Example",
+            "role_on_stone": "primary",
+            "position": "left",
+            "title": "",
+            "forename": "Jane",
+            "middle_name": "",
+            "surname": "Example",
+            "maiden_name": "",
+            "known_as": "",
+            "dates": { "birth": "1920-01-01", "death": "1998-06-15", "aged": 78 },
+            "relationships": ["wife of John Example"],
+            "veteran": false,
+            "evidence": "left column sample"
+          },
+          {
+            "full_name": "John Example",
+            "role_on_stone": "spouse",
+            "position": "right",
+            "title": "",
+            "forename": "John",
+            "middle_name": "",
+            "surname": "Example",
+            "maiden_name": "",
+            "known_as": "",
+            "dates": { "birth": "1918-03-02", "death": "1995-11-20", "aged": 77 },
+            "relationships": ["husband of Jane Example"],
+            "veteran": false,
+            "evidence": "right column sample"
+          }
+        ],
+        "shared": { "surname": "Example", "epitaph": "In loving memory" },
+        "notes": "Fixture only — replace with real headstone photos before training"
+      }
+    }
+  ]
+}

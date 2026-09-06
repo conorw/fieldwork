@@ -17,7 +17,12 @@ export interface LocationData {
   createdBy: string;
   isPublic: boolean;
   ownerId?: string;
-  userRole?: 'owner' | 'admin' | 'member';
+  userRole?: "owner" | "admin" | "member";
+  aiStatus?: "teacher" | "training" | "local" | "error";
+  adapterUrl?: string;
+  adapterVersion?: string;
+  aiTrainError?: string;
+  aiTrainJobId?: string;
 }
 
 export const useLocationsStore = defineStore("locations", () => {
@@ -42,7 +47,7 @@ export const useLocationsStore = defineStore("locations", () => {
 
   // Actions
   let loadPromise: Promise<void> | null = null;
-  
+
   const loadLocations = async () => {
     // If already loading, wait for the existing load to complete
     if (isLoading.value && loadPromise) {
@@ -88,75 +93,109 @@ export const useLocationsStore = defineStore("locations", () => {
     // Store the promise so other callers can wait for it
     loadPromise = (async () => {
       try {
-        let results: any[] = []
-      
-      // Get user's location memberships and owned locations
-      if (authStore.user && powerSyncStore.powerSync) {
-        // Get locations where user is owner OR member
-        // Use a simpler query that handles both cases
-        results = await powerSyncStore.powerSync.getAll(
-          `SELECT l.*, COALESCE(lm.role, CASE WHEN l.owner_id = ? THEN 'owner' END) as user_role 
+        let results: any[] = [];
+
+        // Get user's location memberships and owned locations
+        if (authStore.user && powerSyncStore.powerSync) {
+          // Get locations where user is owner OR member
+          // Use a simpler query that handles both cases
+          results = await powerSyncStore.powerSync.getAll(
+            `SELECT l.*, COALESCE(lm.role, CASE WHEN l.owner_id = ? THEN 'owner' END) as user_role 
            FROM locations l 
            LEFT JOIN location_members lm ON l.id = lm.location_id AND lm.user_id = ?
            WHERE l.owner_id = ? OR lm.user_id = ?`,
-          [authStore.user.id, authStore.user.id, authStore.user.id, authStore.user.id]
-        )
-      } else if (powerSyncStore.powerSync) {
-        // Fallback: load all locations if not authenticated (shouldn't happen with auth guards)
-        results = await powerSyncStore.powerSync.getAll(
-          "SELECT * FROM locations",
-        )
-      }
-
-      if (authStore.user) {
-        locations.value = results.map((loc: any) => {
-          try {
-            return {
-              ...loc,
-              bbox: typeof loc.bbox === 'string' ? JSON.parse(loc.bbox) : loc.bbox,
-              minZoom: parseInt(loc.min_zoom || loc.minZoom || '8'),
-              maxZoom: parseInt(loc.max_zoom || loc.maxZoom || '18'),
-              pmtilesUrl: loc.pmtiles_url && loc.pmtiles_url.trim() !== "" ? loc.pmtiles_url : undefined,
-              isPublic: loc.is_public === "true" || loc.is_public === true,
-              ownerId: loc.owner_id,
-              userRole: loc.user_role || (loc.owner_id === authStore.user?.id ? 'owner' : undefined),
-            }
-          } catch (e) {
-            console.error('Error parsing location:', loc, e)
-            return null
-          }
-        }).filter((loc): loc is LocationData => loc !== null)
-      } else {
-        locations.value = results.map((loc: any) => ({
-          ...loc,
-          bbox: JSON.parse(loc.bbox),
-          minZoom: parseInt(loc.min_zoom || loc.minZoom),
-          maxZoom: parseInt(loc.max_zoom || loc.maxZoom),
-          pmtilesUrl: loc.pmtiles_url && loc.pmtiles_url.trim() !== "" ? loc.pmtiles_url : undefined,
-          isPublic: loc.is_public === "true" || loc.is_public === true,
-          ownerId: loc.owner_id,
-        }))
-      }
-      // Ensure selectedLocationId is set before selecting location
-      // This ensures queries (like usePlots) have a valid location ID immediately
-      if (selectedLocationId.value) {
-        const location = getLocationById(selectedLocationId.value);
-        if (location) {
-          selectLocation(selectedLocationId.value);
-        } else {
-          // Stored location ID is invalid (deleted or no access), clear it
-          console.warn(`Stored location ID ${selectedLocationId.value} not found, clearing selection`);
-          selectedLocationId.value = "";
-          selectedLocation.value = null;
-          // Auto-select first location if available
-          if (locations.value.length > 0) {
-            selectLocation(locations.value[0].id);
-          }
+            [
+              authStore.user.id,
+              authStore.user.id,
+              authStore.user.id,
+              authStore.user.id,
+            ],
+          );
+        } else if (powerSyncStore.powerSync) {
+          // Fallback: load all locations if not authenticated (shouldn't happen with auth guards)
+          results = await powerSyncStore.powerSync.getAll(
+            "SELECT * FROM locations",
+          );
         }
-      } else if (locations.value.length > 0) {
-        // Auto-select first location if none selected
-        selectLocation(locations.value[0].id);
-      }
+
+        if (authStore.user) {
+          locations.value = results
+            .map((loc: any) => {
+              try {
+                return {
+                  ...loc,
+                  bbox:
+                    typeof loc.bbox === "string"
+                      ? JSON.parse(loc.bbox)
+                      : loc.bbox,
+                  minZoom: parseInt(loc.min_zoom || loc.minZoom || "8"),
+                  maxZoom: parseInt(loc.max_zoom || loc.maxZoom || "18"),
+                  pmtilesUrl:
+                    loc.pmtiles_url && loc.pmtiles_url.trim() !== ""
+                      ? loc.pmtiles_url
+                      : undefined,
+                  isPublic: loc.is_public === "true" || loc.is_public === true,
+                  ownerId: loc.owner_id,
+                  userRole:
+                    loc.user_role ||
+                    (loc.owner_id === authStore.user?.id ? "owner" : undefined),
+                  dateCreated: loc.date_created || loc.dateCreated,
+                  createdBy: loc.created_by || loc.createdBy,
+                  aiStatus: (loc.ai_status || "teacher") as LocationData["aiStatus"],
+                  adapterUrl: loc.adapter_url || undefined,
+                  adapterVersion: loc.adapter_version || undefined,
+                  aiTrainError: loc.ai_train_error || undefined,
+                  aiTrainJobId: loc.ai_train_job_id || undefined,
+                };
+              } catch (e) {
+                console.error("Error parsing location:", loc, e);
+                return null;
+              }
+            })
+            .filter((loc): loc is LocationData => loc !== null);
+        } else {
+          locations.value = results.map((loc: any) => ({
+            ...loc,
+            bbox: JSON.parse(loc.bbox),
+            minZoom: parseInt(loc.min_zoom || loc.minZoom),
+            maxZoom: parseInt(loc.max_zoom || loc.maxZoom),
+            pmtilesUrl:
+              loc.pmtiles_url && loc.pmtiles_url.trim() !== ""
+                ? loc.pmtiles_url
+                : undefined,
+            isPublic: loc.is_public === "true" || loc.is_public === true,
+            ownerId: loc.owner_id,
+            dateCreated: loc.date_created || loc.dateCreated,
+            createdBy: loc.created_by || loc.createdBy,
+            aiStatus: (loc.ai_status || "teacher") as LocationData["aiStatus"],
+            adapterUrl: loc.adapter_url || undefined,
+            adapterVersion: loc.adapter_version || undefined,
+            aiTrainError: loc.ai_train_error || undefined,
+            aiTrainJobId: loc.ai_train_job_id || undefined,
+          }));
+        }
+        // Ensure selectedLocationId is set before selecting location
+        // This ensures queries (like usePlots) have a valid location ID immediately
+        if (selectedLocationId.value) {
+          const location = getLocationById(selectedLocationId.value);
+          if (location) {
+            selectLocation(selectedLocationId.value);
+          } else {
+            // Stored location ID is invalid (deleted or no access), clear it
+            console.warn(
+              `Stored location ID ${selectedLocationId.value} not found, clearing selection`,
+            );
+            selectedLocationId.value = "";
+            selectedLocation.value = null;
+            // Auto-select first location if available
+            if (locations.value.length > 0) {
+              selectLocation(locations.value[0].id);
+            }
+          }
+        } else if (locations.value.length > 0) {
+          // Auto-select first location if none selected
+          selectLocation(locations.value[0].id);
+        }
       } catch (err) {
         error.value = `Failed to load locations: ${err}`;
         console.error("Error loading locations:", err);
@@ -165,7 +204,7 @@ export const useLocationsStore = defineStore("locations", () => {
         loadPromise = null;
       }
     })();
-    
+
     await loadPromise;
   };
 
@@ -180,14 +219,16 @@ export const useLocationsStore = defineStore("locations", () => {
       pmtilesUrl: location?.pmtilesUrl,
       hasPmtilesUrl: !!location?.pmtilesUrl,
       pmtilesUrlType: typeof location?.pmtilesUrl,
-      locationObject: location ? {
-        id: location.id,
-        name: location.name,
-        pmtilesUrl: location.pmtilesUrl,
-        bbox: location.bbox,
-        minZoom: location.minZoom,
-        maxZoom: location.maxZoom,
-      } : null,
+      locationObject: location
+        ? {
+            id: location.id,
+            name: location.name,
+            pmtilesUrl: location.pmtilesUrl,
+            bbox: location.bbox,
+            minZoom: location.minZoom,
+            maxZoom: location.maxZoom,
+          }
+        : null,
     });
   };
 
@@ -203,7 +244,7 @@ export const useLocationsStore = defineStore("locations", () => {
       await loadLocations();
       location = getLocationById(id);
     }
-    
+
     if (!location) {
       throw new Error(`Location ${id} not found`);
     }
@@ -234,10 +275,32 @@ export const useLocationsStore = defineStore("locations", () => {
         updates.isPublic !== undefined
           ? updates.isPublic.toString()
           : location.isPublic.toString(),
+      ai_status: updates.aiStatus || location.aiStatus || "teacher",
+      adapter_url:
+        updates.adapterUrl !== undefined
+          ? updates.adapterUrl || null
+          : location.adapterUrl || null,
+      adapter_version:
+        updates.adapterVersion !== undefined
+          ? updates.adapterVersion || null
+          : location.adapterVersion || null,
+      ai_train_error:
+        updates.aiTrainError !== undefined
+          ? updates.aiTrainError || null
+          : location.aiTrainError || null,
+      ai_train_job_id:
+        updates.aiTrainJobId !== undefined
+          ? updates.aiTrainJobId || null
+          : location.aiTrainJobId || null,
     };
 
     await powerSyncStore.powerSync?.execute(
-      "UPDATE locations SET name = ?, bbox = ?, min_zoom = ?, max_zoom = ?, pmtiles_url = ?, date_modified = ?, is_public = ? WHERE id = ?",
+      `UPDATE locations SET
+        name = ?, bbox = ?, min_zoom = ?, max_zoom = ?, pmtiles_url = ?,
+        date_modified = ?, is_public = ?,
+        ai_status = ?, adapter_url = ?, adapter_version = ?,
+        ai_train_error = ?, ai_train_job_id = ?
+       WHERE id = ?`,
       [
         updatedLocation.name,
         updatedLocation.bbox,
@@ -246,6 +309,11 @@ export const useLocationsStore = defineStore("locations", () => {
         updatedLocation.pmtiles_url,
         updatedLocation.date_modified,
         updatedLocation.is_public,
+        updatedLocation.ai_status,
+        updatedLocation.adapter_url,
+        updatedLocation.adapter_version,
+        updatedLocation.ai_train_error,
+        updatedLocation.ai_train_job_id,
         id,
       ],
     );

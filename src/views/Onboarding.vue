@@ -7,19 +7,16 @@
       <template #content>
         <div class="space-y-6">
           <p class="text-surface-600">
-            To get started, you need to either create a new location or join an existing one.
+            To get started, you need to either create a new location or join an
+            existing one.
           </p>
-          
+
           <div class="flex flex-col sm:flex-row gap-4">
-            <Button 
-              @click="createLocation" 
-              class="flex-1"
-              size="large"
-            >
+            <Button @click="createLocation" class="flex-1" size="large">
               Create New Location
             </Button>
-            <Button 
-              @click="showLocationSelector = true" 
+            <Button
+              @click="showLocationSelector = true"
               severity="secondary"
               class="flex-1"
               size="large"
@@ -28,7 +25,7 @@
             </Button>
           </div>
 
-          <OnboardingLocationSelector 
+          <OnboardingLocationSelector
             v-if="showLocationSelector"
             @close="showLocationSelector = false"
           />
@@ -39,17 +36,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import Card from 'primevue/card'
-import Button from 'primevue/button'
-import OnboardingLocationSelector from '@/components/onboarding/OnboardingLocationSelector.vue'
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import Card from "primevue/card";
+import Button from "primevue/button";
+import OnboardingLocationSelector from "@/components/onboarding/OnboardingLocationSelector.vue";
 
-const router = useRouter()
-const showLocationSelector = ref(false)
+const router = useRouter();
+const showLocationSelector = ref(false);
 
 const createLocation = () => {
-  router.push('/locations')
-}
+  router.push("/locations");
+};
 </script>
-

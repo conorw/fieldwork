@@ -1232,11 +1232,11 @@ const generatepmtilesUrl = async (bbox) => {
 
     // API always returns the Vercel Blob Storage URL as plain text
     const url = await response.text();
-    
+
     // Validate that it's actually a URL
     if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
       throw new Error(
-        `Invalid PMTiles URL returned: ${url}. Expected a valid HTTP/HTTPS URL from Vercel Blob Storage.`
+        `Invalid PMTiles URL returned: ${url}. Expected a valid HTTP/HTTPS URL from Vercel Blob Storage.`,
       );
     }
 
@@ -1267,7 +1267,7 @@ onMounted(async () => {
 
   try {
     // Initialize PowerSync first (only if authenticated)
-    const { useAuthStore } = await import('../stores/auth');
+    const { useAuthStore } = await import("../stores/auth");
     const authStore = useAuthStore();
     if (!powerSyncStore.isInitialized && authStore.isAuthenticated) {
       await powerSyncStore.initialize();

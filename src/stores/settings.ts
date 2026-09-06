@@ -1,8 +1,5 @@
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { defineStore } from "pinia";
-import { useStorage } from "@vueuse/core";
-
-export type AnalysisMode = "openai" | "local";
 
 export const useSettingsStore = defineStore("settings", () => {
   // Default map configuration values
@@ -40,56 +37,12 @@ export const useSettingsStore = defineStore("settings", () => {
     error: null,
   });
 
-  // Analysis mode setting (OpenAI API or local browser inference)
-  const analysisMode = useStorage<AnalysisMode>("analysisMode", "openai");
-
   // Computed properties for easy access
   const minZoom = computed(() => mapSettings.value.minZoom);
   const maxZoom = computed(() => mapSettings.value.maxZoom);
   const defaultZoom = computed(() => mapSettings.value.defaultZoom);
   const defaultCenter = computed(() => mapSettings.value.defaultCenter);
   const maxExtentSize = computed(() => mapSettings.value.maxExtentSize);
-
-  // Analysis mode getter/setter
-  const setAnalysisMode = (mode: AnalysisMode) => {
-    analysisMode.value = mode;
-    console.log("Analysis mode set to:", mode);
-
-    // Pre-initialize local model if switching to local mode
-    if (mode === "local") {
-      console.log("🔄 Pre-initializing local LLM model...");
-      // Import and initialize asynchronously to avoid blocking
-      import("../services/localLLMService").then(({ localLLMService }) => {
-        localLLMService.initialize().catch((error) => {
-          console.warn(
-            "⚠️ Failed to pre-initialize local model (will load on first use):",
-            error,
-          );
-        });
-      });
-    }
-  };
-
-  const getAnalysisMode = (): AnalysisMode => {
-    return analysisMode.value;
-  };
-
-  // Watch for analysis mode changes and pre-initialize local model
-  watch(analysisMode, (newMode) => {
-    if (newMode === "local") {
-      console.log(
-        "🔄 Analysis mode changed to local, pre-initializing model...",
-      );
-      import("../services/localLLMService").then(({ localLLMService }) => {
-        localLLMService.initialize().catch((error) => {
-          console.warn(
-            "⚠️ Failed to pre-initialize local model (will load on first use):",
-            error,
-          );
-        });
-      });
-    }
-  });
 
   // Function to get current GPS location
   const getCurrentLocation = () => {
@@ -110,7 +63,9 @@ export const useSettingsStore = defineStore("settings", () => {
           // Don't log timeout errors as warnings - they're expected on devices without GPS
           if (error.code === 3) {
             // TIMEOUT - device may not have GPS hardware
-            console.log("GPS timeout (device may not have GPS hardware), using default center");
+            console.log(
+              "GPS timeout (device may not have GPS hardware), using default center",
+            );
           } else {
             console.warn("Failed to get GPS location:", error.message);
           }
@@ -157,7 +112,10 @@ export const useSettingsStore = defineStore("settings", () => {
       console.log("GPS location refreshed:", gpsCenter);
       return gpsCenter;
     } catch (error) {
-      console.warn("Error refreshing GPS location (device may not have GPS):", error);
+      console.warn(
+        "Error refreshing GPS location (device may not have GPS):",
+        error,
+      );
       // Don't throw - just return default center
       return defaultMapConfig.defaultCenter;
     }
@@ -335,7 +293,6 @@ export const useSettingsStore = defineStore("settings", () => {
     // State
     mapSettings,
     tileDownloadState,
-    analysisMode,
 
     // Computed properties
     minZoom,
@@ -358,7 +315,5 @@ export const useSettingsStore = defineStore("settings", () => {
     failTileDownload,
     resumeTileDownload,
     clearTileDownloadState,
-    setAnalysisMode,
-    getAnalysisMode,
   };
 });

@@ -44,7 +44,6 @@ export class SupabaseConnector
 
   currentSession: Session | null;
 
-
   constructor() {
     super();
     this.config = {
@@ -73,7 +72,11 @@ export class SupabaseConnector
       });
 
       // Handle all session-related events
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+      if (
+        event === "SIGNED_IN" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "INITIAL_SESSION"
+      ) {
         if (session) {
           console.log("🔄 PowerSync: Updating session from auth state change");
           this.updateSession(session);
@@ -90,7 +93,9 @@ export class SupabaseConnector
         this.updateSession(sessionResponse.data.session);
         console.log("🔄 PowerSync: Connector initialized with session");
       } else {
-        console.log("🔄 PowerSync: Connector initialized without session (will connect when user logs in)");
+        console.log(
+          "🔄 PowerSync: Connector initialized without session (will connect when user logs in)",
+        );
       }
     } catch (error) {
       console.warn("⚠️ PowerSync: Error getting session during init:", error);
@@ -128,18 +133,21 @@ export class SupabaseConnector
     // Always check for session from Supabase client (which checks localStorage)
     // This ensures we get the latest session even if it was updated elsewhere
     let session = this.currentSession;
-    
+
     try {
       const {
         data: { session: currentSession },
         error: sessionError,
       } = await this.client.auth.getSession();
-      
+
       if (sessionError) {
         console.warn("⚠️ PowerSync: Error getting session:", sessionError);
       } else if (currentSession) {
         // Update our cached session if we found one
-        if (!this.currentSession || this.currentSession.access_token !== currentSession.access_token) {
+        if (
+          !this.currentSession ||
+          this.currentSession.access_token !== currentSession.access_token
+        ) {
           console.log("🔄 PowerSync: Found session from storage, updating");
           this.updateSession(currentSession);
           session = currentSession;
@@ -152,14 +160,22 @@ export class SupabaseConnector
     // If still no session, wait a bit for auth store to initialize
     // This handles race conditions where PowerSync initializes before auth is ready
     if (!session) {
-      console.log("🔄 PowerSync: No session found, waiting for auth initialization...");
+      console.log(
+        "🔄 PowerSync: No session found, waiting for auth initialization...",
+      );
       // Wait up to 10 seconds for auth to initialize (longer wait for slower devices)
       for (let i = 0; i < 100; i++) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         try {
-          const { data: { session: newSession }, error: checkError } = await this.client.auth.getSession();
+          const {
+            data: { session: newSession },
+            error: checkError,
+          } = await this.client.auth.getSession();
           if (checkError) {
-            console.debug("PowerSync: Error checking session during wait:", checkError);
+            console.debug(
+              "PowerSync: Error checking session during wait:",
+              checkError,
+            );
             continue;
           }
           if (newSession) {
@@ -170,7 +186,10 @@ export class SupabaseConnector
           }
         } catch (error) {
           // Continue waiting if there's an error getting session
-          console.debug("PowerSync: Error checking session during wait:", error);
+          console.debug(
+            "PowerSync: Error checking session during wait:",
+            error,
+          );
         }
       }
     }
@@ -178,7 +197,9 @@ export class SupabaseConnector
     if (!session) {
       // Don't throw immediately - PowerSync will retry when auth is ready
       // This allows the app to work offline until user logs in
-      console.warn("⚠️ PowerSync: No authenticated session found. PowerSync will connect when user logs in.");
+      console.warn(
+        "⚠️ PowerSync: No authenticated session found. PowerSync will connect when user logs in.",
+      );
       throw new Error("No authenticated session found. Please log in.");
     }
 
@@ -206,7 +227,9 @@ export class SupabaseConnector
           } = await this.client.auth.refreshSession();
           if (error) {
             console.error("❌ PowerSync: Failed to refresh session:", error);
-            throw new Error("Session expired and refresh failed. Please log in again.");
+            throw new Error(
+              "Session expired and refresh failed. Please log in again.",
+            );
           } else {
             console.log("✅ PowerSync: Session refreshed successfully");
             this.updateSession(refreshedSession);
@@ -217,7 +240,9 @@ export class SupabaseConnector
             "❌ PowerSync: Error refreshing session:",
             refreshError,
           );
-          throw new Error("Session expired and refresh failed. Please log in again.");
+          throw new Error(
+            "Session expired and refresh failed. Please log in again.",
+          );
         }
       }
     }
@@ -276,6 +301,11 @@ export class SupabaseConnector
             result = await table.upsert(record);
             break;
           case UpdateType.PATCH:
+            if (!op.opData) {
+              throw new Error(
+                `PowerSync PATCH missing opData for ${op.table} ${op.id}`,
+              );
+            }
             console.log("🔄 PowerSync: Updating record in Supabase:", {
               id: op.id,
               data: op.opData,
@@ -349,7 +379,6 @@ export class SupabaseConnector
     }
     this.iterateListeners((cb) => cb.sessionStarted?.(session));
   }
-
 
   async logout() {
     console.log("logging out");

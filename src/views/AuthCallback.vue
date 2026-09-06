@@ -8,39 +8,41 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { createSupabaseClient } from '@/lib/supabase/client'
-import { useAuthStore } from '@/stores/auth'
-import ProgressSpinner from 'primevue/progressspinner'
+import { onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { createSupabaseClient } from "@/lib/supabase/client";
+import { useAuthStore } from "@/stores/auth";
+import ProgressSpinner from "primevue/progressspinner";
 
-const router = useRouter()
-const authStore = useAuthStore()
+const router = useRouter();
+const authStore = useAuthStore();
 
 onMounted(async () => {
-  const supabase = createSupabaseClient()
-  
+  const supabase = createSupabaseClient();
+
   // Handle the OAuth callback
-  const { data: { session }, error } = await supabase.auth.getSession()
-  
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
   if (error) {
-    console.error('Auth callback error:', error)
-    router.push('/auth?error=' + encodeURIComponent(error.message))
-    return
+    console.error("Auth callback error:", error);
+    router.push("/auth?error=" + encodeURIComponent(error.message));
+    return;
   }
-  
+
   if (session) {
-    await authStore.setSession(session)
+    await authStore.setSession(session);
     // Check if user has locations, redirect accordingly
-    const hasLocations = await authStore.checkUserHasLocations()
+    const hasLocations = await authStore.checkUserHasLocations();
     if (hasLocations) {
-      router.push('/')
+      router.push("/");
     } else {
-      router.push('/onboarding')
+      router.push("/onboarding");
     }
   } else {
-    router.push('/auth')
+    router.push("/auth");
   }
-})
+});
 </script>
-

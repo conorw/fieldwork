@@ -8,7 +8,11 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
-    vue(),
+    vue({
+      features: {
+        vapor: true, // Vue 3.6+: compile SFCs as Vapor unless they already have a vapor marker
+      },
+    }),
     tailwindcss(),
     wasm(),
     // vercel(), // Temporarily disabled - vite-plugin-vercel@9.1.1 doesn't support Vite 7
@@ -18,7 +22,8 @@ export default defineConfig({
       manifest: {
         name: "FieldWork - Cemetery Plot Management",
         short_name: "FieldWork",
-        description: "Professional cemetery plot documentation and field data collection app. Create, manage, and document cemetery plots with offline-first capabilities, GPS integration, and comprehensive plot management tools.",
+        description:
+          "Professional cemetery plot documentation and field data collection app. Create, manage, and document cemetery plots with offline-first capabilities, GPS integration, and comprehensive plot management tools.",
         theme_color: "#3b82f6",
         background_color: "#ffffff",
         display: "standalone",
@@ -30,62 +35,62 @@ export default defineConfig({
             src: "/icons/icon-72x72.png",
             sizes: "72x72",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-96x96.png",
             sizes: "96x96",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-128x128.png",
             sizes: "128x128",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-144x144.png",
             sizes: "144x144",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-152x152.png",
             sizes: "152x152",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-192x192.png",
             sizes: "192x192",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-192x192.png",
             sizes: "192x192",
             type: "image/png",
-            purpose: "maskable"
+            purpose: "maskable",
           },
           {
             src: "/icons/icon-384x384.png",
             sizes: "384x384",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-512x512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "any"
+            purpose: "any",
           },
           {
             src: "/icons/icon-512x512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "maskable"
-          }
+            purpose: "maskable",
+          },
         ],
         shortcuts: [
           {
@@ -97,9 +102,9 @@ export default defineConfig({
               {
                 src: "/icons/icon-192x192.png",
                 sizes: "192x192",
-                type: "image/png"
-              }
-            ]
+                type: "image/png",
+              },
+            ],
           },
           {
             name: "Settings",
@@ -110,10 +115,10 @@ export default defineConfig({
               {
                 src: "/icons/icon-192x192.png",
                 sizes: "192x192",
-                type: "image/png"
-              }
-            ]
-          }
+                type: "image/png",
+              },
+            ],
+          },
         ],
         screenshots: [
           {
@@ -121,23 +126,23 @@ export default defineConfig({
             sizes: "1280x720",
             type: "image/png",
             form_factor: "wide",
-            label: "Interactive map view with plot management tools"
+            label: "Interactive map view with plot management tools",
           },
           {
             src: "/screenshots/settings-wide.png",
             sizes: "1280x720",
             type: "image/png",
             form_factor: "wide",
-            label: "Settings and configuration panel"
+            label: "Settings and configuration panel",
           },
           {
             src: "/screenshots/plot-detail-narrow.png",
             sizes: "640x1136",
             type: "image/png",
             form_factor: "narrow",
-            label: "Mobile plot detail view with management tools"
-          }
-        ]
+            label: "Mobile plot detail view with management tools",
+          },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
@@ -156,17 +161,17 @@ export default defineConfig({
               cacheName: "images-cache",
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          }
-        ]
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+            },
+          },
+        ],
       },
       devOptions: {
         enabled: true,
-        type: "module"
-      }
-    })
+        type: "module",
+      },
+    }),
   ],
   resolve: {
     alias: {
@@ -190,13 +195,16 @@ export default defineConfig({
     include: [
       "ol",
       "ol-ext",
-      "@powersync/web > js-logger",
       "buffer",
       "event-iterator",
       "primevue",
       "@primeuix/themes",
     ],
-    exclude: ["@journeyapps/wa-sqlite", "@powersync/web"],
+    exclude: [
+      "@journeyapps/wa-sqlite",
+      "@powersync/web",
+      "@huggingface/transformers",
+    ],
     esbuildOptions: {
       // Handle CommonJS modules from event-iterator
       mainFields: ["browser", "module", "main"],

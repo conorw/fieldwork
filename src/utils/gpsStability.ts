@@ -88,10 +88,7 @@ export function checkGPSStability(
 
   // Calculate stability score (0-1)
   const accuracyScore = Math.max(0, 1 - avgAccuracy / maxAccuracy);
-  const varianceScore = Math.max(
-    0,
-    1 - accuracyStdDev / maxAccuracyVariance,
-  );
+  const varianceScore = Math.max(0, 1 - accuracyStdDev / maxAccuracyVariance);
   const positionScore = Math.max(0, 1 - maxDistance / maxPositionVariance);
   const stabilityScore = (accuracyScore + varianceScore + positionScore) / 3;
 
@@ -139,7 +136,7 @@ export async function waitForGPSStability(
     if (!useProgressiveAccuracy) {
       return maxAccuracy;
     }
-    
+
     // First 5 seconds: accept up to 20m
     if (elapsedTime < 5000) {
       return Math.max(maxAccuracy, 20);
@@ -168,7 +165,7 @@ export async function waitForGPSStability(
       if (readings.length >= minReadings) {
         const elapsedTime = Date.now() - startTime;
         const progressiveAccuracy = getProgressiveAccuracy(elapsedTime);
-        
+
         const stability = checkGPSStability(readings, {
           minReadings,
           maxAccuracy: progressiveAccuracy,
@@ -191,14 +188,15 @@ export async function waitForGPSStability(
       await new Promise((resolve) => setTimeout(resolve, checkInterval));
     } catch (error) {
       console.warn("Error getting GPS reading:", error);
-      
+
       // If it's a timeout or permission error, and we have no readings yet, throw to allow fallback
       if (readings.length === 0 && error instanceof GeolocationPositionError) {
-        if (error.code === 3 || error.code === 1) { // TIMEOUT or PERMISSION_DENIED
+        if (error.code === 3 || error.code === 1) {
+          // TIMEOUT or PERMISSION_DENIED
           throw error;
         }
       }
-      
+
       // Continue trying for other errors
       await new Promise((resolve) => setTimeout(resolve, checkInterval));
     }
@@ -214,4 +212,3 @@ export async function waitForGPSStability(
 
   return finalStability;
 }
-

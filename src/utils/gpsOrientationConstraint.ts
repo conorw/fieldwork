@@ -46,9 +46,7 @@ export function projectGPSOntoMovementLine(
     (projectedDistance / 6371000) * (180 / Math.PI) * Math.cos(movementRad);
   const projectedLon =
     referencePoint.longitude +
-    ((projectedDistance / 6371000) *
-      (180 / Math.PI) *
-      Math.sin(movementRad)) /
+    ((projectedDistance / 6371000) * (180 / Math.PI) * Math.sin(movementRad)) /
       Math.cos((referencePoint.latitude * Math.PI) / 180);
 
   return {
@@ -193,4 +191,3 @@ function calculateDistance(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
-

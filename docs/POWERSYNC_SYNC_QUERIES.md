@@ -151,6 +151,20 @@ WHERE person_id IN (
 )
 ```
 
+### 9. Headstone Training Examples Table
+
+Sync reviewed training examples for locations the user can access (needed for onboarding + train kickoff offline):
+
+```sql
+SELECT * FROM headstone_training_examples
+WHERE location_id IN (
+  SELECT id FROM locations WHERE owner_id = auth.uid()
+  UNION
+  SELECT location_id FROM location_members WHERE user_id = auth.uid()
+)
+```
+
+**Note:** Apply migration `007_location_ai_training.sql` before enabling this sync query. Locations also gain `ai_status`, `adapter_url`, `adapter_version`, `ai_train_error`, `ai_train_job_id` — covered by the existing locations `SELECT *` query once the columns exist.
 ## Important Notes
 
 1. **RLS Policies:** All sync queries will automatically respect the RLS policies configured in Supabase. The queries above are optimized to work with the RLS policies defined in `003_rls_policies.sql`.

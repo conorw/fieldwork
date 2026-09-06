@@ -114,7 +114,7 @@ const installApp = async () => {
     if ((window as any).__clearDeferredPrompt) {
       (window as any).__clearDeferredPrompt();
     }
-    
+
     showInstallPrompt.value = false;
   } catch (error) {
     console.error("Error during install:", error);
@@ -152,7 +152,7 @@ watch(
       }, 1000);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Watch route changes - don't show on auth routes
@@ -167,7 +167,7 @@ watch(
         checkAndShowPrompt();
       });
     }
-  }
+  },
 );
 
 // Capacitor app state handling
@@ -182,7 +182,7 @@ CapacitorApp.addListener(
         checkAndShowPrompt();
       }
     }
-  }
+  },
 );
 
 onMounted(() => {
@@ -193,9 +193,12 @@ onMounted(() => {
   ) {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
-    window.addEventListener("pwa-install-prompt-available", handlePromptAvailable);
+    window.addEventListener(
+      "pwa-install-prompt-available",
+      handlePromptAvailable,
+    );
     window.addEventListener("pwa-installed", handleAppInstalled);
-    
+
     // Check if prompt already exists (captured before component mounted)
     checkAndShowPrompt();
   }
@@ -204,7 +207,10 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   window.removeEventListener("appinstalled", handleAppInstalled);
-  window.removeEventListener("pwa-install-prompt-available", handlePromptAvailable);
+  window.removeEventListener(
+    "pwa-install-prompt-available",
+    handlePromptAvailable,
+  );
   window.removeEventListener("pwa-installed", handleAppInstalled);
 });
 </script>

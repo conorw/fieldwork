@@ -29,6 +29,8 @@ The database contains the following tables:
 ### Migration Files
 
 - `001_initial_schema.sql` - Initial database setup with all tables, indexes, and foreign key constraints
+- `002`–`006` - Location auth, RLS, email fields
+- `007_location_ai_training.sql` - Per-cemetery AI adapter fields + `headstone_training_examples`
 
 ### Adding New Migrations
 

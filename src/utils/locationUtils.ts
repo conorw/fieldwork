@@ -112,11 +112,11 @@ export const generatePlotGeometry = (
   const centerLon = location.longitude;
   const centerLat = location.latitude;
   const center = fromLonLat([centerLon, centerLat]);
-  
+
   // Store the original direction for shift calculations
   const originalDirection = direction;
   const originalDirectionRad = (originalDirection * Math.PI) / 180;
-  
+
   // Convert device orientation to rotation angle for map coordinates
   // Device orientation: 0° = North, 90° = East (clockwise)
   // Rectangle is created as North-South by default
@@ -150,9 +150,11 @@ export const generatePlotGeometry = (
 
       // Rotate in map coordinate space
       const rotatedX =
-        translatedX * Math.cos(rotationRad) - translatedY * Math.sin(rotationRad);
+        translatedX * Math.cos(rotationRad) -
+        translatedY * Math.sin(rotationRad);
       const rotatedY =
-        translatedX * Math.sin(rotationRad) + translatedY * Math.cos(rotationRad);
+        translatedX * Math.sin(rotationRad) +
+        translatedY * Math.cos(rotationRad);
 
       // Translate back
       return [rotatedX + centerX, rotatedY + centerY];

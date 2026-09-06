@@ -34,9 +34,7 @@ class PMTilesService {
     // 1. Check if PMTiles data exists in Cache Storage (browser cache)
     const cached = await pmtilesCache.getCachedPMTiles(location.id);
     if (cached) {
-      console.log(
-        `Using PMTiles data from Cache Storage for ${location.name}`,
-      );
+      console.log(`Using PMTiles data from Cache Storage for ${location.name}`);
       return {
         data: cached.data,
         source: "local",
@@ -49,7 +47,7 @@ class PMTilesService {
       pmtilesUrl: location.pmtilesUrl,
       condition: location.pmtilesUrl && location.pmtilesUrl.trim() !== "",
     });
-    
+
     if (location.pmtilesUrl && location.pmtilesUrl.trim() !== "") {
       console.log(
         "📦 [PMTilesService] ✅ pmtilesUrl is valid, downloading from URL:",
@@ -63,24 +61,24 @@ class PMTilesService {
       // Use the most minimal fetch possible to avoid sending large headers
       // PMTiles files are public assets and don't need authentication
       const requestInit: RequestInit = {
-        method: 'GET',
-        credentials: 'omit', // Don't send cookies or auth headers
-        mode: 'cors', // Allow CORS but don't send credentials
-        cache: 'default',
-        redirect: 'follow',
+        method: "GET",
+        credentials: "omit", // Don't send cookies or auth headers
+        mode: "cors", // Allow CORS but don't send credentials
+        cache: "default",
+        redirect: "follow",
         // Explicitly don't set any headers - let browser send only minimal required headers
         // This prevents the "431 Request Header Fields Too Large" error
       };
-      
+
       let response: Response;
       try {
         response = await fetch(location.pmtilesUrl, requestInit);
       } catch (fetchError) {
         // If fetch fails, it might be a network error or header size issue
-        console.error('PMTiles fetch error:', fetchError);
+        console.error("PMTiles fetch error:", fetchError);
         throw new Error(
-          `Failed to fetch PMTiles: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}. ` +
-          `This may be due to large headers being sent. Try clearing browser cookies or using a different browser.`
+          `Failed to fetch PMTiles: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}. ` +
+            `This may be due to large headers being sent. Try clearing browser cookies or using a different browser.`,
         );
       }
 
@@ -89,9 +87,9 @@ class PMTilesService {
         if (response.status === 431) {
           throw new Error(
             `Failed to download PMTiles: Request Header Fields Too Large (431). ` +
-            `The server rejected the request because headers were too large. ` +
-            `Try clearing browser cookies or using a different browser. ` +
-            `URL: ${location.pmtilesUrl}`
+              `The server rejected the request because headers were too large. ` +
+              `Try clearing browser cookies or using a different browser. ` +
+              `URL: ${location.pmtilesUrl}`,
           );
         }
         throw new Error(
@@ -157,7 +155,9 @@ class PMTilesService {
       pmtilesUrl: location.pmtilesUrl,
       hasPmtilesUrl: !!location.pmtilesUrl,
     });
-    throw new Error(`PMTiles data not found for ${location.name}. pmtilesUrl: ${location.pmtilesUrl || 'not set'}`);
+    throw new Error(
+      `PMTiles data not found for ${location.name}. pmtilesUrl: ${location.pmtilesUrl || "not set"}`,
+    );
   }
 
   /**

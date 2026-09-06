@@ -153,12 +153,16 @@
 
                   <div class="flex gap-2">
                     <Button
-                      v-if="location.userRole === 'owner' || location.userRole === 'admin'"
+                      v-if="
+                        location.userRole === 'owner' ||
+                        location.userRole === 'admin'
+                      "
                       @click.stop="goToLocationSettings(location.id)"
                       severity="secondary"
                       size="small"
                       icon="pi pi-cog"
-                      v-tooltip.top="'Location settings, members, invites, and join requests'"
+                      title="Location settings, members, invites, and join requests"
+                      aria-label="Location settings, members, invites, and join requests"
                     />
                     <Button
                       @click.stop="confirmDeleteLocation(location)"
@@ -167,7 +171,12 @@
                       size="small"
                       icon="pi pi-trash"
                       :loading="deletingLocationId === location.id"
-                      v-tooltip.top="
+                      :title="
+                        deletingLocationId === location.id
+                          ? 'Deleting...'
+                          : 'Delete facility'
+                      "
+                      :aria-label="
                         deletingLocationId === location.id
                           ? 'Deleting...'
                           : 'Delete facility'
@@ -320,11 +329,11 @@
             <span>AI Analysis Settings</span>
             <Chip
               :label="
-                settingsStore.analysisMode === 'openai' ? 'OpenAI' : 'Local'
+                localModelState.isLoaded
+                  ? 'Local WebGPU Ready'
+                  : 'Auto (Cloud Fallback)'
               "
-              :severity="
-                settingsStore.analysisMode === 'openai' ? 'info' : 'success'
-              "
+              :severity="localModelState.isLoaded ? 'success' : 'info'"
               size="small"
             />
           </div>
@@ -336,10 +345,13 @@
               <i class="pi pi-info-circle"></i>
             </template>
             <div class="space-y-2">
-              <p class="text-sm font-medium">Analysis Mode</p>
+              <p class="text-sm font-medium">Analysis Mode: Auto</p>
               <p class="text-xs">
-                Choose between OpenAI API (cloud-based, requires internet) or
-                Local browser inference (works offline, uses device resources).
+                The application uses a hybrid approach. It downloads an advanced
+                Vision AI model (PaliGemma) in the background to run completely
+                free and offline in your browser. While downloading, it
+                seamlessly falls back to the OpenAI API so you are never blocked
+                from transcribing.
               </p>
             </div>
           </Message>
@@ -347,66 +359,8 @@
           <Card>
             <template #content>
               <div class="space-y-4">
-                <div>
-                  <label class="block text-sm font-medium mb-2"
-                    >Analysis Provider</label
-                  >
-                  <div class="space-y-2">
-                    <div
-                      class="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-surface-50"
-                      :class="{
-                        'border-primary bg-primary-50':
-                          settingsStore.analysisMode === 'openai',
-                      }"
-                      @click="settingsStore.setAnalysisMode('openai')"
-                    >
-                      <input
-                        type="radio"
-                        :checked="settingsStore.analysisMode === 'openai'"
-                        @change="settingsStore.setAnalysisMode('openai')"
-                        class="mr-2"
-                      />
-                      <div class="flex-1">
-                        <div class="font-medium text-sm">OpenAI API</div>
-                        <div class="text-xs text-surface-600">
-                          Cloud-based analysis using GPT-4 Vision. Requires
-                          internet connection.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      class="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-surface-50"
-                      :class="{
-                        'border-primary bg-primary-50':
-                          settingsStore.analysisMode === 'local',
-                      }"
-                      @click="settingsStore.setAnalysisMode('local')"
-                    >
-                      <input
-                        type="radio"
-                        :checked="settingsStore.analysisMode === 'local'"
-                        @change="settingsStore.setAnalysisMode('local')"
-                        class="mr-2"
-                      />
-                      <div class="flex-1">
-                        <div class="font-medium text-sm">
-                          Local Browser Model
-                        </div>
-                        <div class="text-xs text-surface-600">
-                          Runs analysis locally in your browser. Works offline
-                          but may be slower.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- Model Loading Status -->
-                <div
-                  v-if="settingsStore.analysisMode === 'local'"
-                  class="space-y-2"
-                >
+                <div class="space-y-2">
                   <div
                     v-if="localModelState.isLoading"
                     class="p-3 bg-blue-50 border border-blue-200 rounded-lg"
@@ -577,9 +531,12 @@
           <div
             ref="logsContainer"
             class="bg-surface-900 text-surface-100 rounded-lg p-3 font-mono text-xs overflow-auto"
-            style="max-height: 500px; min-height: 200px;"
+            style="max-height: 500px; min-height: 200px"
           >
-            <div v-if="filteredLogs.length === 0" class="text-surface-400 text-center py-4">
+            <div
+              v-if="filteredLogs.length === 0"
+              class="text-surface-400 text-center py-4"
+            >
               No logs to display
             </div>
             <div
@@ -612,25 +569,29 @@
                 </span>
                 <div class="flex-1 break-words space-y-1">
                   <div>{{ log.message }}</div>
-                  
+
                   <!-- Error Details -->
                   <div
                     v-if="log.errorDetails"
                     class="mt-2 pl-4 border-l-2 border-red-500/50 space-y-1 text-xs"
                   >
                     <div v-if="log.errorDetails.name" class="text-red-300">
-                      <span class="font-semibold">Error Name:</span> {{ log.errorDetails.name }}
+                      <span class="font-semibold">Error Name:</span>
+                      {{ log.errorDetails.name }}
                     </div>
                     <div v-if="log.errorDetails.message" class="text-red-300">
-                      <span class="font-semibold">Message:</span> {{ log.errorDetails.message }}
+                      <span class="font-semibold">Message:</span>
+                      {{ log.errorDetails.message }}
                     </div>
                     <div
-                      v-if="log.errorDetails.fileName || log.errorDetails.lineNumber"
+                      v-if="
+                        log.errorDetails.fileName || log.errorDetails.lineNumber
+                      "
                       class="text-surface-400"
                     >
                       <span class="font-semibold">Location:</span>
                       <span v-if="log.errorDetails.fileName">
-                        {{ log.errorDetails.fileName.split('/').pop() }}
+                        {{ log.errorDetails.fileName.split("/").pop() }}
                       </span>
                       <span v-if="log.errorDetails.lineNumber">
                         :{{ log.errorDetails.lineNumber }}
@@ -651,7 +612,9 @@
                       class="text-surface-400 mt-2"
                     >
                       <span class="font-semibold">Cause:</span>
-                      <pre class="mt-1 text-xs whitespace-pre-wrap">{{ formatErrorCause(log.errorDetails.cause) }}</pre>
+                      <pre class="mt-1 text-xs whitespace-pre-wrap">{{
+                        formatErrorCause(log.errorDetails.cause)
+                      }}</pre>
                     </div>
                   </div>
                 </div>
@@ -699,12 +662,12 @@ const logLevelFilter = ref<string | null>(null);
 const logsContainer = ref<HTMLElement | null>(null);
 
 const logLevelOptions = [
-  { label: 'All', value: null },
-  { label: 'Log', value: 'log' },
-  { label: 'Info', value: 'info' },
-  { label: 'Warn', value: 'warn' },
-  { label: 'Error', value: 'error' },
-  { label: 'Debug', value: 'debug' },
+  { label: "All", value: null },
+  { label: "Log", value: "log" },
+  { label: "Info", value: "info" },
+  { label: "Warn", value: "warn" },
+  { label: "Error", value: "error" },
+  { label: "Debug", value: "debug" },
 ];
 
 const filteredLogs = computed(() => {
@@ -758,31 +721,25 @@ const filteredLocations = computed(() => {
   );
 });
 
-// Watch for model state changes
-watch(
-  () => settingsStore.analysisMode,
-  () => {
-    // Update model state when mode changes
+// Methods
+const startPollingLLMState = () => {
+  const pollInterval = setInterval(() => {
     localModelState.value = localLLMService.getState();
-
-    // Poll for state updates if loading
-    if (
-      settingsStore.analysisMode === "local" &&
-      localModelState.value.isLoading
-    ) {
-      const pollInterval = setInterval(() => {
-        localModelState.value = localLLMService.getState();
-        if (!localModelState.value.isLoading) {
-          clearInterval(pollInterval);
-        }
-      }, 500);
-
-      // Clean up after 5 minutes
-      setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
+    if (!localModelState.value.isLoading) {
+      clearInterval(pollInterval);
     }
-  },
-  { immediate: true },
-);
+  }, 500);
+
+  // Clean up after 5 minutes
+  setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
+};
+
+onMounted(() => {
+  localModelState.value = localLLMService.getState();
+  if (localModelState.value.isLoading) {
+    startPollingLLMState();
+  }
+});
 
 // Methods
 const refreshData = async () => {
@@ -885,10 +842,10 @@ const exportLogs = () => {
   const logText = logs.value
     .map((log) => {
       let text = `[${formatLogTime(log.timestamp)}] [${log.level.toUpperCase()}] ${log.message}`;
-      
+
       // Add error details if present
       if (log.errorDetails) {
-        text += '\n  Error Details:';
+        text += "\n  Error Details:";
         if (log.errorDetails.name) {
           text += `\n    Name: ${log.errorDetails.name}`;
         }
@@ -896,23 +853,26 @@ const exportLogs = () => {
           text += `\n    Message: ${log.errorDetails.message}`;
         }
         if (log.errorDetails.fileName || log.errorDetails.lineNumber) {
-          text += `\n    Location: ${log.errorDetails.fileName || 'unknown'}:${log.errorDetails.lineNumber || '?'}:${log.errorDetails.columnNumber || '?'}`;
+          text += `\n    Location: ${log.errorDetails.fileName || "unknown"}:${log.errorDetails.lineNumber || "?"}:${log.errorDetails.columnNumber || "?"}`;
         }
         if (log.errorDetails.stack) {
-          text += `\n    Stack Trace:\n${log.errorDetails.stack.split('\n').map(line => `      ${line}`).join('\n')}`;
+          text += `\n    Stack Trace:\n${log.errorDetails.stack
+            .split("\n")
+            .map((line) => `      ${line}`)
+            .join("\n")}`;
         }
         if (log.errorDetails.cause) {
           text += `\n    Cause: ${formatErrorCause(log.errorDetails.cause)}`;
         }
       }
-      
+
       return text;
     })
-    .join('\n\n');
+    .join("\n\n");
 
-  const blob = new Blob([logText], { type: 'text/plain' });
+  const blob = new Blob([logText], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = `console-logs-${new Date().toISOString()}.txt`;
   document.body.appendChild(a);
@@ -923,21 +883,21 @@ const exportLogs = () => {
 
 const formatLogTime = (timestamp: number): string => {
   const date = new Date(timestamp);
-  const timeStr = date.toLocaleTimeString('en-US', {
+  const timeStr = date.toLocaleTimeString("en-US", {
     hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
-  const ms = date.getMilliseconds().toString().padStart(3, '0');
+  const ms = date.getMilliseconds().toString().padStart(3, "0");
   return `${timeStr}.${ms}`;
 };
 
 const formatErrorCause = (cause: any): string => {
   if (cause instanceof Error) {
-    return `${cause.name}: ${cause.message}${cause.stack ? '\n' + cause.stack : ''}`;
+    return `${cause.name}: ${cause.message}${cause.stack ? "\n" + cause.stack : ""}`;
   }
-  if (typeof cause === 'object') {
+  if (typeof cause === "object") {
     try {
       return JSON.stringify(cause, null, 2);
     } catch {

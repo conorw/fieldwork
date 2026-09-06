@@ -75,34 +75,34 @@ const router = createRouter({
 
 // Navigation guard
 router.beforeEach(async (to, _from, next) => {
-  const authStore = useAuthStore()
-  
+  const authStore = useAuthStore();
+
   // Ensure auth is initialized (this should already be done in main.ts, but ensure it here too)
-  await authStore.init()
+  await authStore.init();
 
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({ name: 'Auth', query: { redirect: to.fullPath } })
-    return
+    next({ name: "Auth", query: { redirect: to.fullPath } });
+    return;
   }
 
   // Redirect authenticated users away from auth page
-  if (to.name === 'Auth' && authStore.isAuthenticated) {
-    const hasLocations = await authStore.checkUserHasLocations()
-    next(hasLocations ? '/' : '/onboarding')
-    return
+  if (to.name === "Auth" && authStore.isAuthenticated) {
+    const hasLocations = await authStore.checkUserHasLocations();
+    next(hasLocations ? "/" : "/onboarding");
+    return;
   }
 
   // Check if route requires location membership
   if (to.meta.requiresLocation && authStore.isAuthenticated) {
-    const hasLocations = await authStore.checkUserHasLocations()
+    const hasLocations = await authStore.checkUserHasLocations();
     if (!hasLocations) {
-      next('/onboarding')
-      return
+      next("/onboarding");
+      return;
     }
   }
 
-  next()
+  next();
 });
 
 export default router;

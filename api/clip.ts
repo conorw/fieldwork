@@ -568,7 +568,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Blob storage is required - no fallback to base64
     const url = await savePMTilesToBlobStorage(out, filename);
     console.log(`✅ PMTiles saved to blob storage, URL: ${url}`);
-    
+
     // Return the blob storage URL as plain text
     // This URL will be saved to the locations table
     return res.status(200).send(url);

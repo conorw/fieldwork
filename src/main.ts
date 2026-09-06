@@ -6,7 +6,7 @@ globalThis.Buffer = Buffer;
 // Initialize console logger early to capture all logs
 import "./utils/consoleLogger";
 
-import { createApp } from "vue";
+import { createApp, vaporInteropPlugin } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import router from "./router/index";
@@ -65,6 +65,7 @@ import "./services/initQueueProcessor";
 const pinia = createPinia();
 const app = createApp(App);
 
+app.use(vaporInteropPlugin);
 app.use(pinia);
 app.use(router);
 
@@ -121,15 +122,18 @@ const authStore = useAuthStore();
 (async () => {
   try {
     await authStore.init();
-    console.log("Auth initialized, session:", authStore.session ? "restored" : "none");
+    console.log(
+      "Auth initialized, session:",
+      authStore.session ? "restored" : "none",
+    );
     console.log("Auth authenticated:", authStore.isAuthenticated);
-    
+
     // Only initialize PowerSync if user is authenticated
     // PowerSync requires authentication to connect
     if (authStore.isAuthenticated && authStore.session) {
       console.log("User authenticated, initializing PowerSync...");
       // Wait a bit to ensure session is fully ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       powerSyncStore.initialize().catch((error: Error) => {
         console.error("Failed to initialize PowerSync store:", error);
       });
@@ -140,7 +144,7 @@ const authStore = useAuthStore();
   } catch (error: unknown) {
     console.error("Failed to initialize auth store:", error);
   }
-  
+
   // Initialize other stores (don't block on these)
   mapStore.initialize().catch((error: Error) => {
     console.error("Failed to initialize map store:", error);
@@ -149,27 +153,12 @@ const authStore = useAuthStore();
   settingsStore.initializeWithGPS().catch((error: Error) => {
     console.error("Failed to initialize settings with GPS:", error);
   });
-  
+
   // Mount app after auth is initialized
   app.mount("#app");
 })();
 
-// Pre-load local LLM models if analysis mode is set to 'local'
-// This starts downloading models immediately when the app opens
-if (settingsStore.getAnalysisMode() === "local") {
-  console.log(
-    '🔄 App startup: Analysis mode is "local", pre-loading models...',
-  );
-  // Import and initialize asynchronously to avoid blocking app startup
-  import("./services/localLLMService").then(({ localLLMService }) => {
-    localLLMService.initialize().catch((error) => {
-      console.warn(
-        "⚠️ Failed to pre-load local models on startup (will load on first use):",
-        error,
-      );
-    });
-  });
-}
+// Local LLM initialization is handled by App.vue on mount (background download)
 
 // Request notification permission
 if ("Notification" in window) {

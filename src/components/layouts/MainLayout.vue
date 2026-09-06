@@ -17,7 +17,9 @@
     <!-- Navigation -->
     <Toolbar class="border-0 border-b-1 surface-border">
       <template #start>
-        <h1 class="text-xl font-semibold text-surface-900 max-w-[200px] sm:max-w-none truncate">
+        <h1
+          class="text-xl font-semibold text-surface-900 max-w-[200px] sm:max-w-none truncate"
+        >
           {{ locationName }}
         </h1>
       </template>
@@ -87,18 +89,18 @@
               />
             </svg>
           </router-link>
-          <div v-if="authStore.isAuthenticated" class="flex items-center gap-2 ml-2 pl-2 border-l border-surface-200">
-            <Avatar 
-              :label="userInitials" 
-              shape="circle"
-              class="w-8 h-8"
-            />
-            <Button 
-              icon="pi pi-sign-out" 
-              text 
+          <div
+            v-if="authStore.isAuthenticated"
+            class="flex items-center gap-2 ml-2 pl-2 border-l border-surface-200"
+          >
+            <Avatar :label="userInitials" shape="circle" class="w-8 h-8" />
+            <Button
+              icon="pi pi-sign-out"
+              text
               rounded
               @click="handleLogout"
-              v-tooltip="'Logout'"
+              title="Logout"
+              aria-label="Logout"
             />
           </div>
         </div>
@@ -145,4 +147,3 @@ const handleLogout = async () => {
   router.push("/auth");
 };
 </script>
-

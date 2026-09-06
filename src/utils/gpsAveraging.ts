@@ -79,12 +79,7 @@ function filterOutliers(readings: GPSReading[]): GPSReading[] {
 
   const distances = readings.map((r, i) => ({
     reading: r,
-    distance: calculateDistance(
-      centerLat,
-      centerLon,
-      r.latitude,
-      r.longitude,
-    ),
+    distance: calculateDistance(centerLat, centerLon, r.latitude, r.longitude),
     index: i,
   }));
 
@@ -218,4 +213,3 @@ export async function collectGPSReadings(
 
   return readings;
 }
-

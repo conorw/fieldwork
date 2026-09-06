@@ -25,13 +25,13 @@ export const useMapStore = defineStore("map", () => {
   const locationsStore = useLocationsStore();
   const personsStore = usePersonsStore();
   const capacitorGeolocation = CapacitorGeolocationService.getInstance();
-  
+
   // Cache for first person surnames by plot ID (for label performance)
   const plotSurnameCache = ref<Map<string, string>>(new Map());
-  
+
   // Cache for plot thumbnails by plot ID (for label performance)
   const plotThumbnailCache = ref<Map<string, string>>(new Map());
-  
+
   // Watch persons changes to invalidate cache
   watch(
     () => personsStore.persons.length,
@@ -44,7 +44,7 @@ export const useMapStore = defineStore("map", () => {
       }
     },
   );
-  
+
   const currentLocation = ref<{
     latitude: number;
     longitude: number;
@@ -97,22 +97,22 @@ export const useMapStore = defineStore("map", () => {
     if (plotSurnameCache.value.has(plotId)) {
       return plotSurnameCache.value.get(plotId) || null;
     }
-    
+
     // Use personsByPlot computed property (already grouped, efficient)
     const plotPersons = personsStore.personsByPlot[plotId];
     if (plotPersons && plotPersons.length > 0) {
       // Get first person (already sorted by surname, forename)
       const firstPerson = plotPersons[0];
       const surname = firstPerson.surname || null;
-      
+
       // Cache the result
       if (surname) {
         plotSurnameCache.value.set(plotId, surname);
       }
-      
+
       return surname;
     }
-    
+
     return null;
   };
 
@@ -122,7 +122,7 @@ export const useMapStore = defineStore("map", () => {
     if (plotThumbnailCache.value.has(plotId)) {
       return plotThumbnailCache.value.get(plotId) || null;
     }
-    
+
     // Return null if not cached (will be loaded asynchronously)
     return null;
   };
@@ -133,23 +133,27 @@ export const useMapStore = defineStore("map", () => {
     if (plotThumbnailCache.value.has(plotId)) {
       return;
     }
-    
+
     try {
       const powerSyncStore = usePowerSyncStore();
       if (!powerSyncStore.powerSync) {
         return;
       }
-      
+
       // Query for first thumbnail of this plot
       const images = await powerSyncStore.powerSync.getAll(
         "SELECT thumbnail_data, cloud_url, data FROM plot_images WHERE plot_id = ? ORDER BY date_created DESC LIMIT 1",
         [plotId],
       );
-      
+
       if (images && images.length > 0) {
-        const image = images[0] as { thumbnail_data?: string; cloud_url?: string; data?: string };
+        const image = images[0] as {
+          thumbnail_data?: string;
+          cloud_url?: string;
+          data?: string;
+        };
         let thumbnailUrl: string | null = null;
-        
+
         // Prefer thumbnail_data, then cloud_url, then data
         if (image.thumbnail_data) {
           thumbnailUrl = `data:image/jpeg;base64,${image.thumbnail_data}`;
@@ -158,7 +162,7 @@ export const useMapStore = defineStore("map", () => {
         } else if (image.data) {
           thumbnailUrl = `data:image/jpeg;base64,${image.data}`;
         }
-        
+
         if (thumbnailUrl) {
           plotThumbnailCache.value.set(plotId, thumbnailUrl);
           console.log(`[Thumbnail] Loaded thumbnail for plot ${plotId}`);
@@ -173,7 +177,10 @@ export const useMapStore = defineStore("map", () => {
         console.log(`[Thumbnail] No images found for plot ${plotId}`);
       }
     } catch (error) {
-      console.warn(`[Thumbnail] Failed to load thumbnail for plot ${plotId}:`, error);
+      console.warn(
+        `[Thumbnail] Failed to load thumbnail for plot ${plotId}:`,
+        error,
+      );
     }
   };
 
@@ -183,15 +190,15 @@ export const useMapStore = defineStore("map", () => {
     if (plot.section) parts.push(plot.section);
     if (plot.row) parts.push(plot.row);
     if (plot.number) parts.push(plot.number);
-    
+
     const plotInfo = parts.length > 0 ? parts.join("-") : "";
-    
+
     // Add first person's surname on a new line if available
     const surname = getFirstPersonSurname(plot.id);
     if (surname) {
       return plotInfo ? `${plotInfo}\n${surname}` : surname;
     }
-    
+
     return plotInfo;
   };
 
@@ -222,36 +229,39 @@ export const useMapStore = defineStore("map", () => {
 
     const isSelected = selectedPlot.value?.id === plot.id;
     const baseStyles = isSelected ? selectedPlotStyle : plotStyle;
-    
+
     // Get current zoom level
     const currentZoom = map.value?.getView().getZoom() || 0;
     const minZoomForLabels = 22;
-    
+
     // Only show labels at closer zoom levels
     if (currentZoom >= minZoomForLabels) {
       const labelText = formatPlotLabel(plot);
-      
+
       if (labelText) {
         const geometry = feature.getGeometry();
         const centerPoint = getPolygonCenter(geometry);
-        
+
         if (centerPoint) {
           // Calculate font size based on zoom level
           const baseFontSize = 12;
-          const fontSize = Math.min(baseFontSize + (currentZoom - minZoomForLabels) * 1.5, 18);
-          
+          const fontSize = Math.min(
+            baseFontSize + (currentZoom - minZoomForLabels) * 1.5,
+            18,
+          );
+
           const styles: Style[] = [...baseStyles];
-          
+
           // Check for thumbnail
           const thumbnailUrl = getPlotThumbnail(plot.id);
-          
+
           // Calculate thumbnail size based on zoom level
           const baseThumbnailSize = 50;
           const thumbnailSize = Math.min(
             baseThumbnailSize + (currentZoom - minZoomForLabels) * 3,
-            80
+            80,
           );
-          
+
           // Add thumbnail icon style if available
           if (thumbnailUrl) {
             const iconStyle = new Style({
@@ -268,7 +278,7 @@ export const useMapStore = defineStore("map", () => {
             });
             styles.push(iconStyle);
           }
-          
+
           // Create text style with background for readability
           const textStyle = new Style({
             geometry: centerPoint,
@@ -292,15 +302,15 @@ export const useMapStore = defineStore("map", () => {
             }),
             zIndex: 10, // Above plot fill/stroke and thumbnail
           });
-          
+
           styles.push(textStyle);
-          
+
           // Return base styles plus thumbnail and text styles
           return styles;
         }
       }
     }
-    
+
     return baseStyles;
   };
 
@@ -1062,7 +1072,7 @@ export const useMapStore = defineStore("map", () => {
       if (plotsLayer.value) {
         const source = plotsLayer.value.getSource();
         source.addFeature(plotFeature);
-        
+
         // Pre-load thumbnail for this plot (async, non-blocking)
         loadPlotThumbnail(plot.id).catch((err) => {
           console.warn("Failed to pre-load thumbnail:", err);
@@ -1109,7 +1119,7 @@ export const useMapStore = defineStore("map", () => {
 
       const source = plotsLayer.value.getSource();
       source.addFeature(plotFeature);
-      
+
       // Pre-load thumbnail for this plot (async, non-blocking)
       loadPlotThumbnail(plot.id).catch((err) => {
         console.warn("Failed to pre-load thumbnail:", err);
@@ -1143,7 +1153,7 @@ export const useMapStore = defineStore("map", () => {
       console.warn("Cannot remove plot marker: plots layer not available");
       return;
     }
-    
+
     // Clear surname and thumbnail cache for this plot
     clearPlotSurnameCache(plotId);
     clearPlotThumbnailCache(plotId);
@@ -1411,7 +1421,7 @@ export const useMapStore = defineStore("map", () => {
 
       // Clear surname cache for this plot (persons may have changed)
       clearPlotSurnameCache(plotId);
-      
+
       // Re-add the plot with updated geometry
       const { usePlots } = await import("./powersync");
       const plotsStore = usePlots();

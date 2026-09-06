@@ -32,10 +32,13 @@ export class CapacitorGeolocationService {
     // If we have average fix time, use it to determine timeout
     if (this.averageFixTime !== null) {
       // Use 3x the average fix time, but cap between 10s and 30s
-      const adaptiveTimeout = Math.max(10000, Math.min(30000, this.averageFixTime * 3));
+      const adaptiveTimeout = Math.max(
+        10000,
+        Math.min(30000, this.averageFixTime * 3),
+      );
       return adaptiveTimeout;
     }
-    
+
     // Default timeout for first fix
     return 30000; // 30 seconds
   }
@@ -45,13 +48,14 @@ export class CapacitorGeolocationService {
    */
   private recordFixTime(fixTime: number): void {
     this.fixCount++;
-    
+
     if (this.firstFixTime === null) {
       this.firstFixTime = fixTime;
       this.averageFixTime = fixTime;
     } else {
       // Update running average
-      this.averageFixTime = (this.averageFixTime! * (this.fixCount - 1) + fixTime) / this.fixCount;
+      this.averageFixTime =
+        (this.averageFixTime! * (this.fixCount - 1) + fixTime) / this.fixCount;
     }
   }
 
@@ -61,12 +65,17 @@ export class CapacitorGeolocationService {
   async getCurrentPosition(): Promise<CapacitorLocation> {
     const startTime = Date.now();
     const timeout = this.getAdaptiveTimeout();
-    
+
     try {
-      console.log("CapacitorGeolocation: Requesting high accuracy position...", {
-        timeout: `${timeout}ms`,
-        averageFixTime: this.averageFixTime ? `${this.averageFixTime}ms` : 'N/A',
-      });
+      console.log(
+        "CapacitorGeolocation: Requesting high accuracy position...",
+        {
+          timeout: `${timeout}ms`,
+          averageFixTime: this.averageFixTime
+            ? `${this.averageFixTime}ms`
+            : "N/A",
+        },
+      );
 
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
@@ -118,7 +127,9 @@ export class CapacitorGeolocationService {
       const timeout = this.getAdaptiveTimeout();
       console.log("CapacitorGeolocation: Starting position watch...", {
         timeout: `${timeout}ms`,
-        averageFixTime: this.averageFixTime ? `${this.averageFixTime}ms` : 'N/A',
+        averageFixTime: this.averageFixTime
+          ? `${this.averageFixTime}ms`
+          : "N/A",
       });
 
       let firstUpdate = true;
@@ -153,12 +164,15 @@ export class CapacitorGeolocationService {
               const fixTime = Date.now() - watchStartTime;
               this.recordFixTime(fixTime);
               firstUpdate = false;
-              console.log("CapacitorGeolocation: First position update received:", {
-                lat: location.latitude,
-                lng: location.longitude,
-                accuracy: location.accuracy,
-                fixTime: `${fixTime}ms`,
-              });
+              console.log(
+                "CapacitorGeolocation: First position update received:",
+                {
+                  lat: location.latitude,
+                  lng: location.longitude,
+                  accuracy: location.accuracy,
+                  fixTime: `${fixTime}ms`,
+                },
+              );
             } else {
               console.log("CapacitorGeolocation: Position update:", {
                 lat: location.latitude,

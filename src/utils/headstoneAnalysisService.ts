@@ -1,7 +1,6 @@
 // Service for analyzing headstone images and creating person records
 import { usePersonsStore } from "../stores/persons";
 import { usePowerSyncStore } from "../stores/powersync";
-import { useSettingsStore } from "../stores/settings";
 import { localLLMService } from "../services/localLLMService";
 import type { PersonData } from "../stores/persons";
 
@@ -29,10 +28,6 @@ export class HeadstoneAnalysisService {
 
   private get powerSyncStore() {
     return usePowerSyncStore();
-  }
-
-  private get settingsStore() {
-    return useSettingsStore();
   }
 
   // Store analysis results for later processing when plot is created
@@ -139,11 +134,11 @@ export class HeadstoneAnalysisService {
         type: imageFile.type,
       });
 
-      // Get current analysis mode
-      const analysisMode = this.settingsStore.getAnalysisMode();
+      // We completely replace the old analysisMode setting routing with dynamic auto-routing
+      const isLocalReady = localLLMService.isReady();
       console.log(
-        "HeadstoneAnalysisService: Using analysis mode:",
-        analysisMode,
+        "HeadstoneAnalysisService: Local model ready state:",
+        isLocalReady,
       );
 
       // Convert image to base64 with client-side compression for faster upload
@@ -152,9 +147,11 @@ export class HeadstoneAnalysisService {
 
       let analysisData: any;
 
-      // Route to appropriate service based on mode
-      if (analysisMode === "local") {
-        console.log("HeadstoneAnalysisService: Using local LLM service");
+      // Route to appropriate service based on local readiness
+      if (isLocalReady) {
+        console.log(
+          "HeadstoneAnalysisService: Local model is fully loaded! Seamlessly using local WebGPU service.",
+        );
         try {
           const localResult = await localLLMService.analyzeImage(
             imageFile,
@@ -178,12 +175,14 @@ export class HeadstoneAnalysisService {
             localError,
           );
 
-          // Do not fallback to OpenAI - throw the error instead
+          // Do not fallback to OpenAI on an actual inference execution crash, as that indicates a bad image or bug
           throw new Error(`Local model analysis failed: ${errorMsg}`);
         }
       } else {
-        // Use OpenAI API (default)
-        console.log("HeadstoneAnalysisService: Using OpenAI API");
+        // Fallback to OpenAI API seamlessly while the local model is downloading, or if device unsupported
+        console.log(
+          "HeadstoneAnalysisService: Local model not ready yet, falling back to OpenAI API.",
+        );
         // Use JPEG mimeType since we compress to JPEG on client side
         const mimeType =
           imageFile.size > 200 * 1024

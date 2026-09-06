@@ -149,7 +149,7 @@ export const usePersonsStore = defineStore("persons", () => {
 
     const authStore = useAuthStore();
     const userId = authStore.user?.id || "anonymous";
-    
+
     const personId = `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
 

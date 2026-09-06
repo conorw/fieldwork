@@ -151,4 +151,3 @@ export function selectBestGPS(
     source: "app",
   };
 }
-

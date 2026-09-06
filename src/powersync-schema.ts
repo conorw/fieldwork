@@ -124,8 +124,34 @@ const locations = new Table(
     created_by: column.text,
     is_public: column.text,
     owner_id: column.text, // FK to auth.users
+    // Per-cemetery local VLM adapter (GPT teacher → HF Jobs → local)
+    ai_status: column.text, // teacher | training | local | error
+    adapter_url: column.text,
+    adapter_version: column.text,
+    ai_train_error: column.text,
+    ai_train_job_id: column.text,
   },
   { indexes: { idx_locations_name: ["name"] } },
+);
+
+const headstone_training_examples = new Table(
+  {
+    location_id: column.text,
+    plot_id: column.text,
+    plot_image_id: column.text,
+    image_url: column.text,
+    stone_type: column.text,
+    target_json: column.text, // reasoning JSON string
+    reviewed_by: column.text,
+    reviewed_at: column.text,
+    date_created: column.text,
+  },
+  {
+    indexes: {
+      idx_training_examples_location_id: ["location_id"],
+      idx_training_examples_stone_type: ["stone_type"],
+    },
+  },
 );
 
 const location_members = new Table(
@@ -137,7 +163,13 @@ const location_members = new Table(
     role: column.text, // 'owner', 'admin', 'member'
     joined_at: column.text,
   },
-  { indexes: { idx_location_members_location_id: ["location_id"], idx_location_members_user_id: ["user_id"], idx_location_members_user_email: ["user_email"] } },
+  {
+    indexes: {
+      idx_location_members_location_id: ["location_id"],
+      idx_location_members_user_id: ["user_id"],
+      idx_location_members_user_email: ["user_email"],
+    },
+  },
 );
 
 const location_invites = new Table(
@@ -151,7 +183,13 @@ const location_invites = new Table(
     expires_at: column.text,
     created_at: column.text,
   },
-  { indexes: { idx_location_invites_location_id: ["location_id"], idx_location_invites_email: ["email"], idx_location_invites_token: ["token"] } },
+  {
+    indexes: {
+      idx_location_invites_location_id: ["location_id"],
+      idx_location_invites_email: ["email"],
+      idx_location_invites_token: ["token"],
+    },
+  },
 );
 
 const location_requests = new Table(
@@ -165,7 +203,12 @@ const location_requests = new Table(
     responded_at: column.text,
     responded_by: column.text,
   },
-  { indexes: { idx_location_requests_location_id: ["location_id"], idx_location_requests_user_id: ["user_id"] } },
+  {
+    indexes: {
+      idx_location_requests_location_id: ["location_id"],
+      idx_location_requests_user_id: ["user_id"],
+    },
+  },
 );
 
 export const AppSchema = new Schema({
@@ -178,6 +221,7 @@ export const AppSchema = new Schema({
   location_members: location_members,
   location_invites: location_invites,
   location_requests: location_requests,
+  headstone_training_examples: headstone_training_examples,
 });
 
 // TypeScript types for PowerSync
@@ -191,12 +235,16 @@ export type LocationRecord = Database["locations"];
 export type LocationMemberRecord = Database["location_members"];
 export type LocationInviteRecord = Database["location_invites"];
 export type LocationRequestRecord = Database["location_requests"];
+export type HeadstoneTrainingExampleRecord =
+  Database["headstone_training_examples"];
 
 // Legacy type exports for compatibility
 export type Plot = PlotRecord;
 export type Setting = SettingRecord;
 export type PlotImage = PlotImageRecord;
 export type Location = LocationRecord;
+
+export type LocationAiStatus = "teacher" | "training" | "local" | "error";
 
 // Utility function to convert base64 to blob (kept from original schema)
 export const base64ToBlob = (base64: string, mimeType: string) => {
