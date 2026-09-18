@@ -326,163 +326,88 @@
       <AccordionTab>
         <template #header>
           <div class="flex items-center justify-between w-full">
-            <span>AI Analysis Settings</span>
+            <span>Headstone reading</span>
             <Chip
-              :label="
-                localModelState.isLoaded
-                  ? 'Local WebGPU Ready'
-                  : 'Auto (Cloud Fallback)'
-              "
-              :severity="localModelState.isLoaded ? 'success' : 'info'"
+              :label="cemeteryAiLabel"
+              :severity="cemeteryAiSeverity"
               size="small"
             />
           </div>
         </template>
 
         <div class="space-y-4">
-          <Message severity="info" :closable="false">
-            <template #icon>
-              <i class="pi pi-info-circle"></i>
-            </template>
+          <Message
+            :severity="selectedLocation?.aiStatus === 'error' ? 'warn' : 'info'"
+            :closable="false"
+          >
             <div class="space-y-2">
-              <p class="text-sm font-medium">Analysis Mode: Auto</p>
-              <p class="text-xs">
-                The application uses a hybrid approach. It downloads an advanced
-                Vision AI model (PaliGemma) in the background to run completely
-                free and offline in your browser. While downloading, it
-                seamlessly falls back to the OpenAI API so you are never blocked
-                from transcribing.
+              <p class="text-sm font-medium">{{ cemeteryAiHeadline }}</p>
+              <p class="text-xs">{{ cemeteryAiBody }}</p>
+              <p class="text-xs text-surface-500">
+                Photos used to teach stay with this cemetery’s training job.
+                Other cemeteries only receive model weights — never your photos
+                or names.
               </p>
             </div>
           </Message>
 
+          <Card v-if="coverageMessage">
+            <template #content>
+              <p class="text-sm mb-2">{{ coverageMessage }}</p>
+              <Button
+                label="Teach this cemetery"
+                size="small"
+                @click="goTeach"
+              />
+            </template>
+          </Card>
+
           <Card>
             <template #content>
-              <div class="space-y-4">
-                <!-- Model Loading Status -->
-                <div class="space-y-2">
-                  <div
-                    v-if="localModelState.isLoading"
-                    class="p-3 bg-blue-50 border border-blue-200 rounded-lg"
-                  >
-                    <div class="flex items-start space-x-2">
-                      <i class="pi pi-spin pi-spinner text-blue-600 mt-0.5"></i>
-                      <div class="flex-1 text-xs text-blue-800">
-                        <p class="font-medium mb-1">Downloading model...</p>
-                        <p>
-                          Progress:
-                          {{ localModelState.loadProgress.toFixed(0) }}%
-                        </p>
-                        <p class="text-blue-600 mt-1">
-                          This may take a few minutes on first use. The model
-                          will be cached for future use.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    v-else-if="localModelState.isLoaded"
-                    class="p-3 bg-green-50 border border-green-200 rounded-lg"
-                  >
-                    <div class="flex items-start space-x-2">
-                      <i class="pi pi-check-circle text-green-600 mt-0.5"></i>
-                      <div class="flex-1 text-xs text-green-800">
-                        <p class="font-medium mb-1">Model Ready</p>
-                        <p>The local model is loaded and ready for analysis.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    v-else-if="localModelState.error"
-                    class="p-3 bg-red-50 border border-red-200 rounded-lg"
-                  >
-                    <div class="flex items-start space-x-2">
-                      <i
-                        class="pi pi-exclamation-triangle text-red-600 mt-0.5"
-                      ></i>
-                      <div class="flex-1 text-xs text-red-800">
-                        <p class="font-medium mb-1">Model Loading Error</p>
-                        <p>{{ localModelState.error }}</p>
-                        <p
-                          class="mt-2"
-                          v-if="
-                            localModelState.error.includes('Unauthorized') ||
-                            localModelState.error.includes('401')
-                          "
-                        >
-                          <strong>Note:</strong> The selected model is not
-                          publicly available. The app will automatically fall
-                          back to OpenAI API when analyzing images. Consider
-                          switching to OpenAI mode for reliable analysis.
-                        </p>
-                        <p
-                          class="mt-2"
-                          v-else-if="
-                            localModelState.error.includes('404') ||
-                            localModelState.error.includes('Not Found') ||
-                            localModelState.error.includes('Model not found')
-                          "
-                        >
-                          <strong>Model Not Found:</strong> The selected model
-                          does not have the required ONNX files or may not
-                          exist. The app will automatically fall back to OpenAI
-                          API when analyzing images. Consider switching to
-                          OpenAI mode for reliable analysis.
-                        </p>
-                        <p
-                          class="mt-2"
-                          v-else-if="
-                            localModelState.error.includes('Network error') ||
-                            localModelState.error.includes(
-                              'ERR_NAME_NOT_RESOLVED',
-                            ) ||
-                            localModelState.error.includes('Failed to fetch')
-                          "
-                        >
-                          <strong>Network Issue:</strong> Unable to download
-                          models from Hugging Face. Please check your internet
-                          connection. The app will automatically fall back to
-                          OpenAI API when analyzing images. You can try again
-                          later or switch to OpenAI mode.
-                        </p>
-                        <p
-                          class="mt-2"
-                          v-else-if="
-                            localModelState.error.includes('403') ||
-                            localModelState.error.includes('Forbidden')
-                          "
-                        >
-                          <strong>Access Denied:</strong> The model requires
-                          special permissions. The app will automatically fall
-                          back to OpenAI API when analyzing images. Consider
-                          switching to OpenAI mode for reliable analysis.
-                        </p>
-                        <p class="mt-2" v-else>
-                          The model will attempt to load when you perform your
-                          first analysis, or will fall back to OpenAI API.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    v-else
-                    class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
-                  >
-                    <div class="flex items-start space-x-2">
-                      <i class="pi pi-info-circle text-yellow-600 mt-0.5"></i>
-                      <div class="flex-1 text-xs text-yellow-800">
-                        <p class="font-medium mb-1">Model Not Loaded</p>
-                        <p>
-                          The model will download automatically when you perform
-                          your first headstone analysis.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+              <div class="space-y-3">
+                <div
+                  v-if="localModelState.isLoading"
+                  class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800"
+                >
+                  Preparing offline reading…
+                  {{ localModelState.loadProgress.toFixed(0) }}%
                 </div>
+                <div
+                  v-else-if="
+                    selectedLocation?.aiStatus === 'local' &&
+                    localModelState.isLoaded
+                  "
+                  class="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-800"
+                >
+                  Offline reading is ready on this device.
+                </div>
+                <div
+                  v-else-if="localModelState.error"
+                  class="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800"
+                >
+                  {{ localModelState.error }}
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    v-if="selectedLocation?.aiStatus === 'local'"
+                    label="Download offline model"
+                    size="small"
+                    :loading="installingModel"
+                    @click="installAdapter"
+                  />
+                  <Button
+                    label="Vision eval (dev)"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    @click="router.push('/dev/vision-eval')"
+                  />
+                </div>
+
+                <p v-if="deviceMessage" class="text-xs text-surface-500">
+                  {{ deviceMessage }}
+                </p>
               </div>
             </template>
           </Card>
@@ -638,10 +563,18 @@ import { storageAnalytics } from "../utils/storageAnalytics";
 import type { StorageSummary } from "../utils/storageAnalytics";
 import { localLLMService } from "../services/localLLMService";
 import { consoleLogger, type LogEntry } from "../utils/consoleLogger";
+import { ensureLocalModelForLocation } from "../services/adapterInstallService";
+import { detectDeviceAiCapabilities } from "../utils/deviceAiCapabilities";
+import {
+  countTrainingExamples,
+} from "../utils/headstoneTrainingService";
+import { evaluateTrainingCoverage } from "../utils/trainingCoverage";
+import { hasGlobalAdapterCached } from "../services/globalAdapterService";
 
 // PrimeVue imports
 import InputText from "primevue/inputtext";
 import Dropdown from "primevue/dropdown";
+import Button from "primevue/button";
 
 const router = useRouter();
 const powerSyncStore = usePowerSyncStore();
@@ -655,6 +588,91 @@ const storageLoading = ref(false);
 const searchQuery = ref("");
 const deletingLocationId = ref<string | null>(null);
 const localModelState = ref(localLLMService.getState());
+const installingModel = ref(false);
+const deviceMessage = ref("");
+const coverageMessage = ref("");
+
+const cemeteryAiLabel = computed(() => {
+  const s = selectedLocation.value?.aiStatus || "teacher";
+  if (s === "local" && localModelState.value.isLoaded) return "Offline-ready";
+  if (s === "local") return "Offline (download)";
+  if (s === "training") return "Training";
+  if (s === "error") return "Needs attention";
+  return "Teaching";
+});
+
+const cemeteryAiSeverity = computed(() => {
+  const s = selectedLocation.value?.aiStatus || "teacher";
+  if (s === "local") return "success";
+  if (s === "training") return "info";
+  if (s === "error") return "warn";
+  return "secondary";
+});
+
+const cemeteryAiHeadline = computed(() => {
+  const s = selectedLocation.value?.aiStatus || "teacher";
+  if (s === "local") return "This cemetery works offline";
+  if (s === "training") return "Learning this cemetery’s stones…";
+  if (s === "error") return "Offline training needs attention";
+  return "Teaching mode (online reading)";
+});
+
+const cemeteryAiBody = computed(() => {
+  const s = selectedLocation.value?.aiStatus || "teacher";
+  if (s === "local") {
+    return "New photos are read on this device. Tap “Something’s wrong” to fix names — your correction trains this cemetery and improves the shared model for others.";
+  }
+  if (s === "training") {
+    return "You can keep working. Photos still use online reading until offline is ready.";
+  }
+  if (s === "error") {
+    return (
+      selectedLocation.value?.aiTrainError ||
+      "Online reading still works. Try teaching a few more stones, or contact support."
+    );
+  }
+  return "Photograph and confirm stones so the app can learn this cemetery. After that, reading works without sending photos to the cloud.";
+});
+
+async function refreshCoverage() {
+  const loc = selectedLocation.value;
+  if (!loc || loc.aiStatus === "local" || loc.aiStatus === "training") {
+    coverageMessage.value = "";
+    return;
+  }
+  try {
+    const counts = await countTrainingExamples(loc.id);
+    const hasGlobal = await hasGlobalAdapterCached();
+    const status = evaluateTrainingCoverage({
+      total: counts.total,
+      byStoneType: counts.byStoneType,
+      hasGlobalAdapter: hasGlobal,
+    });
+    coverageMessage.value = status.ready
+      ? "Enough stones confirmed — offline training will start automatically."
+      : status.message;
+  } catch {
+    coverageMessage.value = "";
+  }
+}
+
+function goTeach() {
+  router.push({ path: "/onboarding", query: { teach: "1" } });
+}
+
+async function installAdapter() {
+  const loc = selectedLocation.value;
+  if (!loc) return;
+  installingModel.value = true;
+  try {
+    await ensureLocalModelForLocation(loc);
+    localModelState.value = localLLMService.getState();
+  } catch (e) {
+    console.error(e);
+  } finally {
+    installingModel.value = false;
+  }
+}
 
 // Console logs state
 const logs = ref<LogEntry[]>([]);
@@ -739,7 +757,18 @@ onMounted(() => {
   if (localModelState.value.isLoading) {
     startPollingLLMState();
   }
+  detectDeviceAiCapabilities().then((c) => {
+    deviceMessage.value = c.staffMessage;
+  });
+  refreshCoverage();
 });
+
+watch(
+  () => selectedLocation.value?.id,
+  () => {
+    refreshCoverage();
+  },
+);
 
 // Methods
 const refreshData = async () => {

@@ -42,6 +42,11 @@ out/
 # Testing
 coverage/
 .nyc_output/
+e2e/test-results/
+e2e/report/
+e2e/videos/*.webm
+playwright-report/
+test-results/
 
 # Temporary files
 *.tmp
@@ -76,3 +81,8 @@ public/workbox-*.js
 vite.config.ts.timestamp-*.mjs
 
 # Binaries
+
+# Bulk Wikimedia Commons downloads (regenerate via scripts/collect_headstone_samples.py)
+training/samples/commons/*
+!training/samples/commons/manifest.json
+!training/samples/commons/.gitkeep

@@ -215,12 +215,17 @@ class BundleAndRunJobTests(unittest.TestCase):
             (adapter / "adapter_config.json").write_text("{}")
             (merged / "config.json").write_text("{}")
 
-            result = prepare_upload_bundle(root, adapter, merged, None)
+            result = prepare_upload_bundle(
+                root, adapter, merged, None, require_onnx=False
+            )
             self.assertEqual(result["export_mode"], "merged_hf")
             manifest = json.loads(
                 (result["bundle_dir"] / "manifest.json").read_text(encoding="utf-8")
             )
             self.assertEqual(manifest["dtypes"]["vision_encoder"], "q4")
+
+            with self.assertRaises(RuntimeError):
+                prepare_upload_bundle(root, adapter, merged, None, require_onnx=True)
 
     def test_run_job_dry_run_with_mocks(self):
         from training.run_job import main
@@ -238,9 +243,14 @@ class BundleAndRunJobTests(unittest.TestCase):
                 "training.run_job.export_onnx"
             ) as export, patch(
                 "training.run_job.prepare_upload_bundle"
-            ) as prep:
+            ) as prep, patch(
+                "training.run_job.merge_global_adapter"
+            ) as global_merge:
                 build.return_value = Path(tmp) / "data"
-                train.return_value = Path(tmp) / "adapter"
+                adapter = Path(tmp) / "adapter"
+                adapter.mkdir()
+                (adapter / "adapter_config.json").write_text("{}")
+                train.return_value = adapter
                 merge.return_value = Path(tmp) / "merged"
                 export.return_value = None
                 prep.return_value = {
@@ -248,6 +258,10 @@ class BundleAndRunJobTests(unittest.TestCase):
                     "export_mode": "merged_hf",
                     "manifest": {},
                 }
+                global_out = Path(tmp) / "global_adapter"
+                global_out.mkdir()
+                (global_out / "manifest.json").write_text("{}")
+                global_merge.return_value = global_out
 
                 code = main(
                     [
@@ -261,6 +275,7 @@ class BundleAndRunJobTests(unittest.TestCase):
                 )
                 self.assertEqual(code, 0)
                 train.assert_called_once()
+                global_merge.assert_called_once()
 
 
 if __name__ == "__main__":

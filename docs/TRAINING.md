@@ -57,6 +57,32 @@ HF Jobs, Supabase, and Blob are mocked in the Node suite. Real GPU training is n
 
 ## Out of scope (follow-ups)
 
-- Onboarding checklist UI for stone types
-- Loading `adapter_url` in [`src/workers/llmWorker.ts`](../src/workers/llmWorker.ts)
-- Spatial reasoning prompt swap in localLLMService
+- Spatial reasoning prompt A/B on hard weathered stones
+- Capacitor native WebGPU matrix on older iOS
+
+## Self-learning (cross-cemetery)
+
+When any cemetery finishes a successful train job:
+
+1. GPU job **continues from** the prior global LoRA (`baseAdapterUrl` / `adapters/global/latest/`)
+2. New cemetery LoRA is **averaged into** the shared global adapter (weights only — never photos)
+3. Bundle is published to `adapters/global/{version}/` **and** `adapters/global/latest/`
+4. Webhook upserts `ai_global_models` so `GET /api/global-adapter` returns the new pointer
+5. Every PWA client polls that pointer (boot, every 5 min, on foreground) and **downloads** the new weights
+6. The selected cemetery that is already `local` quietly **retrains** so its on-device ONNX inherits the smarter global base
+
+Teaching photos never leave their cemetery train job. Only adapter weights are shared.
+
+## Staff corrections
+
+When a reading is wrong, staff tap **Something’s wrong**, edit names/dates, and **Save correction**.
+That example is stored as gold training data (`was_corrected`) for this cemetery’s next train
+and feeds the global adapter so other cemeteries benefit — photos are never shared.
+
+## Client wiring (done)
+
+- Confirm UI → `saveReviewedTrainingExample`
+- Auto `startLocationTraining` when coverage met
+- `llmWorker` loads per-location ONNX from `adapter_url`
+- Teacher-first routing until `ai_status=local` + model cached
+- Global adapter URL via `VITE_GLOBAL_ADAPTER_URL` / Blob `adapters/global/{version}/`

@@ -16,6 +16,54 @@ export type StoneType =
   | "weathered"
   | "unknown";
 
+/** Physical material of the monument (separate from occupancy stoneType) */
+export type StoneMaterial =
+  | "granite"
+  | "marble"
+  | "slate"
+  | "limestone"
+  | "sandstone"
+  | "bronze"
+  | "wood"
+  | "concrete"
+  | "other"
+  | "unknown";
+
+/** Physical form / monument style */
+export type MonumentForm =
+  | "upright"
+  | "arched"
+  | "desk"
+  | "kerb"
+  | "ledger"
+  | "cross"
+  | "plaque"
+  | "cremation"
+  | "obelisk"
+  | "other"
+  | "unknown";
+
+/** Visual / structural condition of the stone */
+export type StoneCondition =
+  | "excellent"
+  | "good"
+  | "fair"
+  | "weathered"
+  | "damaged"
+  | "leaning"
+  | "fallen"
+  | "illegible"
+  | "new"
+  | "unknown";
+
+export interface HeadstonePhysicalAttrs {
+  material: StoneMaterial;
+  form: MonumentForm;
+  condition: StoneCondition;
+  /** Optional free-text detail, e.g. "polished dark grey", "fresh soil around base" */
+  detail?: string;
+}
+
 export type PersonPosition =
   | "left"
   | "right"
@@ -48,6 +96,8 @@ export interface HeadstonePersonTarget {
     aged?: number | null;
   };
   relationships: string[];
+  /** Trade / regiment / profession when inscribed (e.g. "blacksmith", "Royal Irish Rifles") */
+  occupation?: string;
   veteran?: boolean;
   evidence: string;
 }
@@ -58,7 +108,19 @@ export interface HeadstoneReasoningTarget {
     surname?: string;
     epitaph?: string;
   };
+  /** Material, physical form, and condition of the monument */
+  physical?: HeadstonePhysicalAttrs;
   notes?: string;
+  /**
+   * Staff review metadata — stripped before VLM train labels are applied.
+   * Corrections feed this cemetery’s adapter and the shared global model.
+   */
+  review?: {
+    was_corrected: boolean;
+    source: "confirm" | "correction" | "soft_skip";
+    /** Original model prediction before edits (JSON-serializable) */
+    prediction?: HeadstoneReasoningTarget | Record<string, unknown>;
+  };
 }
 
 export interface TrainingExamplePayload {
@@ -74,10 +136,33 @@ export interface TrainJobPayload {
   version: string;
   examples: TrainingExamplePayload[];
   webhookUrl: string;
+  /** Global LoRA weights URL (no images). Optional cold-start. */
+  baseAdapterUrl?: string;
 }
 
-/** Minimum reviewed examples before a train job may start */
+/** Cold-start minimum reviewed examples before a train job may start */
 export const MIN_TRAINING_EXAMPLES = 15;
+
+/** With a shared global adapter, cemeteries only need a smaller local set */
+export const MIN_TRAINING_EXAMPLES_WITH_GLOBAL = 6;
+
+/** After local is live, this many new confirms trigger a silent retrain */
+export const RETRAIN_DELTA_EXAMPLES = 8;
+
+/** Distinct stone kinds required in the onboarding checklist */
+export const MIN_DISTINCT_STONE_TYPES = 3;
+
+export const DEFAULT_ONNX_MODEL_ID = "onnx-community/FastVLM-0.5B-ONNX";
+
+/** Prompt shared by train jobs and on-device inference — keep in sync with training/schema.py */
+export const REASONING_PROMPT =
+  "Look at this headstone. Reason about each deceased person using layout " +
+  "(left/right, upper/lower), relationships (wife/husband/son/daughter of… " +
+  "and equivalents in other languages), occupations or regiments when inscribed, " +
+  "and date blocks. Also report the monument's material, physical form, and condition. " +
+  "Inscriptions may be English, French, German, Spanish, Italian, " +
+  "Latin, Irish, Welsh, Swedish, Polish, Dutch, or mixed. " +
+  "Return ONLY valid JSON matching the cemetery reasoning schema.";
 
 export const STONE_TYPES: StoneType[] = [
   "single",
@@ -91,3 +176,135 @@ export const STONE_TYPES: StoneType[] = [
   "weathered",
   "unknown",
 ];
+
+export const STONE_MATERIALS: StoneMaterial[] = [
+  "granite",
+  "marble",
+  "slate",
+  "limestone",
+  "sandstone",
+  "bronze",
+  "wood",
+  "concrete",
+  "other",
+  "unknown",
+];
+
+export const MONUMENT_FORMS: MonumentForm[] = [
+  "upright",
+  "arched",
+  "desk",
+  "kerb",
+  "ledger",
+  "cross",
+  "plaque",
+  "cremation",
+  "obelisk",
+  "other",
+  "unknown",
+];
+
+export const STONE_CONDITIONS: StoneCondition[] = [
+  "excellent",
+  "good",
+  "fair",
+  "weathered",
+  "damaged",
+  "leaning",
+  "fallen",
+  "illegible",
+  "new",
+  "unknown",
+];
+
+export const STONE_MATERIAL_LABELS: Record<StoneMaterial, string> = {
+  granite: "Granite",
+  marble: "Marble",
+  slate: "Slate",
+  limestone: "Limestone",
+  sandstone: "Sandstone",
+  bronze: "Bronze",
+  wood: "Wood",
+  concrete: "Concrete",
+  other: "Other",
+  unknown: "Unknown",
+};
+
+export const MONUMENT_FORM_LABELS: Record<MonumentForm, string> = {
+  upright: "Upright",
+  arched: "Arched / shouldered",
+  desk: "Desk / wedge",
+  kerb: "Kerb",
+  ledger: "Ledger / flat",
+  cross: "Cross",
+  plaque: "Plaque",
+  cremation: "Cremation / tablet",
+  obelisk: "Obelisk",
+  other: "Other",
+  unknown: "Unknown",
+};
+
+export const STONE_CONDITION_LABELS: Record<StoneCondition, string> = {
+  excellent: "Excellent",
+  good: "Good",
+  fair: "Fair",
+  weathered: "Weathered",
+  damaged: "Damaged",
+  leaning: "Leaning",
+  fallen: "Fallen",
+  illegible: "Illegible",
+  new: "New / recently set",
+  unknown: "Unknown",
+};
+
+export function emptyPhysicalAttrs(): HeadstonePhysicalAttrs {
+  return {
+    material: "unknown",
+    form: "unknown",
+    condition: "unknown",
+    detail: "",
+  };
+}
+
+export function normalizePhysicalAttrs(
+  raw: Partial<HeadstonePhysicalAttrs> | null | undefined,
+): HeadstonePhysicalAttrs {
+  const material = STONE_MATERIALS.includes(raw?.material as StoneMaterial)
+    ? (raw!.material as StoneMaterial)
+    : "unknown";
+  const form = MONUMENT_FORMS.includes(raw?.form as MonumentForm)
+    ? (raw!.form as MonumentForm)
+    : "unknown";
+  const condition = STONE_CONDITIONS.includes(raw?.condition as StoneCondition)
+    ? (raw!.condition as StoneCondition)
+    : "unknown";
+  return {
+    material,
+    form,
+    condition,
+    detail: (raw?.detail || "").trim(),
+  };
+}
+
+/** Staff-facing checklist (4 options mapped into StoneType) */
+export type StaffStoneKind = "one_person" | "couple" | "family" | "other";
+
+export const STAFF_STONE_KIND_TO_TYPE: Record<StaffStoneKind, StoneType> = {
+  one_person: "single",
+  couple: "couple",
+  family: "family",
+  other: "unknown",
+};
+
+export const STAFF_STONE_KIND_LABELS: Record<StaffStoneKind, string> = {
+  one_person: "One person",
+  couple: "Couple",
+  family: "Family",
+  other: "Other / weathered",
+};
+
+export function trainingExampleGate(hasGlobalAdapter: boolean): number {
+  return hasGlobalAdapter
+    ? MIN_TRAINING_EXAMPLES_WITH_GLOBAL
+    : MIN_TRAINING_EXAMPLES;
+}

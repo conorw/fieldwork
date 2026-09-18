@@ -2,33 +2,54 @@
   <div class="min-h-screen flex items-center justify-center bg-surface-50 p-4">
     <Card class="w-full max-w-2xl">
       <template #title>
-        <h2 class="text-2xl font-semibold">Welcome to Fieldwork!</h2>
+        <h2 class="text-2xl font-semibold">
+          {{ teachMode ? "Teach this cemetery" : "Welcome to Fieldwork!" }}
+        </h2>
       </template>
       <template #content>
         <div class="space-y-6">
-          <p class="text-surface-600">
-            To get started, you need to either create a new location or join an
-            existing one.
-          </p>
-
-          <div class="flex flex-col sm:flex-row gap-4">
-            <Button @click="createLocation" class="flex-1" size="large">
-              Create New Location
-            </Button>
-            <Button
-              @click="showLocationSelector = true"
-              severity="secondary"
-              class="flex-1"
-              size="large"
-            >
-              Join Existing Location
-            </Button>
-          </div>
-
-          <OnboardingLocationSelector
-            v-if="showLocationSelector"
-            @close="showLocationSelector = false"
+          <TeachCemetery
+            v-if="teachMode && teachLocationId"
+            :location-id="teachLocationId"
+            @done="onTeachDone"
+            @later="onTeachLater"
           />
+
+          <template v-else>
+            <p class="text-surface-600">
+              To get started, you need to either create a new location or join an
+              existing one. After that, you can teach the app a few of your
+              stones so reading works offline.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-4">
+              <Button @click="createLocation" class="flex-1" size="large">
+                Create New Location
+              </Button>
+              <Button
+                @click="showLocationSelector = true"
+                severity="secondary"
+                class="flex-1"
+                size="large"
+              >
+                Join Existing Location
+              </Button>
+            </div>
+
+            <Button
+              v-if="existingLocationId"
+              label="Teach this cemetery"
+              class="w-full"
+              severity="help"
+              outlined
+              @click="startTeach(existingLocationId)"
+            />
+
+            <OnboardingLocationSelector
+              v-if="showLocationSelector"
+              @close="showLocationSelector = false"
+            />
+          </template>
         </div>
       </template>
     </Card>
@@ -36,16 +57,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import Card from "primevue/card";
 import Button from "primevue/button";
 import OnboardingLocationSelector from "@/components/onboarding/OnboardingLocationSelector.vue";
+import TeachCemetery from "@/components/onboarding/TeachCemetery.vue";
+import { useLocationsStore } from "@/stores/locations";
 
 const router = useRouter();
+const route = useRoute();
+const locationsStore = useLocationsStore();
 const showLocationSelector = ref(false);
+const teachMode = ref(false);
+const teachLocationId = ref<string | null>(null);
+
+const existingLocationId = computed(
+  () =>
+    locationsStore.selectedLocationId ||
+    locationsStore.locations[0]?.id ||
+    null,
+);
+
+function startTeach(locationId: string) {
+  teachLocationId.value = locationId;
+  teachMode.value = true;
+}
+
+watch(
+  () => route.query.teach,
+  (v) => {
+    if (v === "1" && existingLocationId.value) {
+      startTeach(existingLocationId.value);
+    }
+  },
+  { immediate: true },
+);
 
 const createLocation = () => {
   router.push("/locations");
 };
+
+function onTeachDone() {
+  teachMode.value = false;
+  router.push("/");
+}
+
+function onTeachLater() {
+  teachMode.value = false;
+  router.push("/");
+}
 </script>

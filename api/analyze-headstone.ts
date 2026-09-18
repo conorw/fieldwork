@@ -51,12 +51,21 @@ interface HeadstonePerson {
 
   // Additional notes from the headstone
   notes?: string;
+  relationships?: string[];
+  occupation?: string;
 }
 
 interface HeadstoneAnalysisResponse {
   success: boolean;
   persons: HeadstonePerson[];
   full_text_transcription?: string;
+  shared_epitaph?: string;
+  physical?: {
+    material: string;
+    form: string;
+    condition: string;
+    detail?: string;
+  };
   raw_analysis?: string;
   error?: string;
   metadata?: {
@@ -148,7 +157,17 @@ async function compressImage(
 async function analyzeHeadstoneWithOpenAI(
   imageData: string,
   mimeType: string,
-): Promise<{ persons: HeadstonePerson[]; full_text_transcription: string }> {
+): Promise<{
+  persons: HeadstonePerson[];
+  full_text_transcription: string;
+  shared_epitaph: string;
+  physical: {
+    material: string;
+    form: string;
+    condition: string;
+    detail: string;
+  };
+}> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY environment variable is not set");
@@ -227,7 +246,21 @@ async function analyzeHeadstoneWithOpenAI(
             },
             veteran: { type: "boolean", description: "Veteran status" },
             cause_of_death: { type: "string", description: "Cause of death" },
-            notes: { type: "string", description: "Additional notes/epitaphs" },
+            notes: {
+              type: "string",
+              description:
+                "Per-person notes: relationship phrases, occupation, other inscribed text about this person",
+            },
+            relationships: {
+              type: "array",
+              description:
+                "Relationship phrases for this person, e.g. 'dear husband', 'wife of Dennis William Fone', 'mother'",
+              items: { type: "string" },
+            },
+            occupation: {
+              type: "string",
+              description: "Trade, regiment, or profession if inscribed",
+            },
           },
           required: [
             "title",
@@ -262,21 +295,97 @@ async function analyzeHeadstoneWithOpenAI(
             "veteran",
             "cause_of_death",
             "notes",
+            "relationships",
+            "occupation",
           ],
           additionalProperties: false,
         },
       },
+      shared_epitaph: {
+        type: "string",
+        description:
+          "Shared memorial lines not tied to one person, e.g. 'With love we remember', 'Always missed, never forgotten'",
+      },
+      physical: {
+        type: "object",
+        description: "Physical attributes of the monument (not the people)",
+        properties: {
+          material: {
+            type: "string",
+            enum: [
+              "granite",
+              "marble",
+              "slate",
+              "limestone",
+              "sandstone",
+              "bronze",
+              "wood",
+              "concrete",
+              "other",
+              "unknown",
+            ],
+            description: "Stone or metal material",
+          },
+          form: {
+            type: "string",
+            enum: [
+              "upright",
+              "arched",
+              "desk",
+              "kerb",
+              "ledger",
+              "cross",
+              "plaque",
+              "cremation",
+              "obelisk",
+              "other",
+              "unknown",
+            ],
+            description:
+              "Physical form: upright slab, arched/shouldered, desk, kerb set, flat ledger, cross, plaque, cremation tablet, obelisk",
+          },
+          condition: {
+            type: "string",
+            enum: [
+              "excellent",
+              "good",
+              "fair",
+              "weathered",
+              "damaged",
+              "leaning",
+              "fallen",
+              "illegible",
+              "new",
+              "unknown",
+            ],
+            description:
+              "Condition: new/recently set if fresh soil or pristine polish; weathered if eroded; damaged if cracked/chipped",
+          },
+          detail: {
+            type: "string",
+            description:
+              "Short free-text detail, e.g. 'polished dark grey granite', 'fresh earth around base'",
+          },
+        },
+        required: ["material", "form", "condition", "detail"],
+        additionalProperties: false,
+      },
     },
-    required: ["persons", "full_text_transcription"],
+    required: [
+      "persons",
+      "full_text_transcription",
+      "shared_epitaph",
+      "physical",
+    ],
     additionalProperties: false,
   };
 
   // Create the analysis prompt (optimized for speed - shorter prompt = faster processing)
-  const analysisPrompt = `Extract deceased person information from this headstone image.
+  const analysisPrompt = `Extract deceased person information AND physical monument attributes from this headstone image.
 
-Extract: names, dates, relationships. Use "" for missing data. Set deceased=true for all. Include epitaphs in notes.
-
-Provide complete transcription of ALL text in full_text_transcription field, preserving line breaks.`;
+Extract: names, dates, per-person relationships (e.g. dear husband, wife and mother), occupations/regiments, shared memorial lines into shared_epitaph, and physical {material, form, condition, detail}.
+Use "" for missing strings and [] for missing arrays. Set deceased=true for all.
+Provide complete transcription of ALL text in full_text_transcription, preserving line breaks.`;
 
   try {
     // Construct the base64 data URI
@@ -286,7 +395,7 @@ Provide complete transcription of ALL text in full_text_transcription field, pre
     // Using gpt-4o-mini for faster responses (2-3x faster than gpt-4o, still very accurate)
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Faster and cheaper while maintaining good accuracy
-      max_tokens: 1000, // Reduced from 1500 for faster response (usually enough for headstone data)
+      max_tokens: 1400, // Room for people + physical attrs + transcription
       messages: [
         {
           role: "user",
@@ -392,8 +501,15 @@ Provide complete transcription of ALL text in full_text_transcription field, pre
           // Death information
           cause_of_death: getField(person.cause_of_death),
 
-          // Additional notes
+          // Additional notes + structured inscription extras
           notes: getField(person.notes),
+          relationships: Array.isArray(person.relationships)
+            ? person.relationships.filter(
+                (r: unknown): r is string =>
+                  typeof r === "string" && r.trim().length > 0,
+              )
+            : [],
+          occupation: getField(person.occupation) || undefined,
         };
       },
     );
@@ -401,6 +517,13 @@ Provide complete transcription of ALL text in full_text_transcription field, pre
     return {
       persons: persons,
       full_text_transcription: analysisData.full_text_transcription || "",
+      shared_epitaph: analysisData.shared_epitaph || "",
+      physical: {
+        material: analysisData.physical?.material || "unknown",
+        form: analysisData.physical?.form || "unknown",
+        condition: analysisData.physical?.condition || "unknown",
+        detail: analysisData.physical?.detail || "",
+      },
     };
   } catch (error) {
     console.error("Error analyzing headstone with OpenAI:", error);
@@ -476,6 +599,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       persons: analysisResult.persons,
       full_text_transcription: analysisResult.full_text_transcription,
+      shared_epitaph: analysisResult.shared_epitaph,
+      physical: analysisResult.physical,
       metadata: {
         analysis_timestamp: new Date().toISOString(),
         model_used: "gpt-4o-mini",

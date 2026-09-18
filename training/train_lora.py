@@ -114,6 +114,7 @@ def train_lora(
     output_dir: Path,
     *,
     base_model: str = BASE_MODEL_ID,
+    base_adapter_dir: Path | None = None,
     num_epochs: float = 5.0,
     lora_r: int = 16,
     lora_alpha: int = 32,
@@ -122,8 +123,11 @@ def train_lora(
 ) -> Path:
     """
     Fine-tune with LoRA and save adapter weights to output_dir/adapter.
-    Holds out the last example when n >= 5 for a tiny eval split.
+    When base_adapter_dir is set (global / prior cemetery LoRA), continue training
+    from those weights so new cemeteries inherit shared learning.
     """
+    from peft import PeftModel
+
     from .dataset import load_jsonl
 
     rows = load_jsonl(dataset_dir / "train.jsonl")
@@ -137,23 +141,46 @@ def train_lora(
     processor = AutoProcessor.from_pretrained(base_model, trust_remote_code=True)
     model = _load_base_model(base_model)
 
-    lora_config = LoraConfig(
-        r=lora_r,
-        lora_alpha=lora_alpha,
-        lora_dropout=0.05,
-        bias="none",
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
-    )
-    model = get_peft_model(model, lora_config)
+    continued_from: str | None = None
+    if (
+        base_adapter_dir
+        and (base_adapter_dir / "adapter_config.json").exists()
+        and (
+            (base_adapter_dir / "adapter_model.safetensors").exists()
+            or (base_adapter_dir / "adapter_model.bin").exists()
+        )
+    ):
+        print(f"[train] continuing from global/prior adapter {base_adapter_dir}")
+        model = PeftModel.from_pretrained(
+            model,
+            str(base_adapter_dir),
+            is_trainable=True,
+        )
+        continued_from = str(base_adapter_dir)
+    else:
+        if base_adapter_dir:
+            print(
+                f"[train] base_adapter_dir incomplete ({base_adapter_dir}); "
+                "starting fresh LoRA"
+            )
+        lora_config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=0.05,
+            bias="none",
+            task_type=TaskType.CAUSAL_LM,
+            target_modules=[
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+        )
+        model = get_peft_model(model, lora_config)
+
     model.print_trainable_parameters()
 
     train_ds = HeadstoneSFTDataset(train_rows, processor)
@@ -200,6 +227,7 @@ def train_lora(
         "num_eval": len(eval_rows),
         "lora_r": lora_r,
         "lora_alpha": lora_alpha,
+        "continued_from": continued_from,
     }
     (adapter_dir / "train_meta.json").write_text(json.dumps(meta, indent=2))
     print(f"[train] adapter saved to {adapter_dir}")

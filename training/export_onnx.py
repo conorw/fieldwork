@@ -5,11 +5,8 @@ Export policy (from plan):
 1. Always save PEFT adapter (small).
 2. Merge LoRA into base and save Hugging Face weights.
 3. Attempt Transformers.js-oriented ONNX export (fp16 / q4).
-   If ONNX export fails, still upload merged HF + adapter and report
-   export_mode in the webhook so the client knows which path to use.
-
-Transformers.js today loads ONNX (onnx-community/FastVLM-0.5B-ONNX),
-not PEFT adapters — so merged ONNX is the production artifact when export works.
+4. Production on-device path REQUIRES ONNX — merged_hf alone is a job failure
+   when require_onnx=True (default for upload jobs).
 """
 
 from __future__ import annotations
@@ -116,12 +113,14 @@ def prepare_upload_bundle(
     adapter_dir: Path,
     merged_dir: Path,
     onnx_dir: Path | None,
+    *,
+    require_onnx: bool = True,
 ) -> dict[str, Any]:
     """
     Assemble bundle/ with:
       - adapter/ (always)
       - merged/ (always)
-      - onnx/ (if export succeeded)
+      - onnx/ (required for on-device when require_onnx)
       - manifest.json
     """
     bundle = output_dir / "bundle"
@@ -136,6 +135,12 @@ def prepare_upload_bundle(
     if onnx_dir and any(onnx_dir.glob("*.onnx")):
         shutil.copytree(onnx_dir, bundle / "onnx")
         export_mode = "onnx"
+
+    if require_onnx and export_mode != "onnx":
+        raise RuntimeError(
+            "ONNX export is required for on-device offline use but failed. "
+            "Re-run with a GPU flavor that has enough memory, or fix export_onnx."
+        )
 
     manifest = {
         "base_model": BASE_MODEL_ID,

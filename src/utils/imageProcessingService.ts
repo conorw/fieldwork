@@ -321,6 +321,14 @@ class ImageProcessingService {
   }
 
   /**
+   * Public upload helper (teaching / confirm flow).
+   */
+  async uploadImage(file: File): Promise<{ url: string; fileName: string }> {
+    const url = await this.uploadToVercelStorage(file);
+    return { url, fileName: file.name };
+  }
+
+  /**
    * Convert file to base64
    */
   private async fileToBase64(file: File): Promise<string> {

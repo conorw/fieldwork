@@ -66,8 +66,31 @@ const routes = [
     component: Settings,
     meta: { requiresAuth: true, requiresLocation: true },
   },
+  {
+    path: "/dev/vision-eval",
+    name: "VisionEval",
+    component: () => import("../views/VisionEval.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/dev/onboarding-demo",
+    name: "OnboardingDemo",
+    component: () => import("../views/OnboardingDemo.vue"),
+    meta: { requiresAuth: false, hideNavbar: true },
+  },
+  {
+    path: "/dev/onboarding-fone-demo",
+    name: "OnboardingFoneDemo",
+    component: () => import("../views/OnboardingFoneDemo.vue"),
+    meta: { requiresAuth: false, hideNavbar: true },
+  },
+  {
+    path: "/dev/usage-demo",
+    name: "UsageScenariosDemo",
+    component: () => import("../views/UsageScenariosDemo.vue"),
+    meta: { requiresAuth: false, hideNavbar: true },
+  },
 ];
-
 const router = createRouter({
   history: createWebHistory(),
   routes,

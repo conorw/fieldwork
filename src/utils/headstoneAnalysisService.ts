@@ -3,11 +3,42 @@ import { usePersonsStore } from "../stores/persons";
 import { usePowerSyncStore } from "../stores/powersync";
 import { localLLMService } from "../services/localLLMService";
 import type { PersonData } from "../stores/persons";
+import { useLocationsStore } from "../stores/locations";
+import {
+  ensureLocalModelForLocation,
+  resolveOnnxModelUrl,
+} from "../services/adapterInstallService";
+import type { HeadstonePhysicalAttrs } from "../types/headstoneTraining";
+import { normalizePhysicalAttrs } from "../types/headstoneTraining";
+
+/** Fold API relationships / occupation into person.notes for storage */
+function composePersonNotes(apiPerson: {
+  notes?: string;
+  relationships?: string[];
+  occupation?: string;
+}): string {
+  const parts: string[] = [];
+  if (Array.isArray(apiPerson.relationships)) {
+    for (const r of apiPerson.relationships) {
+      if (typeof r === "string" && r.trim()) parts.push(r.trim());
+    }
+  }
+  if (apiPerson.occupation?.trim()) {
+    parts.push(`Occupation: ${apiPerson.occupation.trim()}`);
+  }
+  if (apiPerson.notes?.trim()) {
+    parts.push(apiPerson.notes.trim());
+  }
+  // Dedupe while preserving order
+  return [...new Set(parts)].join("; ");
+}
 
 export interface HeadstoneAnalysisResult {
   success: boolean;
   persons: PersonData[];
   full_text_transcription?: string;
+  shared_epitaph?: string;
+  physical?: HeadstonePhysicalAttrs;
   raw_analysis?: string;
   error?: string;
   metadata?: {
@@ -28,6 +59,51 @@ export class HeadstoneAnalysisService {
 
   private get powerSyncStore() {
     return usePowerSyncStore();
+  }
+
+  private get locationsStore() {
+    return useLocationsStore();
+  }
+
+  /**
+   * Use on-device model only when this cemetery is offline-ready and the
+   * matching adapter is loaded. Otherwise keep GPT (teacher / training / error).
+   */
+  private async shouldUseLocalModel(): Promise<{
+    useLocal: boolean;
+    reason: string;
+  }> {
+    const loc = this.locationsStore.selectedLocation;
+    if (!loc) {
+      return { useLocal: false, reason: "no_location" };
+    }
+    if (loc.aiStatus !== "local" || !loc.adapterUrl) {
+      return {
+        useLocal: false,
+        reason: `ai_status=${loc.aiStatus || "teacher"}`,
+      };
+    }
+
+    try {
+      const modelUrl = await resolveOnnxModelUrl(loc.adapterUrl);
+      if (localLLMService.isReadyFor(modelUrl)) {
+        return { useLocal: true, reason: "adapter_loaded" };
+      }
+
+      const ok = await ensureLocalModelForLocation(loc);
+      if (ok) return { useLocal: true, reason: "adapter_installed" };
+
+      // Cemetery is marked local — do not send photos to GPT.
+      return { useLocal: false, reason: "adapter_install_failed" };
+    } catch (e) {
+      console.warn("shouldUseLocalModel:", e);
+      return { useLocal: false, reason: "adapter_error" };
+    }
+  }
+
+  /** Exposed for tests */
+  async resolveAnalysisRouteForTests() {
+    return this.shouldUseLocalModel();
   }
 
   // Store analysis results for later processing when plot is created
@@ -120,7 +196,9 @@ export class HeadstoneAnalysisService {
     }
   }
   /**
-   * Analyze a headstone image and create person records
+   * Analyze a headstone image and create person records.
+   * Teacher-first: use GPT until this cemetery is offline-ready AND the
+   * matching adapter is loaded. Never use an untrained stock model in the field.
    */
   async analyzeHeadstoneImage(
     imageFile: File,
@@ -128,30 +206,24 @@ export class HeadstoneAnalysisService {
   ): Promise<HeadstoneAnalysisResult> {
     try {
       console.log("HeadstoneAnalysisService: Starting headstone analysis...");
-      console.log("HeadstoneAnalysisService: Image file:", {
-        name: imageFile.name,
-        size: imageFile.size,
-        type: imageFile.type,
-      });
 
-      // We completely replace the old analysisMode setting routing with dynamic auto-routing
-      const isLocalReady = localLLMService.isReady();
-      console.log(
-        "HeadstoneAnalysisService: Local model ready state:",
-        isLocalReady,
-      );
+      const { useLocal, reason } = await this.shouldUseLocalModel();
+      console.log("HeadstoneAnalysisService: routing", { useLocal, reason });
 
-      // Convert image to base64 with client-side compression for faster upload
-      // This reduces upload time and API processing time
       const base64Data = await this.fileToBase64(imageFile, true);
 
       let analysisData: any;
 
-      // Route to appropriate service based on local readiness
-      if (isLocalReady) {
-        console.log(
-          "HeadstoneAnalysisService: Local model is fully loaded! Seamlessly using local WebGPU service.",
+      if (
+        this.locationsStore.selectedLocation?.aiStatus === "local" &&
+        !useLocal
+      ) {
+        throw new Error(
+          "Offline reading is still preparing on this device. Wait for the download to finish, or check the stone yourself.",
         );
+      }
+
+      if (useLocal) {
         try {
           const localResult = await localLLMService.analyzeImage(
             imageFile,
@@ -161,29 +233,20 @@ export class HeadstoneAnalysisService {
             success: localResult.success,
             persons: localResult.persons,
             full_text_transcription: localResult.full_text_transcription,
+            shared_epitaph: localResult.shared_epitaph || "",
+            physical: localResult.physical,
             metadata: localResult.metadata,
           };
-          console.log(
-            "HeadstoneAnalysisService: Local analysis completed:",
-            analysisData,
-          );
         } catch (localError) {
           const errorMsg =
             localError instanceof Error ? localError.message : "Unknown error";
-          console.error(
-            "HeadstoneAnalysisService: Local analysis failed:",
-            localError,
+          // After cemetery is local, do not silently fall back to GPT (privacy / product rule).
+          // Staff can correct the form manually.
+          throw new Error(
+            `Offline reading failed: ${errorMsg}. Check the names yourself or try again.`,
           );
-
-          // Do not fallback to OpenAI on an actual inference execution crash, as that indicates a bad image or bug
-          throw new Error(`Local model analysis failed: ${errorMsg}`);
         }
       } else {
-        // Fallback to OpenAI API seamlessly while the local model is downloading, or if device unsupported
-        console.log(
-          "HeadstoneAnalysisService: Local model not ready yet, falling back to OpenAI API.",
-        );
-        // Use JPEG mimeType since we compress to JPEG on client side
         const mimeType =
           imageFile.size > 200 * 1024
             ? "image/jpeg"
@@ -255,6 +318,8 @@ export class HeadstoneAnalysisService {
         success: true,
         persons: personData,
         full_text_transcription: analysisData.full_text_transcription,
+        shared_epitaph: analysisData.shared_epitaph || "",
+        physical: normalizePhysicalAttrs(analysisData.physical),
         metadata: analysisData.metadata,
       };
     } catch (error) {
@@ -351,8 +416,8 @@ export class HeadstoneAnalysisService {
       // Death information
       cause_of_death: apiPerson.cause_of_death || "",
 
-      // Additional notes
-      notes: apiPerson.notes || "",
+      // Additional notes — fold relationships + occupation for person.notes
+      notes: composePersonNotes(apiPerson),
 
       // Metadata
       created_by: "headstone-analysis",

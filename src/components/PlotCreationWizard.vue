@@ -349,88 +349,35 @@
 
             <Card v-if="analysisResult && analysisResult.success">
               <template #title>
-                <span>Detected Information</span>
+                <span>Check the names</span>
               </template>
               <template #content>
-                <!-- Analysis Summary -->
-                <div
-                  class="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg"
+                <HeadstoneConfirmCard
+                  :persons="analysisResult.persons || []"
+                  :transcription="analysisResult.full_text_transcription || ''"
+                  :epitaph="analysisResult.shared_epitaph || ''"
+                  :physical="analysisResult.physical || null"
+                  :allow-skip="true"
+                  @confirmed="onTrainingConfirmed"
+                  @skip="onTrainingSkipped"
+                />
+                <p
+                  v-if="trainingConfirmed"
+                  class="text-xs mt-2"
+                  :class="
+                    lastWasCorrected ? 'text-amber-800' : 'text-green-700'
+                  "
+                  data-testid="training-confirm-message"
                 >
-                  <div class="flex items-center space-x-2">
-                    <svg
-                      class="w-4 h-4 text-green-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <p class="text-green-800 text-sm font-medium">
-                      Found {{ analysisResult.persons?.length || 0 }} person(s)
-                      - will be added when plot is created
-                    </p>
-                  </div>
-
-                  <!-- Show found persons -->
-                  <div
-                    v-if="
-                      analysisResult.persons &&
-                      analysisResult.persons.length > 0
-                    "
-                    class="mt-2 text-xs"
-                  >
-                    <div class="text-green-700 space-y-1">
-                      <div
-                        v-for="(person, index) in analysisResult.persons?.slice(
-                          0,
-                          3,
-                        ) || []"
-                        :key="index"
-                      >
-                        • {{ getPersonDisplayName(person) }}
-                        <span v-if="person.date_of_death">
-                          ({{ person.date_of_death }})</span
-                        >
-                      </div>
-                      <div
-                        v-if="
-                          analysisResult.persons &&
-                          analysisResult.persons.length > 3
-                        "
-                        class="text-green-600"
-                      >
-                        + {{ analysisResult.persons.length - 3 }} more
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Detailed Person Information -->
-                <div
-                  v-for="(person, index) in analysisResult.persons || []"
-                  :key="index"
-                  class="mb-2 p-2 bg-surface-50 rounded border border-surface-200"
-                >
-                  <div class="text-sm">
-                    <div class="font-medium text-surface-900">
-                      {{ getPersonDisplayName(person) }}
-                    </div>
-                    <div class="text-surface-600">
-                      {{ person.birthYear ? `Born: ${person.birthYear}` : "" }}
-                      {{ person.deathYear ? `Died: ${person.deathYear}` : "" }}
-                      {{
-                        person.date_of_death
-                          ? `Died: ${person.date_of_death}`
-                          : ""
-                      }}
-                    </div>
-                  </div>
-                </div>
+                  <template v-if="lastWasCorrected">
+                    Correction saved — this cemetery and the shared model will
+                    learn from your fix.
+                  </template>
+                  <template v-else>
+                    Confirmed — this stone will help teach the cemetery and
+                    improve reading elsewhere.
+                  </template>
+                </p>
               </template>
             </Card>
           </div>
@@ -469,6 +416,21 @@ import { usePlots } from "../stores/powersync";
 import { useAuthStore } from "../stores/auth";
 import MapEdit from "./MapEdit.vue";
 import { headstoneAnalysisService } from "../utils/headstoneAnalysisService";
+import HeadstoneConfirmCard from "./headstone/HeadstoneConfirmCard.vue";
+import {
+  saveReviewedTrainingExample,
+} from "../utils/headstoneTrainingService";
+import { maybeAutoStartTraining } from "../services/autoTrainService";
+import type {
+  HeadstoneReasoningTarget,
+  StoneType,
+} from "../types/headstoneTraining";
+import {
+  personsToReasoningTarget,
+  personDataToConfirmInputs,
+  inferStaffStoneKind,
+  staffKindToStoneType,
+} from "../utils/reasoningMapper";
 
 // PrimeVue components
 import Drawer from "primevue/drawer";
@@ -560,7 +522,21 @@ const photoData = ref<{
 } | null>(null);
 const isCapturing = ref(false);
 const isAnalyzing = ref(false);
-const analysisResult = ref<{ success: boolean; persons?: any[] } | null>(null);
+const analysisResult = ref<{
+  success: boolean;
+  persons?: any[];
+  full_text_transcription?: string;
+  shared_epitaph?: string;
+  physical?: import("@/types/headstoneTraining").HeadstonePhysicalAttrs;
+} | null>(null);
+const pendingTraining = ref<{
+  stoneType: StoneType;
+  target: HeadstoneReasoningTarget;
+  wasCorrected?: boolean;
+  physical?: import("@/types/headstoneTraining").HeadstonePhysicalAttrs;
+} | null>(null);
+const trainingConfirmed = ref(false);
+const lastWasCorrected = ref(false);
 const isCreating = ref(false);
 const gpsStability = ref<GPSStabilityResult | null>(null);
 const isCheckingGPS = ref(false);
@@ -1389,6 +1365,73 @@ const skipPhoto = () => {
 };
 
 // Analysis function
+const onTrainingConfirmed = (payload: {
+  stoneType: StoneType;
+  target: HeadstoneReasoningTarget;
+  persons: any[];
+  wasCorrected?: boolean;
+  epitaph?: string;
+  transcription?: string;
+  physical?: import("@/types/headstoneTraining").HeadstonePhysicalAttrs;
+}) => {
+  pendingTraining.value = {
+    stoneType: payload.stoneType,
+    target: payload.target,
+    wasCorrected: !!payload.wasCorrected,
+    physical: payload.physical,
+  };
+  trainingConfirmed.value = true;
+  lastWasCorrected.value = !!payload.wasCorrected;
+  // Keep form in sync with confirmed people (incl. relationships → notes)
+  if (analysisResult.value) {
+    analysisResult.value = {
+      ...analysisResult.value,
+      full_text_transcription:
+        payload.transcription ||
+        analysisResult.value.full_text_transcription ||
+        "",
+      shared_epitaph:
+        payload.epitaph || analysisResult.value.shared_epitaph || "",
+      physical: payload.physical || analysisResult.value.physical,
+      persons: payload.persons.map((p) => ({
+        ...p,
+        full_name: p.full_name,
+        date_of_birth: p.date_of_birth,
+        date_of_death: p.date_of_death,
+        notes: [
+          ...(p.relationships || []),
+          p.occupation ? `Occupation: ${p.occupation}` : "",
+          p.notes || "",
+        ]
+          .filter(Boolean)
+          .join("; "),
+      })),
+    };
+    populateFormFromAnalysis(analysisResult.value);
+  }
+};
+
+const onTrainingSkipped = () => {
+  // Still capture a soft label from current analysis so teaching can progress
+  if (analysisResult.value?.success && analysisResult.value.persons?.length) {
+    const kind = inferStaffStoneKind(analysisResult.value.persons.length);
+    pendingTraining.value = {
+      stoneType: staffKindToStoneType(kind),
+      target: personsToReasoningTarget(
+        personDataToConfirmInputs(analysisResult.value.persons),
+        {
+          stoneKind: kind,
+          epitaph: analysisResult.value.shared_epitaph || "",
+          notes: analysisResult.value.full_text_transcription || "",
+          physical: analysisResult.value.physical,
+        },
+      ),
+      physical: analysisResult.value.physical,
+    };
+  }
+  trainingConfirmed.value = false;
+};
+
 const analyzeHeadstoneImage = async () => {
   if (!photoData.value?.file) {
     console.error("PlotCreationWizard: No photo data available for analysis");
@@ -1423,6 +1466,10 @@ const analyzeHeadstoneImage = async () => {
 
       // Prepopulate form with analysis results
       populateFormFromAnalysis(result);
+      // Soft-default training payload until staff confirms
+      trainingConfirmed.value = false;
+      lastWasCorrected.value = false;
+      pendingTraining.value = null;
     } else {
       showError(`Analysis failed: ${(result as any).error || "Unknown error"}`);
     }
@@ -1461,31 +1508,6 @@ const selectPlotSize = (size: any) => {
   wizardLogger.debug("Previous size:", selectedPlotSize.value);
   selectedPlotSize.value = size;
   wizardLogger.debug("New selectedPlotSize:", selectedPlotSize.value);
-};
-
-// Get display name for person
-const getPersonDisplayName = (person: any) => {
-  if (!person) return "Unknown Name";
-
-  // Try different name field combinations
-  if (person.name) return person.name;
-
-  // Build name from forename, middle_name, surname
-  const nameParts = [];
-  if (person.forename) nameParts.push(person.forename);
-  if (person.middle_name) nameParts.push(person.middle_name);
-  if (person.surname) nameParts.push(person.surname);
-
-  if (nameParts.length > 0) {
-    return nameParts.join(" ");
-  }
-
-  // Fallback to any available name field
-  if (person.firstName) return person.firstName;
-  if (person.lastName) return person.lastName;
-  if (person.givenName) return person.givenName;
-
-  return "Unknown Name";
 };
 
 // Map save handler
@@ -1629,12 +1651,26 @@ const createPlot = async () => {
       location_id: selectedLocationId || null,
       temp_plot_id: tempPlotId.value || null, // Add temp plot ID for analysis association
       notes: notes,
+      monument_material:
+        pendingTraining.value?.physical?.material ||
+        analysisResult.value?.physical?.material ||
+        null,
+      monument_form:
+        pendingTraining.value?.physical?.form ||
+        analysisResult.value?.physical?.form ||
+        null,
+      monument_condition:
+        pendingTraining.value?.physical?.condition ||
+        analysisResult.value?.physical?.condition ||
+        null,
+      monument_detail:
+        pendingTraining.value?.physical?.detail ||
+        analysisResult.value?.physical?.detail ||
+        null,
       date_created: now,
       date_modified: now,
       created_by: userId,
       modified_by: userId,
-      // Note: type, depth, location, createdAt are not part of PlotRecord schema
-      // They may be stored elsewhere or handled differently
     };
 
     wizardLogger.debug("Creating plot with comprehensive data:", plotData);
@@ -1780,6 +1816,31 @@ const processRemainingOperationsInBackground = async (
         "Photo saved successfully in background:",
         savedImage.id,
       );
+
+      // Persist reviewed training example once we have a durable cloud URL
+      if (
+        pendingTraining.value &&
+        savedImage.cloud_url &&
+        locationsStore.selectedLocationId
+      ) {
+        try {
+          await saveReviewedTrainingExample({
+            locationId: locationsStore.selectedLocationId,
+            imageUrl: savedImage.cloud_url,
+            stoneType: pendingTraining.value.stoneType,
+            target: pendingTraining.value.target,
+            plotId: newPlot.id,
+            plotImageId: savedImage.id,
+            wasCorrected: pendingTraining.value.wasCorrected,
+          });
+          const loc = locationsStore.selectedLocation;
+          if (loc) {
+            await maybeAutoStartTraining(loc);
+          }
+        } catch (trainErr) {
+          wizardLogger.warn("Training example save skipped:", trainErr);
+        }
+      }
 
       // Force a refetch of the images query to ensure it appears immediately
       window.dispatchEvent(

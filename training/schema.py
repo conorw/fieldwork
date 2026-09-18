@@ -22,17 +22,63 @@ StoneType = Literal[
     "unknown",
 ]
 
+StoneMaterial = Literal[
+    "granite",
+    "marble",
+    "slate",
+    "limestone",
+    "sandstone",
+    "bronze",
+    "wood",
+    "concrete",
+    "other",
+    "unknown",
+]
+
+MonumentForm = Literal[
+    "upright",
+    "arched",
+    "desk",
+    "kerb",
+    "ledger",
+    "cross",
+    "plaque",
+    "cremation",
+    "obelisk",
+    "other",
+    "unknown",
+]
+
+StoneCondition = Literal[
+    "excellent",
+    "good",
+    "fair",
+    "weathered",
+    "damaged",
+    "leaning",
+    "fallen",
+    "illegible",
+    "new",
+    "unknown",
+]
+
 PersonPosition = Literal[
     "left", "right", "upper", "lower", "shared", "center", "unknown"
 ]
 PersonRole = Literal["primary", "spouse", "child", "parent", "other"]
 
 MIN_TRAINING_EXAMPLES = 15
+MIN_TRAINING_EXAMPLES_WITH_GLOBAL = 6
+MIN_DISTINCT_STONE_TYPES = 3
 
-# Prompt the VLM sees during train + (future) local inference
+# Prompt the VLM sees during train + local inference
 REASONING_PROMPT = (
     "Look at this headstone. Reason about each deceased person using layout "
-    "(left/right, upper/lower), relationships, and date blocks. "
+    "(left/right, upper/lower), relationships (wife/husband/son/daughter of… "
+    "and equivalents in other languages), occupations or regiments when inscribed, "
+    "and date blocks. Also report the monument's material, physical form, and condition. "
+    "Inscriptions may be English, French, German, Spanish, Italian, "
+    "Latin, Irish, Welsh, Swedish, Polish, Dutch, or mixed. "
     "Return ONLY valid JSON matching the cemetery reasoning schema."
 )
 
@@ -60,6 +106,7 @@ class PersonTarget:
     known_as: str = ""
     dates: DatesTarget = field(default_factory=DatesTarget)
     relationships: list[str] = field(default_factory=list)
+    occupation: str = ""
     veteran: bool = False
 
 
@@ -70,9 +117,18 @@ class SharedTarget:
 
 
 @dataclass
+class PhysicalTarget:
+    material: StoneMaterial = "unknown"
+    form: MonumentForm = "unknown"
+    condition: StoneCondition = "unknown"
+    detail: str = ""
+
+
+@dataclass
 class ReasoningTarget:
     people: list[PersonTarget] = field(default_factory=list)
     shared: SharedTarget = field(default_factory=SharedTarget)
+    physical: PhysicalTarget = field(default_factory=PhysicalTarget)
     notes: str = ""
 
 
@@ -92,6 +148,7 @@ class TrainJobPayload:
     version: str
     examples: list[dict[str, Any]]
     webhookUrl: str
+    baseAdapterUrl: Optional[str] = None
 
 
 def target_to_json(target: ReasoningTarget | dict[str, Any]) -> str:
@@ -107,6 +164,7 @@ def parse_payload(raw: str | dict[str, Any]) -> TrainJobPayload:
         version=data["version"],
         examples=data["examples"],
         webhookUrl=data["webhookUrl"],
+        baseAdapterUrl=data.get("baseAdapterUrl"),
     )
 
 

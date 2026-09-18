@@ -322,7 +322,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
       // Include the ID in the INSERT statement
       // Note: photos column removed - use plot_images table instead
       await powerSync.value.execute(
-        "INSERT INTO plots (id, geometry, section, row, number, status, location_id, temp_plot_id, date_created, date_modified, created_by, modified_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO plots (id, geometry, section, row, number, status, location_id, temp_plot_id, date_created, date_modified, created_by, modified_by, notes, monument_material, monument_form, monument_condition, monument_detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           newPlot.id,
           newPlot.geometry,
@@ -337,6 +337,10 @@ export const usePowerSyncStore = defineStore("powersync", () => {
           newPlot.created_by,
           newPlot.modified_by,
           newPlot.notes || "",
+          newPlot.monument_material || null,
+          newPlot.monument_form || null,
+          newPlot.monument_condition || null,
+          newPlot.monument_detail || null,
         ],
       );
 
@@ -401,7 +405,7 @@ export const usePowerSyncStore = defineStore("powersync", () => {
 
     // Note: photos column removed - use plot_images table instead
     await powerSync.value.execute(
-      "UPDATE plots SET geometry = ?, section = ?, row = ?, number = ?, status = ?, location_id = ?, date_modified = ?, modified_by = ?, notes = ? WHERE id = ?",
+      "UPDATE plots SET geometry = ?, section = ?, row = ?, number = ?, status = ?, location_id = ?, date_modified = ?, modified_by = ?, notes = ?, monument_material = ?, monument_form = ?, monument_condition = ?, monument_detail = ? WHERE id = ?",
       [
         updatedPlot.geometry,
         updatedPlot.section,
@@ -412,6 +416,10 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         updatedPlot.date_modified,
         updatedPlot.modified_by,
         updatedPlot.notes || "",
+        (updatedPlot as any).monument_material || null,
+        (updatedPlot as any).monument_form || null,
+        (updatedPlot as any).monument_condition || null,
+        (updatedPlot as any).monument_detail || null,
         id,
       ],
     );
@@ -1441,7 +1449,7 @@ export const usePlots = () => {
       console.log(`📊 [usePlots] Starting watch for location: ${locationId}`);
       // Select all necessary fields for plot display, including section, row, number, status, notes
       const query =
-        "SELECT id, geometry, section, row, number, status, location_id, temp_plot_id, date_created, date_modified, created_by, modified_by, notes FROM plots WHERE location_id = ? ORDER BY date_created DESC";
+        "SELECT id, geometry, section, row, number, status, location_id, temp_plot_id, date_created, date_modified, created_by, modified_by, notes, monument_material, monument_form, monument_condition, monument_detail FROM plots WHERE location_id = ? ORDER BY date_created DESC";
 
       // Use PowerSync's watch() which automatically updates when plots table changes
       // watch() returns an async iterator that yields results whenever the watched data changes

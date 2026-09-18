@@ -7,9 +7,12 @@ import type {
   TrainJobPayload,
   TrainingExamplePayload,
 } from "../../src/types/headstoneTraining";
-import { MIN_TRAINING_EXAMPLES } from "../../src/types/headstoneTraining";
+import {
+  MIN_TRAINING_EXAMPLES,
+  MIN_TRAINING_EXAMPLES_WITH_GLOBAL,
+} from "../../src/types/headstoneTraining";
 
-export { MIN_TRAINING_EXAMPLES };
+export { MIN_TRAINING_EXAMPLES, MIN_TRAINING_EXAMPLES_WITH_GLOBAL };
 
 export function getSupabaseAdmin(): SupabaseClient {
   const url =
@@ -69,13 +72,14 @@ export async function assertLocationAdmin(
 
 export function validateExamples(
   examples: TrainingExamplePayload[] | undefined,
+  minExamples: number = MIN_TRAINING_EXAMPLES,
 ): TrainingExamplePayload[] {
   if (!examples || !Array.isArray(examples)) {
     throw new Error("examples array is required");
   }
-  if (examples.length < MIN_TRAINING_EXAMPLES) {
+  if (examples.length < minExamples) {
     throw new Error(
-      `Need at least ${MIN_TRAINING_EXAMPLES} reviewed examples (got ${examples.length})`,
+      `Need at least ${minExamples} reviewed examples (got ${examples.length})`,
     );
   }
   for (const ex of examples) {
@@ -90,6 +94,7 @@ export function buildTrainJobPayload(input: {
   locationId: string;
   examples: TrainingExamplePayload[];
   webhookBaseUrl: string;
+  baseAdapterUrl?: string;
 }): TrainJobPayload {
   const version = new Date().toISOString();
   return {
@@ -97,6 +102,7 @@ export function buildTrainJobPayload(input: {
     version,
     examples: input.examples,
     webhookUrl: `${input.webhookBaseUrl.replace(/\/$/, "")}/api/train-headstone-webhook`,
+    baseAdapterUrl: input.baseAdapterUrl,
   };
 }
 
@@ -221,4 +227,52 @@ export async function updateLocationAiState(
   if (error) {
     throw new Error(`Failed to update location AI state: ${error.message}`);
   }
+}
+
+/** Persist shared global adapter pointer (weights only — no photos). */
+export async function upsertGlobalAdapter(
+  admin: SupabaseClient,
+  fields: {
+    global_adapter_url: string;
+    global_adapter_version: string;
+    notes?: string;
+  },
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await admin.from("ai_global_models").upsert(
+    {
+      id: "default",
+      global_adapter_url: fields.global_adapter_url,
+      global_adapter_version: fields.global_adapter_version,
+      updated_at: now,
+      notes:
+        fields.notes ||
+        "Shared VLM weights updated from cemetery training (no photos).",
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(`Failed to upsert global adapter: ${error.message}`);
+  }
+}
+
+export async function getGlobalAdapterRow(
+  admin: SupabaseClient,
+): Promise<{
+  global_adapter_url: string | null;
+  global_adapter_version: string | null;
+  updated_at: string | null;
+} | null> {
+  const { data, error } = await admin
+    .from("ai_global_models")
+    .select("global_adapter_url, global_adapter_version, updated_at")
+    .eq("id", "default")
+    .maybeSingle();
+
+  if (error) {
+    console.warn("getGlobalAdapterRow:", error.message);
+    return null;
+  }
+  return data;
 }

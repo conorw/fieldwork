@@ -16,10 +16,12 @@ import traceback
 from pathlib import Path
 
 from .dataset import build_dataset_dir
+from .download import download_adapter_bundle, resolve_prior_global_url
 from .export_onnx import export_onnx, merge_lora, prepare_upload_bundle
+from .global_merge import merge_global_adapter
 from .schema import MIN_TRAINING_EXAMPLES, parse_payload
 from .train_lora import train_lora
-from .upload import upload_bundle
+from .upload import upload_bundle, upload_latest_pointer
 from .webhook import notify_failure, notify_success
 
 
@@ -40,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-onnx",
         action="store_true",
-        help="Skip ONNX export attempt",
+        help="Skip ONNX export attempt (dry-run only; upload jobs require ONNX)",
     )
     parser.add_argument(
         "--min-examples",
@@ -66,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"[run_job] location={payload.locationId} version={payload.version}")
     print(f"[run_job] examples={len(payload.examples)} work={work}")
+    if payload.baseAdapterUrl:
+        print(f"[run_job] baseAdapterUrl={payload.baseAdapterUrl}")
 
     min_examples = args.min_examples
     if min_examples is None:
@@ -88,11 +92,70 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         data_dir = build_dataset_dir(payload.locationId, payload.examples, work / "data")
-        adapter_dir = train_lora(data_dir, work / "out")
+
+        # Self-learning: start from shared global LoRA when available
+        prior_url = resolve_prior_global_url(payload.baseAdapterUrl)
+        prior_dir: Path | None = None
+        if prior_url:
+            prior_dir = download_adapter_bundle(prior_url, work / "prior_global")
+            if prior_dir:
+                print(f"[run_job] prior global loaded from {prior_url}")
+            else:
+                print(f"[run_job] prior global unavailable at {prior_url}")
+
+        adapter_dir = train_lora(
+            data_dir,
+            work / "out",
+            base_adapter_dir=prior_dir,
+        )
         merged_dir = merge_lora(adapter_dir, work / "out")
-        onnx_dir = None if args.skip_onnx else export_onnx(merged_dir, work / "out")
+        skip_onnx = args.skip_onnx and args.skip_upload
+        onnx_dir = None if skip_onnx else export_onnx(merged_dir, work / "out")
         prepared = prepare_upload_bundle(
-            work / "out", adapter_dir, merged_dir, onnx_dir
+            work / "out",
+            adapter_dir,
+            merged_dir,
+            onnx_dir,
+            require_onnx=not args.skip_upload,
+        )
+
+        # Average into shared global (weights only — no cemetery photos)
+        global_dir = merge_global_adapter(
+            adapter_dir,
+            work / "out",
+            prior_global_dir=prior_dir,
+        )
+        import json
+        import shutil
+
+        global_manifest = {
+            "kind": "global_lora",
+            "version": payload.version,
+            "export_mode": "lora",
+            "source_location_id": payload.locationId,
+            "continued_from_prior": bool(prior_dir),
+            "note": "Weights only — no cemetery photos. All cemeteries inherit this.",
+        }
+        # If this cemetery produced ONNX, attach a pointer so clients can prefetch
+        if onnx_dir and onnx_dir.exists():
+            onnx_rel = prepared["bundle_dir"] / "onnx"
+            if onnx_rel.exists():
+                shutil.copytree(
+                    onnx_rel,
+                    global_dir / "onnx",
+                    dirs_exist_ok=True,
+                )
+                global_manifest["onnx"] = True
+                global_manifest["export_mode"] = "lora+onnx"
+
+        (global_dir / "manifest.json").write_text(
+            json.dumps(global_manifest, indent=2),
+            encoding="utf-8",
+        )
+        shutil.copytree(
+            global_dir,
+            prepared["bundle_dir"] / "global_adapter",
+            dirs_exist_ok=True,
         )
 
         if args.skip_upload:
@@ -104,6 +167,19 @@ def main(argv: list[str] | None = None) -> int:
             payload.locationId,
             payload.version,
         )
+        # Versioned global + stable latest pointer for all clients
+        global_uploaded = upload_bundle(
+            prepared["bundle_dir"] / "global_adapter",
+            "global",
+            payload.version,
+            path_prefix="adapters/global",
+        )
+        latest = upload_latest_pointer(
+            prepared["bundle_dir"] / "global_adapter",
+            version=payload.version,
+            versioned_url=global_uploaded.get("adapterUrl"),
+        )
+
         notify_success(
             payload.webhookUrl,
             location_id=payload.locationId,
@@ -111,8 +187,11 @@ def main(argv: list[str] | None = None) -> int:
             adapter_version=payload.version,
             export_mode=prepared["export_mode"],
             job_id=job_id,
+            global_adapter_url=latest.get("adapterUrl")
+            or global_uploaded.get("adapterUrl"),
+            global_adapter_version=payload.version,
         )
-        print("[run_job] done")
+        print("[run_job] done — cemetery ONNX + global latest published")
         return 0
     except Exception as e:
         traceback.print_exc()

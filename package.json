@@ -12,6 +12,10 @@
     "test:watch": "node ./node_modules/vitest/vitest.mjs --config vitest.config.ts",
     "test:train": "node ./node_modules/vitest/vitest.mjs run --config vitest.config.ts tests/train",
     "test:train:py": "python -m unittest training.tests.test_schema_and_pipeline -v",
+    "test:e2e": "playwright test",
+    "test:e2e:onboarding": "playwright test e2e/onboarding-new-cemetery.spec.ts --project=chromium",
+    "test:e2e:fone": "playwright test e2e/onboarding-fone-extract-plot.spec.ts --project=chromium && node e2e/helpers/collect-videos.mjs",
+    "test:e2e:videos": "playwright test e2e/onboarding-new-cemetery.spec.ts e2e/usage-scenarios.spec.ts e2e/onboarding-fone-extract-plot.spec.ts --project=chromium && node e2e/helpers/collect-videos.mjs",
     "test:api": "vercel dev && vitest run -t 'clips 1km×1km successfully'",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
@@ -50,6 +54,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.1",
+    "@playwright/test": "^1.51.1",
     "@primeuix/themes": "^2.0.3",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^25.9.5",

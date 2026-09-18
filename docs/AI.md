@@ -32,22 +32,13 @@ The AI analysis system:
 
 ### Local Browser Model
 
-**Status**: ⚠️ **Not Currently Available**
+**Status:** FastVLM-0.5B on-device after cemetery teaching
 
-**Why**: Local browser models are not functional due to:
-- WebLLM vision models require experimental WebGPU features not available in standard browsers
-- Known issues with vision model support in WebLLM (see [issue #727](https://github.com/mlc-ai/web-llm/issues/727))
-- TrOCR models are not suitable for engraved headstone text
+**Flow:** GPT teaches on the first confirmed stones → automatic LoRA train → merged ONNX installed on the device → subsequent photos stay on-device (including offline).
 
-**Future**: Will be available when:
-- WebLLM vision models mature and stabilize
-- Browser support for required WebGPU features becomes standard
-- See [Local AI Approaches Documentation](./LOCAL_AI_APPROACHES.md) for detailed technical information
+**Requirements:** Modern browser with WebGPU preferred (WASM fallback is slower). See Settings → Headstone reading.
 
-**Attempted Approaches**:
-- TrOCR (Transformer-based OCR) - Poor accuracy on headstones
-- Vision-language models - Wrong task (captioning, not text extraction)
-- Phi-3.5-vision-instruct - WebGPU compatibility issues
+**Privacy:** Teaching photos are used only for that cemetery’s train job. Other cemeteries receive shared model **weights** only (global adapter), never photos or names. When any cemetery improves the model, clients poll `GET /api/global-adapter` / Blob `adapters/global/latest/` and auto-download the smarter weights; local cemeteries quietly retrain so on-device reading inherits them.
 
 ## How It Works
 

@@ -165,6 +165,15 @@ WHERE location_id IN (
 ```
 
 **Note:** Apply migration `007_location_ai_training.sql` before enabling this sync query. Locations also gain `ai_status`, `adapter_url`, `adapter_version`, `ai_train_error`, `ai_train_job_id` — covered by the existing locations `SELECT *` query once the columns exist.
+
+### 10. AI Global Models (optional)
+
+Shared adapter metadata is usually read from Blob (`VITE_GLOBAL_ADAPTER_URL`). If you sync the singleton table from migration `008_ai_global_models.sql`:
+
+```sql
+SELECT * FROM ai_global_models WHERE id = 'default'
+```
+
 ## Important Notes
 
 1. **RLS Policies:** All sync queries will automatically respect the RLS policies configured in Supabase. The queries above are optimized to work with the RLS policies defined in `003_rls_policies.sql`.

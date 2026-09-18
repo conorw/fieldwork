@@ -17,6 +17,10 @@ const plots = new Table(
     created_by: column.text,
     modified_by: column.text,
     notes: column.text,
+    monument_material: column.text,
+    monument_form: column.text,
+    monument_condition: column.text,
+    monument_detail: column.text,
     // photos column removed - use plot_images table instead
   },
   { indexes: { idx_plots_location_date: ["location_id", "date_created"] } },
@@ -141,10 +145,13 @@ const headstone_training_examples = new Table(
     plot_image_id: column.text,
     image_url: column.text,
     stone_type: column.text,
-    target_json: column.text, // reasoning JSON string
+    target_json: column.text, // reasoning JSON string (may include review meta)
     reviewed_by: column.text,
     reviewed_at: column.text,
     date_created: column.text,
+    was_corrected: column.text, // "true" | "false" — SQLite-friendly
+    prediction_json: column.text,
+    review_source: column.text, // confirm | correction | soft_skip
   },
   {
     indexes: {

@@ -5,6 +5,7 @@ import { invokeHandler } from "./httpHarness";
 const mocks = vi.hoisted(() => ({
   getSupabaseAdmin: vi.fn(),
   updateLocationAiState: vi.fn(),
+  upsertGlobalAdapter: vi.fn(),
 }));
 
 vi.mock("../../api/lib/trainHelpers", async () => {
@@ -15,6 +16,7 @@ vi.mock("../../api/lib/trainHelpers", async () => {
     ...actual,
     getSupabaseAdmin: mocks.getSupabaseAdmin,
     updateLocationAiState: mocks.updateLocationAiState,
+    upsertGlobalAdapter: mocks.upsertGlobalAdapter,
   };
 });
 
@@ -25,8 +27,10 @@ describe("POST /api/train-headstone-webhook", () => {
     process.env.TRAIN_WEBHOOK_SECRET = WEBHOOK_SECRET;
     mocks.getSupabaseAdmin.mockReset();
     mocks.updateLocationAiState.mockReset();
+    mocks.upsertGlobalAdapter.mockReset();
     mocks.getSupabaseAdmin.mockReturnValue({});
     mocks.updateLocationAiState.mockResolvedValue(undefined);
+    mocks.upsertGlobalAdapter.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -71,11 +75,34 @@ describe("POST /api/train-headstone-webhook", () => {
         status: "success",
         adapterUrl: "https://blob.vercel-storage.com/adapters/loc/v1/",
         adapterVersion: "2026-09-06T20:00:00Z",
+        exportMode: "onnx",
         jobId: JOB_ID,
       },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body.ai_status).toBe("local");
+  });
+
+  it("success with merged_hf only → error (ONNX required)", async () => {
+    const res = await invokeHandler(webhookHandler, {
+      method: "POST",
+      headers: { "x-train-webhook-secret": WEBHOOK_SECRET },
+      body: {
+        locationId: LOCATION_ID,
+        status: "success",
+        adapterUrl: "https://blob.vercel-storage.com/adapters/loc/v1/",
+        adapterVersion: "v1",
+        exportMode: "merged_hf",
+        jobId: JOB_ID,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.ai_status).toBe("error");
+    expect(mocks.updateLocationAiState).toHaveBeenCalledWith(
+      expect.anything(),
+      LOCATION_ID,
+      expect.objectContaining({ ai_status: "error" }),
+    );
   });
 
   it("success → ai_status local with adapter fields", async () => {
@@ -101,6 +128,34 @@ describe("POST /api/train-headstone-webhook", () => {
         adapter_version: "2026-09-06T20:00:00Z",
         ai_train_job_id: JOB_ID,
         ai_train_error: null,
+      }),
+    );
+  });
+
+  it("success with globalAdapterUrl → upserts shared global model", async () => {
+    const res = await invokeHandler(webhookHandler, {
+      method: "POST",
+      headers: { "x-train-webhook-secret": WEBHOOK_SECRET },
+      body: {
+        locationId: LOCATION_ID,
+        status: "success",
+        adapterUrl: "https://blob.vercel-storage.com/adapters/loc/v2/",
+        adapterVersion: "2026-09-18T22:00:00Z",
+        exportMode: "onnx",
+        jobId: JOB_ID,
+        globalAdapterUrl:
+          "https://blob.vercel-storage.com/adapters/global/latest/",
+        globalAdapterVersion: "2026-09-18T22:00:00Z",
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.globalPersisted).toBe(true);
+    expect(mocks.upsertGlobalAdapter).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        global_adapter_url:
+          "https://blob.vercel-storage.com/adapters/global/latest/",
+        global_adapter_version: "2026-09-18T22:00:00Z",
       }),
     );
   });

@@ -60,7 +60,13 @@ async function handleStart(req: VercelRequest, res: VercelResponse) {
 
   let examples;
   try {
-    examples = validateExamples(body?.examples);
+    const minExamples =
+      typeof body?.minExamples === "number"
+        ? body.minExamples
+        : body?.baseAdapterUrl
+          ? 6
+          : undefined;
+    examples = validateExamples(body?.examples, minExamples);
   } catch (e) {
     return res.status(400).json({
       error: e instanceof Error ? e.message : "Invalid examples",
@@ -88,6 +94,7 @@ async function handleStart(req: VercelRequest, res: VercelResponse) {
     locationId,
     examples,
     webhookBaseUrl: webhookBaseUrl(req),
+    baseAdapterUrl: body?.baseAdapterUrl,
   });
 
   const admin = getSupabaseAdmin();

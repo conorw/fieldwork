@@ -61,6 +61,7 @@ def upload_bundle(
     version: str,
     *,
     token: str | None = None,
+    path_prefix: str | None = None,
 ) -> dict[str, Any]:
     token = token or os.environ.get("BLOB_READ_WRITE_TOKEN")
     if not token:
@@ -68,8 +69,14 @@ def upload_bundle(
 
     # Sanitize version for path
     safe_version = version.replace(":", "-").replace("/", "-")
-    prefix = f"adapters/{location_id}/{safe_version}"
+    if path_prefix:
+        prefix = f"{path_prefix.rstrip('/')}/{safe_version}"
+    else:
+        prefix = f"adapters/{location_id}/{safe_version}"
     uploaded: dict[str, str] = {}
+
+    if not bundle_dir.exists():
+        raise RuntimeError(f"bundle_dir missing: {bundle_dir}")
 
     files = [p for p in bundle_dir.rglob("*") if p.is_file()]
     print(f"[upload] uploading {len(files)} files to {prefix}/")
@@ -83,13 +90,68 @@ def upload_bundle(
         print(f"[upload] {rel} -> {url}")
 
     # Canonical adapter URL is the directory prefix / manifest
-    adapter_url = uploaded.get("manifest.json") or next(iter(uploaded.values()))
+    adapter_url = uploaded.get("manifest.json") or (
+        next(iter(uploaded.values())) if uploaded else f"{prefix}/"
+    )
     # Prefer a clean prefix URL if blob returns file URLs
-    if "manifest.json" in adapter_url:
+    if isinstance(adapter_url, str) and "manifest.json" in adapter_url:
         adapter_url = adapter_url.rsplit("/manifest.json", 1)[0] + "/"
+    elif not uploaded:
+        adapter_url = f"https://blob.vercel-storage.com/{prefix}/"
 
     return {
         "adapterUrl": adapter_url,
         "prefix": prefix,
         "files": uploaded,
     }
+
+
+def upload_latest_pointer(
+    bundle_dir: Path,
+    *,
+    version: str,
+    versioned_url: str | None = None,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """
+    Publish adapters/global/latest/ so every client can poll one stable URL.
+    Copies the global adapter bundle and writes a pointer manifest.
+    """
+    import json
+
+    result = upload_bundle(
+        bundle_dir,
+        "global",
+        "latest",
+        token=token,
+        path_prefix="adapters/global",
+    )
+    # Overwrite manifest with explicit latest pointer metadata
+    token = token or os.environ.get("BLOB_READ_WRITE_TOKEN")
+    if token:
+        pointer = {
+            "kind": "global_lora",
+            "version": version,
+            "latest": True,
+            "versionedUrl": versioned_url,
+            "export_mode": "lora",
+            "note": "Stable pointer — auto-downloaded by all Fieldwork clients",
+        }
+        # Prefer existing manifest fields if present
+        man = bundle_dir / "manifest.json"
+        if man.exists():
+            try:
+                pointer = {**json.loads(man.read_text(encoding="utf-8")), **pointer}
+            except Exception:
+                pass
+        data = json.dumps(pointer, indent=2).encode("utf-8")
+        url = _put_blob(
+            "adapters/global/latest/manifest.json",
+            data,
+            "application/json",
+            token,
+        )
+        result["adapterUrl"] = url.rsplit("/manifest.json", 1)[0] + "/"
+        result["manifestUrl"] = url
+        print(f"[upload] global latest pointer → {result['adapterUrl']}")
+    return result

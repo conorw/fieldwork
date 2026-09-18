@@ -43,18 +43,22 @@ def notify_success(
     adapter_version: str,
     export_mode: str,
     job_id: str | None = None,
+    global_adapter_url: str | None = None,
+    global_adapter_version: str | None = None,
 ) -> None:
-    post_webhook(
-        webhook_url,
-        {
-            "status": "success",
-            "locationId": location_id,
-            "adapterUrl": adapter_url,
-            "adapterVersion": adapter_version,
-            "exportMode": export_mode,
-            "jobId": job_id,
-        },
-    )
+    body: dict[str, Any] = {
+        "status": "success",
+        "locationId": location_id,
+        "adapterUrl": adapter_url,
+        "adapterVersion": adapter_version,
+        "exportMode": export_mode,
+        "jobId": job_id,
+    }
+    if global_adapter_url:
+        body["globalAdapterUrl"] = global_adapter_url
+    if global_adapter_version:
+        body["globalAdapterVersion"] = global_adapter_version
+    post_webhook(webhook_url, body)
 
 
 def notify_failure(

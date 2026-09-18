@@ -40,6 +40,11 @@ describe("trainHelpers — example gate", () => {
     expect(ok[0].stoneType).toBeTruthy();
     expect(ok[0].target.people[0].evidence).toBeTruthy();
   });
+
+  it("accepts fewer examples when minExamples is lowered (global adapter)", () => {
+    const ok = validateExamples(makeExampleBatch(6), 6);
+    expect(ok).toHaveLength(6);
+  });
 });
 
 describe("trainHelpers — job payload", () => {
@@ -49,6 +54,7 @@ describe("trainHelpers — job payload", () => {
       locationId: LOCATION_ID,
       examples,
       webhookBaseUrl: "https://app.example.com/",
+      baseAdapterUrl: "https://blob/adapters/global/v1/",
     });
     expect(payload.locationId).toBe(LOCATION_ID);
     expect(payload.examples).toHaveLength(MIN_TRAINING_EXAMPLES);
@@ -56,6 +62,7 @@ describe("trainHelpers — job payload", () => {
       "https://app.example.com/api/train-headstone-webhook",
     );
     expect(payload.version).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(payload.baseAdapterUrl).toBe("https://blob/adapters/global/v1/");
   });
 
   it("preserves reasoning fields (position, evidence, relationships)", () => {
