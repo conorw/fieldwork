@@ -1,0 +1,202 @@
+[
+  {
+    "id": "commons-gipp",
+    "path": "training/samples/curated/commons-gipp.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by 3.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/0/04/2009-0617-GeorgeGippGravestone.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "George Gipp",
+          "forename": "George",
+          "surname": "Gipp",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1895",
+            "death": "1920",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "Lake View Cemetery stone"
+        }
+      ],
+      "shared": {
+        "surname": "Gipp",
+        "epitaph": ""
+      },
+      "notes": "GEORGE GIPP\n1895 \u2014 1920"
+    }
+  },
+  {
+    "id": "commons-tack",
+    "path": "training/samples/curated/commons-tack.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by 3.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/c/cd/2013-0319-StockholmLCC-JohnTackgrave.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "John Tack",
+          "forename": "John",
+          "surname": "Tack",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1825",
+            "death": "1910",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "Swedish-American stone metadata"
+        }
+      ],
+      "shared": {
+        "surname": "Tack",
+        "epitaph": ""
+      },
+      "notes": "JOHN TACK\n1825 \u2014 1910"
+    }
+  },
+  {
+    "id": "commons-royall",
+    "path": "training/samples/curated/commons-royall.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 3.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/7/78/AnneRoyallHeadstone.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Anne Royall",
+          "forename": "Anne",
+          "surname": "Royall",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1769",
+            "death": "1854",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "Anne Royall headstone"
+        }
+      ],
+      "shared": {
+        "surname": "Royall",
+        "epitaph": ""
+      },
+      "notes": "ANNE ROYALL\n1769 \u2014 1854"
+    }
+  },
+  {
+    "id": "commons-kulwicki",
+    "path": "training/samples/curated/commons-kulwicki.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 2.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/6/6a/AlanKulwickiGravestoneFamilyPlot.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Alan Kulwicki",
+          "forename": "Alan",
+          "surname": "Kulwicki",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1954",
+            "death": "1993",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "family plot stone"
+        }
+      ],
+      "shared": {
+        "surname": "Kulwicki",
+        "epitaph": ""
+      },
+      "notes": "ALAN KULWICKI\n1954 \u2014 1993"
+    }
+  },
+  {
+    "id": "commons-mcnaughton",
+    "path": "training/samples/curated/commons-mcnaughton.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "public domain",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/f/f5/Alexander_McNaughton_gravestone_near_Ray.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Alexander McNaughton",
+          "forename": "Alexander",
+          "surname": "McNaughton",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "filename"
+        }
+      ],
+      "shared": {
+        "surname": "McNaughton",
+        "epitaph": ""
+      },
+      "notes": "ALEXANDER MCNAUGHTON"
+    }
+  },
+  {
+    "id": "commons-hill-duque",
+    "path": "training/samples/curated/commons-hill-duque.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "couple",
+    "license": "public domain",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/c/c8/1505420_Healy_diver_memorial_of_USCG_Fallen_Divers_LT._Jessica_Hill_and_PO2_Steven_Duque.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Jessica Hill",
+          "forename": "Jessica",
+          "surname": "Hill",
+          "role_on_stone": "primary",
+          "position": "left",
+          "dates": {
+            "birth": "",
+            "death": "",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "USCG memorial"
+        },
+        {
+          "full_name": "Steven Duque",
+          "forename": "Steven",
+          "surname": "Duque",
+          "role_on_stone": "other",
+          "position": "right",
+          "dates": {
+            "birth": "",
+            "death": "",
+            "aged": null
+          },
+          "relationships": [],
+          "evidence": "USCG memorial"
+        }
+      ],
+      "shared": {
+        "surname": "",
+        "epitaph": ""
+      },
+      "notes": "JESSICA HILL\nSTEVEN DUQUE"
+    }
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "passed": 34,
+  "total": 34,
+  "accuracy": 100.0,
+  "perfect": true,
+  "reasoning_fields": [
+    "names",
+    "dates",
+    "role_on_stone",
+    "relationships",
+    "occupation",
+    "veteran"
+  ],
+  "failures": []
+}

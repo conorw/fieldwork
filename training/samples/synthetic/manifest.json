@@ -1,0 +1,1196 @@
+[
+  {
+    "id": "syn-001",
+    "path": "training/samples/synthetic/syn-001.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "John Smith",
+          "title": "",
+          "forename": "John",
+          "surname": "Smith",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1920",
+            "death": "1998",
+            "aged": 78
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "center inscription"
+        }
+      ],
+      "shared": {
+        "surname": "Smith",
+        "epitaph": "IN LOVING MEMORY OF"
+      },
+      "notes": "IN LOVING MEMORY OF\nJOHN SMITH\n1920 \u2014 1998\nAGED 78 YEARS"
+    }
+  },
+  {
+    "id": "syn-002",
+    "path": "training/samples/synthetic/syn-002.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Mary Jones",
+          "title": "",
+          "forename": "Mary",
+          "surname": "Jones",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1915",
+            "death": "1989",
+            "aged": null
+          },
+          "relationships": [
+            "wife of William Jones"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "upper name block"
+        },
+        {
+          "full_name": "William Jones",
+          "title": "",
+          "forename": "William",
+          "surname": "Jones",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1912",
+            "death": "1991",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Mary Jones"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "lower name block"
+        }
+      ],
+      "shared": {
+        "surname": "Jones",
+        "epitaph": "SACRED TO THE MEMORY OF"
+      },
+      "notes": "SACRED TO THE MEMORY OF\nMARY JONES\n1915 \u2014 1989\nAND HER HUSBAND\nWILLIAM JONES\n1912 \u2014 1991"
+    }
+  },
+  {
+    "id": "syn-003",
+    "path": "training/samples/synthetic/syn-003.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Anne Brown",
+          "title": "",
+          "forename": "Anne",
+          "surname": "Brown",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1870-03-03",
+            "death": "1945-07-12",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "center panel"
+        }
+      ],
+      "shared": {
+        "surname": "Brown",
+        "epitaph": "HERE LIES"
+      },
+      "notes": "HERE LIES\nANNE BROWN\nBORN 3 MARCH 1870\nDIED 12 JULY 1945"
+    }
+  },
+  {
+    "id": "syn-004",
+    "path": "training/samples/synthetic/syn-004.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "family",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Robert Wilson",
+          "title": "",
+          "forename": "Robert",
+          "surname": "Wilson",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1888",
+            "death": "1960",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "first name line"
+        },
+        {
+          "full_name": "Elizabeth Wilson",
+          "title": "",
+          "forename": "Elizabeth",
+          "surname": "Wilson",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "center",
+          "dates": {
+            "birth": "1890",
+            "death": "1965",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "second name line"
+        },
+        {
+          "full_name": "Thomas Wilson",
+          "title": "",
+          "forename": "Thomas",
+          "surname": "Wilson",
+          "maiden_name": "",
+          "role_on_stone": "child",
+          "position": "lower",
+          "dates": {
+            "birth": "1915",
+            "death": "1944",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "third name line"
+        }
+      ],
+      "shared": {
+        "surname": "Wilson",
+        "epitaph": "THE WILSON FAMILY"
+      },
+      "notes": "THE WILSON FAMILY\nROBERT WILSON 1888-1960\nELIZABETH WILSON 1890-1965\nTHOMAS WILSON 1915-1944"
+    }
+  },
+  {
+    "id": "syn-005",
+    "path": "training/samples/synthetic/syn-005.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "war",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "James O'Connor",
+          "title": "Private",
+          "forename": "James",
+          "surname": "O'Connor",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1918-11-11",
+            "aged": 24
+          },
+          "relationships": [],
+          "occupation": "Royal Irish Rifles",
+          "veteran": true,
+          "evidence": "war memorial style"
+        }
+      ],
+      "shared": {
+        "surname": "O'Connor",
+        "epitaph": "ROYAL IRISH RIFLES"
+      },
+      "notes": "PRIVATE\nJAMES O'CONNOR\nROYAL IRISH RIFLES\nDIED 11 NOV 1918\nAGED 24"
+    }
+  },
+  {
+    "id": "syn-006",
+    "path": "training/samples/synthetic/syn-006.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Sarah Thompson",
+          "title": "",
+          "forename": "Sarah",
+          "surname": "Thompson",
+          "maiden_name": "Clark",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1832",
+            "death": "1901",
+            "aged": null
+          },
+          "relationships": [
+            "n\u00e9e Clark"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "center"
+        }
+      ],
+      "shared": {
+        "surname": "Thompson",
+        "epitaph": "REMEMBER"
+      },
+      "notes": "REMEMBER\nSARAH THOMPSON\nNEE CLARK\n1832 \u2014 1901"
+    }
+  },
+  {
+    "id": "syn-007",
+    "path": "training/samples/synthetic/syn-007.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Henry Clark",
+          "title": "",
+          "forename": "Henry",
+          "surname": "Clark",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1850",
+            "death": "1920",
+            "aged": null
+          },
+          "relationships": [
+            "spouse of Alice Clark"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "first line"
+        },
+        {
+          "full_name": "Alice Clark",
+          "title": "",
+          "forename": "Alice",
+          "surname": "Clark",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1855",
+            "death": "1931",
+            "aged": null
+          },
+          "relationships": [
+            "spouse of Henry Clark"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "second line"
+        }
+      ],
+      "shared": {
+        "surname": "Clark",
+        "epitaph": ""
+      },
+      "notes": "HENRY CLARK 1850-1920\nALICE CLARK 1855-1931"
+    }
+  },
+  {
+    "id": "syn-008",
+    "path": "training/samples/synthetic/syn-008.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Peter Murphy",
+          "title": "",
+          "forename": "Peter",
+          "surname": "Murphy",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1960-01-22",
+            "aged": 67
+          },
+          "relationships": [],
+          "occupation": "Blacksmith",
+          "veteran": false,
+          "evidence": "center"
+        }
+      ],
+      "shared": {
+        "surname": "Murphy",
+        "epitaph": "IN MEMORY OF"
+      },
+      "notes": "IN MEMORY OF\nPETER MURPHY\nBLACKSMITH\nDIED 22 JAN 1960\nAGED 67 YEARS"
+    }
+  },
+  {
+    "id": "syn-009",
+    "path": "training/samples/synthetic/syn-009.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "child",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Emily Rose Parker",
+          "title": "",
+          "forename": "Emily Rose",
+          "surname": "Parker",
+          "maiden_name": "",
+          "role_on_stone": "child",
+          "position": "center",
+          "dates": {
+            "birth": "2001",
+            "death": "2005",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "child stone"
+        }
+      ],
+      "shared": {
+        "surname": "Parker",
+        "epitaph": "BELOVED DAUGHTER"
+      },
+      "notes": "BELOVED DAUGHTER\nEMILY ROSE PARKER\n2001 \u2014 2005"
+    }
+  },
+  {
+    "id": "syn-010",
+    "path": "training/samples/synthetic/syn-010.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "David Green",
+          "title": "",
+          "forename": "David",
+          "surname": "Green",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1940",
+            "death": "2010",
+            "aged": null
+          },
+          "relationships": [
+            "spouse of Linda Green"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "upper"
+        },
+        {
+          "full_name": "Linda Green",
+          "title": "",
+          "forename": "Linda",
+          "surname": "Green",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1942",
+            "death": "2018",
+            "aged": null
+          },
+          "relationships": [
+            "spouse of David Green"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "lower"
+        }
+      ],
+      "shared": {
+        "surname": "Green",
+        "epitaph": "TOGETHER FOREVER"
+      },
+      "notes": "TOGETHER FOREVER\nDAVID GREEN\n1940 \u2014 2010\nAND\nLINDA GREEN\n1942 \u2014 2018"
+    }
+  },
+  {
+    "id": "syn-011",
+    "path": "training/samples/synthetic/syn-011.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Margaret Hughes",
+          "title": "",
+          "forename": "Margaret",
+          "surname": "Hughes",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1901",
+            "death": "1978",
+            "aged": null
+          },
+          "relationships": [
+            "wife of John Hughes"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "upper"
+        },
+        {
+          "full_name": "John Hughes",
+          "title": "",
+          "forename": "John",
+          "surname": "Hughes",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1898",
+            "death": "1982",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Margaret Hughes"
+          ],
+          "occupation": "Teacher",
+          "veteran": false,
+          "evidence": "lower"
+        }
+      ],
+      "shared": {
+        "surname": "Hughes",
+        "epitaph": "IN LOVING MEMORY OF"
+      },
+      "notes": "IN LOVING MEMORY OF\nMARGARET HUGHES\nWIFE OF JOHN HUGHES\n1901 \u2014 1978\nAND HER HUSBAND\nJOHN HUGHES\nTEACHER\n1898 \u2014 1982"
+    }
+  },
+  {
+    "id": "syn-012",
+    "path": "training/samples/synthetic/syn-012.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Thomas Reid",
+          "title": "Captain",
+          "forename": "Thomas",
+          "surname": "Reid",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1880",
+            "death": "1943",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Merchant Navy",
+          "veteran": true,
+          "evidence": "center"
+        }
+      ],
+      "shared": {
+        "surname": "Reid",
+        "epitaph": "SACRED TO THE MEMORY OF"
+      },
+      "notes": "SACRED TO THE MEMORY OF\nCAPT THOMAS REID\nMERCHANT NAVY\n1880 \u2014 1943"
+    }
+  },
+  {
+    "id": "syn-fr-001",
+    "path": "training/samples/synthetic/syn-fr-001.jpg",
+    "source": "synthetic",
+    "language": "fr",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Jean Dupont",
+          "title": "",
+          "forename": "Jean",
+          "surname": "Dupont",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1920",
+            "death": "1998",
+            "aged": 78
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "fr"
+        }
+      ],
+      "shared": {
+        "surname": "Dupont",
+        "epitaph": "ICI REPOSE"
+      },
+      "notes": "ICI REPOSE\nJEAN DUPONT\n1920 \u2014 1998\nAGE DE 78 ANS"
+    }
+  },
+  {
+    "id": "syn-fr-002",
+    "path": "training/samples/synthetic/syn-fr-002.jpg",
+    "source": "synthetic",
+    "language": "fr",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Marie Martin",
+          "title": "",
+          "forename": "Marie",
+          "surname": "Martin",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1915",
+            "death": "1989",
+            "aged": null
+          },
+          "relationships": [
+            "wife of Pierre Martin"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "fr couple"
+        },
+        {
+          "full_name": "Pierre Martin",
+          "title": "",
+          "forename": "Pierre",
+          "surname": "Martin",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1912",
+            "death": "1991",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Marie Martin"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "fr couple"
+        }
+      ],
+      "shared": {
+        "surname": "Martin",
+        "epitaph": "A LA MEMOIRE DE"
+      },
+      "notes": "A LA MEMOIRE DE\nMARIE MARTIN\nEPOUSE DE PIERRE MARTIN\n1915 \u2014 1989\nET SON EPOUX\nPIERRE MARTIN\n1912 \u2014 1991"
+    }
+  },
+  {
+    "id": "syn-fr-003",
+    "path": "training/samples/synthetic/syn-fr-003.jpg",
+    "source": "synthetic",
+    "language": "fr",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Francois Bernard",
+          "title": "",
+          "forename": "Francois",
+          "surname": "Bernard",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1870-03-03",
+            "death": "1945-07-12",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Instituteur",
+          "veteran": false,
+          "evidence": "fr occupation"
+        }
+      ],
+      "shared": {
+        "surname": "Bernard",
+        "epitaph": "ICI REPOSE"
+      },
+      "notes": "ICI REPOSE\nFRANCOIS BERNARD\nINSTITUTEUR\nNE LE 3 MARS 1870\nDECEDE LE 12 JUILLET 1945"
+    }
+  },
+  {
+    "id": "syn-de-001",
+    "path": "training/samples/synthetic/syn-de-001.jpg",
+    "source": "synthetic",
+    "language": "de",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Hans Mueller",
+          "title": "",
+          "forename": "Hans",
+          "surname": "Mueller",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1888",
+            "death": "1960",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "de"
+        }
+      ],
+      "shared": {
+        "surname": "Mueller",
+        "epitaph": "HIER RUHET"
+      },
+      "notes": "HIER RUHET\nHANS MUELLER\n* 1888\n\u2020 1960"
+    }
+  },
+  {
+    "id": "syn-de-002",
+    "path": "training/samples/synthetic/syn-de-002.jpg",
+    "source": "synthetic",
+    "language": "de",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Anna Schmidt",
+          "title": "",
+          "forename": "Anna",
+          "surname": "Schmidt",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1890",
+            "death": "1965",
+            "aged": null
+          },
+          "relationships": [
+            "wife of Karl Schmidt"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "de couple"
+        },
+        {
+          "full_name": "Karl Schmidt",
+          "title": "",
+          "forename": "Karl",
+          "surname": "Schmidt",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1888",
+            "death": "1960",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Anna Schmidt"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "de couple"
+        }
+      ],
+      "shared": {
+        "surname": "Schmidt",
+        "epitaph": "ZUM GEDENKEN AN"
+      },
+      "notes": "ZUM GEDENKEN AN\nANNA SCHMIDT\nGATTIN VON KARL SCHMIDT\n1890 \u2014 1965\nUND IHR EHEMANN\nKARL SCHMIDT\n1888 \u2014 1960"
+    }
+  },
+  {
+    "id": "syn-de-003",
+    "path": "training/samples/synthetic/syn-de-003.jpg",
+    "source": "synthetic",
+    "language": "de",
+    "stone_type": "war",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Friedrich Weber",
+          "title": "Soldat",
+          "forename": "Friedrich",
+          "surname": "Weber",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1918-11-11",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Infanterie",
+          "veteran": true,
+          "evidence": "de war"
+        }
+      ],
+      "shared": {
+        "surname": "Weber",
+        "epitaph": "INFANTERIE"
+      },
+      "notes": "SOLDAT\nFRIEDRICH WEBER\nINFANTERIE\nGEFALLEN 11 NOV 1918"
+    }
+  },
+  {
+    "id": "syn-es-001",
+    "path": "training/samples/synthetic/syn-es-001.jpg",
+    "source": "synthetic",
+    "language": "es",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Maria Lopez",
+          "title": "",
+          "forename": "Maria",
+          "surname": "Lopez",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1920",
+            "death": "1998",
+            "aged": 78
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "es"
+        }
+      ],
+      "shared": {
+        "surname": "Lopez",
+        "epitaph": "AQUI DESCANSA"
+      },
+      "notes": "AQUI DESCANSA\nMARIA LOPEZ\n1920 \u2014 1998\nA LA EDAD DE 78 ANOS"
+    }
+  },
+  {
+    "id": "syn-es-002",
+    "path": "training/samples/synthetic/syn-es-002.jpg",
+    "source": "synthetic",
+    "language": "es",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Carmen Ruiz",
+          "title": "",
+          "forename": "Carmen",
+          "surname": "Ruiz",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1915",
+            "death": "1989",
+            "aged": null
+          },
+          "relationships": [
+            "wife of Jose Ruiz"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "es couple"
+        },
+        {
+          "full_name": "Jose Ruiz",
+          "title": "",
+          "forename": "Jose",
+          "surname": "Ruiz",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1912",
+            "death": "1991",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Carmen Ruiz"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "es couple"
+        }
+      ],
+      "shared": {
+        "surname": "Ruiz",
+        "epitaph": "EN MEMORIA DE"
+      },
+      "notes": "EN MEMORIA DE\nCARMEN RUIZ\nESPOSA DE JOSE RUIZ\n1915 \u2014 1989\nY SU ESPOSO\nJOSE RUIZ\n1912 \u2014 1991"
+    }
+  },
+  {
+    "id": "syn-it-001",
+    "path": "training/samples/synthetic/syn-it-001.jpg",
+    "source": "synthetic",
+    "language": "it",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Giuseppe Rossi",
+          "title": "",
+          "forename": "Giuseppe",
+          "surname": "Rossi",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1870-03-03",
+            "death": "1945-07-12",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "it"
+        }
+      ],
+      "shared": {
+        "surname": "Rossi",
+        "epitaph": "QUI GIACE"
+      },
+      "notes": "QUI GIACE\nGIUSEPPE ROSSI\nNATO 3 MARZO 1870\nMORTO 12 LUGLIO 1945"
+    }
+  },
+  {
+    "id": "syn-la-001",
+    "path": "training/samples/synthetic/syn-la-001.jpg",
+    "source": "synthetic",
+    "language": "la",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Marcus Aurelius",
+          "title": "",
+          "forename": "Marcus",
+          "surname": "Aurelius",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "120",
+            "death": "180",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "la"
+        }
+      ],
+      "shared": {
+        "surname": "Aurelius",
+        "epitaph": "HIC IACET"
+      },
+      "notes": "HIC IACET\nMARCUS AURELIUS\nNATUS 120\nOBIIT 180"
+    }
+  },
+  {
+    "id": "syn-sv-001",
+    "path": "training/samples/synthetic/syn-sv-001.jpg",
+    "source": "synthetic",
+    "language": "sv",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Erik Andersson",
+          "title": "",
+          "forename": "Erik",
+          "surname": "Andersson",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1825-02-12",
+            "death": "1910-10-10",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "sv"
+        }
+      ],
+      "shared": {
+        "surname": "Andersson",
+        "epitaph": "HAR HVILAR"
+      },
+      "notes": "HAR HVILAR\nERIK ANDERSSON\nFODD 12 FEB 1825\nDOD 10 OKT 1910"
+    }
+  },
+  {
+    "id": "syn-ga-001",
+    "path": "training/samples/synthetic/syn-ga-001.jpg",
+    "source": "synthetic",
+    "language": "ga",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Sean O Brian",
+          "title": "",
+          "forename": "Sean O",
+          "surname": "Brian",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1920",
+            "death": "1998",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "ga"
+        }
+      ],
+      "shared": {
+        "surname": "Brian",
+        "epitaph": "I gCUIMHNE"
+      },
+      "notes": "I gCUIMHNE\nSEAN O BRIAN\n1920 \u2014 1998"
+    }
+  },
+  {
+    "id": "syn-cy-001",
+    "path": "training/samples/synthetic/syn-cy-001.jpg",
+    "source": "synthetic",
+    "language": "cy",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Dafydd Jones",
+          "title": "",
+          "forename": "Dafydd",
+          "surname": "Jones",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1850",
+            "death": "1920",
+            "aged": 70
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "cy"
+        }
+      ],
+      "shared": {
+        "surname": "Jones",
+        "epitaph": "ER COF AM"
+      },
+      "notes": "ER COF AM\nDAFYDD JONES\n1850 \u2014 1920\nYN 70 MLWYDD OED"
+    }
+  },
+  {
+    "id": "syn-pl-001",
+    "path": "training/samples/synthetic/syn-pl-001.jpg",
+    "source": "synthetic",
+    "language": "pl",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Jan Kowalski",
+          "title": "",
+          "forename": "Jan",
+          "surname": "Kowalski",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1920",
+            "death": "1998",
+            "aged": 78
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "pl"
+        }
+      ],
+      "shared": {
+        "surname": "Kowalski",
+        "epitaph": "TU SPOCZYWA"
+      },
+      "notes": "TU SPOCZYWA\nJAN KOWALSKI\n1920 \u2014 1998\nZYL 78 LAT"
+    }
+  },
+  {
+    "id": "syn-nl-001",
+    "path": "training/samples/synthetic/syn-nl-001.jpg",
+    "source": "synthetic",
+    "language": "nl",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Pieter De Vries",
+          "title": "",
+          "forename": "Pieter De",
+          "surname": "Vries",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1920",
+            "death": "1998",
+            "aged": 78
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "nl"
+        }
+      ],
+      "shared": {
+        "surname": "Vries",
+        "epitaph": "HIER RUST"
+      },
+      "notes": "HIER RUST\nPIETER DE VRIES\n1920 \u2014 1998\nOP DE LEEFTIJD VAN 78 JAAR"
+    }
+  },
+  {
+    "id": "syn-it-002",
+    "path": "training/samples/synthetic/syn-it-002.jpg",
+    "source": "synthetic",
+    "language": "it",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Anna Bianchi",
+          "title": "",
+          "forename": "Anna",
+          "surname": "Bianchi",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1915",
+            "death": "1989",
+            "aged": null
+          },
+          "relationships": [
+            "wife of Luigi Bianchi"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "it couple"
+        },
+        {
+          "full_name": "Luigi Bianchi",
+          "title": "",
+          "forename": "Luigi",
+          "surname": "Bianchi",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1912",
+            "death": "1991",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Anna Bianchi"
+          ],
+          "occupation": "Falegname",
+          "veteran": false,
+          "evidence": "it couple"
+        }
+      ],
+      "shared": {
+        "surname": "Bianchi",
+        "epitaph": "IN MEMORIA DI"
+      },
+      "notes": "IN MEMORIA DI\nANNA BIANCHI\nMOGLIE DI LUIGI BIANCHI\n1915 \u2014 1989\nE SUO MARITO\nLUIGI BIANCHI\nFALEGNAME\n1912 \u2014 1991"
+    }
+  }
+]
