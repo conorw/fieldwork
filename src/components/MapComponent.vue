@@ -17,26 +17,25 @@
     <!-- Context Menu -->
     <div
       v-if="contextMenuVisible && contextMenuItems.length > 0"
-      class="fixed inset-0 z-20"
-      @click="hideContextMenu"
-      @touchstart="hideContextMenu"
+      class="fixed inset-0 z-50"
+      @pointerdown.self="hideContextMenu"
     >
       <div
         :style="{
           left: `${contextMenuPosition.x}px`,
           top: `${contextMenuPosition.y}px`,
         }"
-        class="absolute bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-30 min-w-[200px]"
-        @touchstart.stop
-        @touchend.stop
-        @click.stop
+        class="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-[60] min-w-[200px]"
+        data-testid="map-context-menu"
+        @pointerdown.stop
       >
         <button
           v-for="item in contextMenuItems"
           :key="item.action"
-          @click="handleContextMenuAction(item.action)"
-          @touchstart="handleContextMenuAction(item.action)"
+          type="button"
+          :data-testid="`map-context-${item.action}`"
           class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 active:bg-gray-200 flex items-center touch-manipulation select-none"
+          @pointerup.stop.prevent="handleContextMenuAction(item.action)"
         >
           <svg
             v-if="item.icon"
@@ -595,19 +594,16 @@ const createMap = async () => {
             if (!touchMoved) {
               longPressTriggered = true;
 
-              // Get coordinates from the touch position
-              const pixel = map.value.getPixelFromCoordinate(
-                map.value.getCoordinateFromPixel([
-                  touchStartPosition.x -
-                    mapElement.value.getBoundingClientRect().left,
-                  touchStartPosition.y -
-                    mapElement.value.getBoundingClientRect().top,
-                ]),
-              );
-              const [longitude, latitude] = toLonLat(pixel);
+              const rect = mapElement.value.getBoundingClientRect();
+              const pixel = [
+                touchStartPosition.x - rect.left,
+                touchStartPosition.y - rect.top,
+              ];
+              const coordinate = map.value.getCoordinateFromPixel(pixel);
+              const [longitude, latitude] = toLonLat(coordinate);
               const location = { longitude, latitude, accuracy: 5 };
 
-              // Show context menu at touch position
+              // Show context menu at touch position (viewport coords)
               showContextMenuAt(
                 {
                   clientX: touchStartPosition.x,
@@ -1023,20 +1019,21 @@ defineExpose({
   getCurrentDirection: () => userDirection.value,
 });
 
-// Context menu methods
+// Context menu methods — position in viewport coords (menu uses position:fixed)
 const showContextMenuAt = (event, location) => {
-  // Get click position relative to the map container
-  const rect = mapElement.value.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-
-  // Ensure menu stays within bounds
   const menuWidth = 200;
-  const menuHeight = 50;
-  const adjustedX = Math.min(x, rect.width - menuWidth - 10);
-  const adjustedY = Math.min(y, rect.height - menuHeight - 10);
+  const menuHeight = 56;
+  const pad = 8;
+  const x = Math.min(
+    Math.max(pad, event.clientX),
+    window.innerWidth - menuWidth - pad,
+  );
+  const y = Math.min(
+    Math.max(pad, event.clientY),
+    window.innerHeight - menuHeight - pad,
+  );
 
-  contextMenuPosition.value = { x: adjustedX, y: adjustedY };
+  contextMenuPosition.value = { x, y };
   contextMenuLocation.value = location;
   contextMenuVisible.value = true;
 
@@ -1048,12 +1045,16 @@ const showContextMenuAt = (event, location) => {
 
 const hideContextMenu = () => {
   contextMenuVisible.value = false;
-  contextMenuLocation.value = null;
+  // Keep last location briefly so late click handlers still have coords;
+  // cleared on next open or after action.
 };
 
 const handleContextMenuAction = (action) => {
-  emit("context-menu-action", { action, location: contextMenuLocation.value });
-  hideContextMenu();
+  const location = contextMenuLocation.value;
+  console.log("MapComponent: context menu action", { action, location });
+  emit("context-menu-action", { action, location });
+  contextMenuVisible.value = false;
+  contextMenuLocation.value = null;
 };
 </script>
 

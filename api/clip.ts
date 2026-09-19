@@ -1,7 +1,7 @@
 // api/clip.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { put } from "@vercel/blob";
-import { exec } from "child_process";
+import { exec, execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
@@ -9,6 +9,48 @@ import * as os from "os";
 import * as https from "https";
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/** Recursively find pmtiles binary in a directory */
+function findPmtilesBinary(dir: string): string | null {
+  if (!fs.existsSync(dir)) return null;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const nested = findPmtilesBinary(full);
+      if (nested) return nested;
+    } else if (entry.name === "pmtiles" || entry.name === "pmtiles.exe") {
+      return full;
+    }
+  }
+  return null;
+}
+
+/** Extract .zip or .tar.gz without relying on Unix-only `unzip`/`find` */
+async function extractArchive(archivePath: string, extractDir: string): Promise<void> {
+  fs.mkdirSync(extractDir, { recursive: true });
+  const isTarGz =
+    archivePath.endsWith(".tar.gz") || archivePath.endsWith(".tgz");
+
+  // Windows 10+, macOS, and Linux all ship a tar that can extract zip and tar.gz
+  const extractCommand = isTarGz
+    ? `tar -xzf "${archivePath}" -C "${extractDir}"`
+    : `tar -xf "${archivePath}" -C "${extractDir}"`;
+
+  console.log(`Extracting archive: ${extractCommand}`);
+  try {
+    await execAsync(extractCommand);
+  } catch (tarErr) {
+    // Fallback for older Windows without zip-capable tar
+    if (os.platform() === "win32" && !isTarGz) {
+      const ps = `powershell -NoProfile -Command "Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${extractDir.replace(/'/g, "''")}' -Force"`;
+      console.log(`tar extract failed, trying PowerShell Expand-Archive`);
+      await execAsync(ps);
+    } else {
+      throw tarErr;
+    }
+  }
+}
 
 // Get go-pmtiles binary path (bundled or downloaded)
 async function getPMTilesBinary(): Promise<string> {
@@ -27,12 +69,33 @@ async function getPMTilesBinary(): Promise<string> {
   }
 
   // For local development, download the correct binary for current platform
-  const binaryPath = path.join(os.tmpdir(), `pmtiles-${platform}-${arch}`);
+  const binaryPath = path.join(
+    os.tmpdir(),
+    platform === "win32"
+      ? `pmtiles-${platform}-${arch}.exe`
+      : `pmtiles-${platform}-${arch}`,
+  );
 
   // Check if binary already exists
   if (fs.existsSync(binaryPath)) {
     console.log(`Using cached go-pmtiles binary: ${binaryPath}`);
     return binaryPath;
+  }
+
+  // Legacy cache without .exe on Windows
+  const legacyWinPath = path.join(os.tmpdir(), `pmtiles-${platform}-${arch}`);
+  if (
+    platform === "win32" &&
+    fs.existsSync(legacyWinPath) &&
+    !fs.existsSync(binaryPath)
+  ) {
+    try {
+      fs.renameSync(legacyWinPath, binaryPath);
+      console.log(`Using cached go-pmtiles binary: ${binaryPath}`);
+      return binaryPath;
+    } catch {
+      /* continue to download */
+    }
   }
 
   // If we're on macOS ARM64 locally, try the bundled binary first, but fall back to download if it fails
@@ -108,40 +171,26 @@ async function getPMTilesBinary(): Promise<string> {
 
             try {
               if (isCompressed) {
-                // Extract the binary from the archive
                 const extractDir = path.join(
                   os.tmpdir(),
                   `pmtiles-extract-${Date.now()}`,
                 );
-                fs.mkdirSync(extractDir, { recursive: true });
+                await extractArchive(tempFile, extractDir);
 
-                let extractCommand: string;
-                if (binaryName.endsWith(".tar.gz")) {
-                  extractCommand = `tar -xzf "${tempFile}" -C "${extractDir}"`;
-                } else {
-                  extractCommand = `unzip -q "${tempFile}" -d "${extractDir}"`;
-                }
-
-                console.log(`Extracting archive: ${extractCommand}`);
-                await execAsync(extractCommand);
-
-                // Find the extracted binary
-                const findCommand = `find "${extractDir}" -name "pmtiles" -o -name "pmtiles.exe" | head -1`;
-                console.log(`Looking for binary: ${findCommand}`);
-                const { stdout } = await execAsync(findCommand);
-                const extractedPath = stdout.trim();
-
+                const extractedPath = findPmtilesBinary(extractDir);
                 console.log(`Found binary at: ${extractedPath}`);
 
                 if (extractedPath && fs.existsSync(extractedPath)) {
-                  // Move to final location
                   fs.renameSync(extractedPath, binaryPath);
-                  fs.chmodSync(binaryPath, 0o755);
+                  try {
+                    fs.chmodSync(binaryPath, 0o755);
+                  } catch {
+                    /* Windows may ignore chmod */
+                  }
                   console.log(
                     `Downloaded and extracted go-pmtiles binary to: ${binaryPath}`,
                   );
 
-                  // Clean up extraction directory
                   try {
                     fs.rmSync(extractDir, { recursive: true, force: true });
                   } catch (e) {
@@ -150,11 +199,6 @@ async function getPMTilesBinary(): Promise<string> {
 
                   resolve(binaryPath);
                 } else {
-                  // List contents for debugging
-                  const { stdout: lsOutput } = await execAsync(
-                    `find "${extractDir}" -type f`,
-                  );
-                  console.log("Archive contents:", lsOutput);
                   throw new Error(
                     "Failed to extract binary from archive - binary not found",
                   );
@@ -162,7 +206,11 @@ async function getPMTilesBinary(): Promise<string> {
               } else {
                 // Direct binary download
                 fs.renameSync(tempFile, binaryPath);
-                fs.chmodSync(binaryPath, 0o755);
+                try {
+                  fs.chmodSync(binaryPath, 0o755);
+                } catch {
+                  /* Windows may ignore chmod */
+                }
                 console.log(`Downloaded go-pmtiles binary to: ${binaryPath}`);
                 resolve(binaryPath);
               }
@@ -366,28 +414,32 @@ async function generatePMTilesWithCLI(
     const outputPath = path.join(tempDir, "output.pmtiles");
     const [minLon, minLat, maxLon, maxLat] = bbox;
 
-    // go-pmtiles extract command: extract <source> <output> --bbox=minLon,minLat,maxLon,maxLat --minzoom=z --maxzoom=z
-    const command = `"${binaryPath}" extract "${sourcePMTilesUrl}" "${outputPath}" --bbox=${minLon},${minLat},${maxLon},${maxLat}`;
+    const args = [
+      "extract",
+      sourcePMTilesUrl,
+      outputPath,
+      `--bbox=${minLon},${minLat},${maxLon},${maxLat}`,
+    ];
+    console.log(
+      `Running go-pmtiles extract: ${binaryPath} ${args.join(" ")}`,
+    );
 
-    console.log(`Running go-pmtiles extract command: ${command}`);
-
-    // Test if binary is executable first by trying to run it with help
-    try {
-      await execAsync(`"${binaryPath}" --help`);
-    } catch (helpError) {
-      console.error("Binary execution test failed:", helpError);
-      throw new Error(
-        `PMTiles binary is not executable or incompatible with this platform. Please ensure the correct binary is available for ${os.platform()}-${os.arch()}.`,
-      );
-    }
-
-    const { stdout, stderr } = await execAsync(command);
+    // Prefer execFile (no shell) — avoids Windows libuv crashes after child exit
+    const { stdout, stderr } = await execFileAsync(binaryPath, args, {
+      windowsHide: true,
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: 10 * 60 * 1000,
+    });
 
     if (stderr) {
       console.log("go-pmtiles stderr:", stderr);
     }
     if (stdout) {
       console.log("go-pmtiles stdout:", stdout);
+    }
+
+    if (!fs.existsSync(outputPath)) {
+      throw new Error("go-pmtiles finished but output.pmtiles was not created");
     }
 
     // Read the generated PMTiles file

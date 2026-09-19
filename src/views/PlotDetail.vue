@@ -1256,8 +1256,29 @@ const handleImageDelete = async (image) => {
 };
 
 const viewPhoto = (image) => {
-  const blob = base64ToBlob(image.data, "image/jpeg");
-  window.open(URL.createObjectURL(blob), "_blank");
+  // Prefer full-res cloud URL; thumbnail_data / legacy data are fallbacks.
+  // `data` is intentionally empty in the hybrid storage path.
+  if (image?.cloud_url && !String(image.cloud_url).includes("mock-storage.dev")) {
+    window.open(image.cloud_url, "_blank");
+    return;
+  }
+
+  const raw = image?.thumbnail_data || image?.data;
+  if (!raw) {
+    console.warn("PlotDetail: no viewable image data", image?.id);
+    return;
+  }
+
+  try {
+    if (typeof raw === "string" && raw.startsWith("data:")) {
+      window.open(raw, "_blank");
+      return;
+    }
+    const blob = base64ToBlob(raw, "image/jpeg");
+    window.open(URL.createObjectURL(blob), "_blank");
+  } catch (error) {
+    console.error("PlotDetail: failed to open photo", error);
+  }
 };
 
 // Image handlers for ThumbnailViewer

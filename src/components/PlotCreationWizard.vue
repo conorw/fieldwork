@@ -1,16 +1,31 @@
 <template>
-  <Drawer
-    :header="title"
-    position="full"
-    v-model:visible="isVisible"
-    modal
-    closable
-    @hide="closeWizard"
-  >
+  <Teleport to="body">
+    <div
+      v-if="visible"
+      class="fixed inset-0 flex flex-col bg-white"
+      style="z-index: 99999"
+      data-testid="plot-creation-wizard"
+      role="dialog"
+      aria-modal="true"
+    >
+      <header
+        class="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-200 bg-surface-0 shrink-0"
+      >
+        <h2 class="text-lg font-semibold m-0">{{ title }}</h2>
+        <Button
+          icon="pi pi-times"
+          text
+          rounded
+          aria-label="Close"
+          data-testid="plot-wizard-close"
+          @click="closeWizard"
+        />
+      </header>
+      <div class="flex-1 min-h-0 overflow-auto flex flex-col">
     <!-- Content -->
     <div
-      class="flex flex-col"
-      style="height: calc(100vh - 60px); min-height: 0"
+      class="flex flex-col flex-1 min-h-0"
+      style="min-height: 0"
     >
       <!-- Step 1: Take Photo -->
       <div v-if="currentStep === 0" class="flex-1 flex flex-col">
@@ -404,7 +419,9 @@
         </div>
       </div>
     </div>
-  </Drawer>
+    </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -433,7 +450,6 @@ import {
 } from "../utils/reasoningMapper";
 
 // PrimeVue components
-import Drawer from "primevue/drawer";
 import Button from "primevue/button";
 import Card from "primevue/card";
 import InputText from "primevue/inputtext";
@@ -462,16 +478,8 @@ import { useDeviceOrientation } from "../composables/useDeviceOrientation";
 import { extractEXIFGPSFromDataURL, selectBestGPS } from "../utils/exifGPS";
 import { applyOrientationConstraint } from "../utils/gpsOrientationConstraint";
 
-const isVisible = defineModel("isVisible", { type: Boolean, default: false });
-
-const title = computed(() => {
-  const stepNames = props.initialLocation
-    ? ["Take Photo", "Position Plot", "Plot Details"]
-    : ["Take Photo", "Plot Details"];
-  return `Step ${currentStep.value + 1}: ${stepNames[currentStep.value] || "Plot Details"}`;
-});
-
 const props = defineProps<{
+  visible?: boolean;
   initialLocation?: {
     latitude: number;
     longitude: number;
@@ -479,19 +487,24 @@ const props = defineProps<{
   } | null;
 }>();
 
-// Helper to convert initialLocation to currentLocation format
-const normalizeLocation = (
-  loc: typeof props.initialLocation,
-): typeof currentLocation.value => {
-  if (!loc) return null;
-  return {
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-    accuracy: loc.accuracy ?? 0,
-  };
-};
+const emit = defineEmits<{
+  "update:visible": [value: boolean];
+  close: [];
+  plotCreated: [plot: unknown];
+}>();
 
-const emit = defineEmits(["close", "plotCreated"]);
+const visible = computed({
+  get: () => !!props.visible,
+  set: (v: boolean) => emit("update:visible", v),
+});
+
+const normalizeLocation = (
+  loc: NonNullable<typeof props.initialLocation>,
+): { latitude: number; longitude: number; accuracy: number } => ({
+  latitude: loc.latitude,
+  longitude: loc.longitude,
+  accuracy: loc.accuracy ?? 0,
+});
 
 // Stores
 const mapStore = useMapStore();
@@ -515,6 +528,13 @@ const { userDirection, startOrientationListener, stopOrientationListener } =
 
 // State
 const currentStep = ref(0);
+
+const title = computed(() => {
+  const stepNames = props.initialLocation
+    ? ["Take Photo", "Position Plot", "Plot Details"]
+    : ["Take Photo", "Plot Details"];
+  return `Step ${currentStep.value + 1}: ${stepNames[currentStep.value] || "Plot Details"}`;
+});
 const photoData = ref<{
   dataUrl: string;
   file?: File | Blob;
@@ -804,8 +824,9 @@ const startGPSMonitoring = async () => {
 
 // Watch for visibility changes
 watch(
-  () => isVisible.value,
+  () => visible.value,
   (newValue) => {
+    console.log("PlotCreationWizard: visible changed", newValue);
     if (newValue) {
       resetWizard();
       initializeLocation();
@@ -908,7 +929,7 @@ watch(
     // 3. No initialLocation was provided (meaning user didn't manually select a location)
     // 4. We have a new location
     if (
-      isVisible.value &&
+      visible.value &&
       ((props.initialLocation && currentStep.value === 1) ||
         (!props.initialLocation && currentStep.value === 0)) &&
       !props.initialLocation &&
@@ -939,7 +960,7 @@ watch(
         currentLocation.value = newLocation;
       }
     } else if (
-      isVisible.value &&
+      visible.value &&
       currentStep.value === 1 &&
       props.initialLocation
     ) {
@@ -1879,6 +1900,7 @@ const processRemainingOperationsInBackground = async (
 // Close wizard
 const closeWizard = () => {
   console.log("PlotCreationWizard: Closing wizard");
+  visible.value = false;
   emit("close");
 };
 
@@ -1968,7 +1990,7 @@ const populateFormFromAnalysis = (result: any) => {
 
 // Initialize on mount
 onMounted(() => {
-  if (isVisible.value) {
+  if (visible.value) {
     initializeLocation();
   }
 });

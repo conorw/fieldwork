@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ).replace(/\/?$/, "/");
 
     if (!adapterUrl || adapterUrl === "/") {
-      return res.status(404).json({
+      return res.status(200).json({
         error: "No global adapter published yet",
         adapterUrl: null,
         version: null,

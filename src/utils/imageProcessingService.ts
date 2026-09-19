@@ -150,7 +150,9 @@ class ImageProcessingService {
         canvas.width = width;
         canvas.height = height;
 
-        // Draw and compress
+        // JPEG has no alpha — fill white so transparent sources aren't solid black
+        ctx!.fillStyle = "#ffffff";
+        ctx!.fillRect(0, 0, width, height);
         ctx!.drawImage(img, 0, 0, width, height);
         resolve(canvas);
       };

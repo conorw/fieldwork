@@ -28,6 +28,35 @@ const FATAL_RESPONSE_CODES = [
   new RegExp("^42501$"),
 ];
 
+/** Decode JWT header/payload claims useful for PowerSync auth debugging (no signature). */
+function decodeJwtMeta(token: string): {
+  alg?: string;
+  kid?: string;
+  iss?: string;
+  aud?: string | string[];
+  ref?: string;
+} {
+  try {
+    const [headerB64, payloadB64] = token.split(".");
+    if (!headerB64 || !payloadB64) return {};
+    const header = JSON.parse(
+      atob(headerB64.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as { alg?: string; kid?: string };
+    const payload = JSON.parse(
+      atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as { iss?: string; aud?: string | string[]; ref?: string };
+    return {
+      alg: header.alg,
+      kid: header.kid,
+      iss: payload.iss,
+      aud: payload.aud,
+      ref: payload.ref,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export type SupabaseConnectorListener = {
   initialized: () => void;
   sessionStarted: (session: Session) => void;
@@ -256,6 +285,7 @@ export class SupabaseConnector
       expiresInMinutes: session.expires_at
         ? Math.floor((session.expires_at - Math.floor(Date.now() / 1000)) / 60)
         : "unknown",
+      ...decodeJwtMeta(session.access_token),
     });
 
     return {

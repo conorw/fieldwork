@@ -4,19 +4,28 @@
       <div
         v-for="image in images.slice(0, maxThumbnails)"
         :key="image.id"
-        class="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-gray-200 relative group"
+        class="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-surface-100 relative group"
       >
         <img
-          :src="getImageUrl(image)"
+          v-if="resolveImageUrl(image)"
+          :src="resolveImageUrl(image)"
           :alt="imageAlt || 'Photo'"
           class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
           @click="handleImageClick(image)"
+          @error="onImageError(image, $event)"
         />
+        <div
+          v-else
+          class="w-full h-full flex items-center justify-center text-surface-400"
+          title="Photo unavailable"
+        >
+          <i class="pi pi-image text-lg" />
+        </div>
 
         <!-- Hover overlay for additional actions -->
         <div
           v-if="showHoverActions || showDeleteButton"
-          class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center"
+          class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center pointer-events-none group-hover:pointer-events-auto"
         >
           <div
             class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2"
@@ -86,13 +95,14 @@
 </template>
 
 <script setup lang="ts">
+import { reactive } from "vue";
 import { base64ToBlob } from "../powersync-schema";
 
 interface ImageData {
   id: string;
-  thumbnail_data?: string;
-  cloud_url?: string;
-  data?: string; // Legacy fallback
+  thumbnail_data?: string | null;
+  cloud_url?: string | null;
+  data?: string | null; // Legacy fallback
 }
 
 interface Props {
@@ -124,35 +134,85 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-const getImageUrl = (image: ImageData): string => {
-  if (!image) return "";
+/** Per-image source override after <img> error (e.g. fall back to cloud_url). */
+const sourceOverrides = reactive<Record<string, string>>({});
 
-  // Priority 1: Use thumbnail_data if available (fastest, smallest)
+const isUsableCloudUrl = (url: string | null | undefined): url is string => {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes("mock-storage.dev")) return false;
+  return /^https?:\/\//i.test(trimmed);
+};
+
+const toDataUrl = (raw: string): string => {
+  const value = raw.trim();
+  if (!value) return "";
+  if (value.startsWith("data:")) return value;
+  // Strip accidental repeated prefixes
+  const withoutPrefix = value.replace(/^(data:image\/[a-zA-Z+]+;base64,)+/i, "");
+  if (!withoutPrefix) return "";
+  return `data:image/jpeg;base64,${withoutPrefix}`;
+};
+
+const getCandidateUrls = (image: ImageData): string[] => {
+  const urls: string[] = [];
+
   if (image.thumbnail_data) {
-    return `data:image/jpeg;base64,${image.thumbnail_data}`;
+    const thumb = toDataUrl(image.thumbnail_data);
+    if (thumb) urls.push(thumb);
   }
 
-  // Priority 2: Use cloud_url as thumbnail fallback (if no thumbnail_data)
-  // This ensures images are still visible even if thumbnail generation failed
-  if (image.cloud_url) {
-    return image.cloud_url;
+  if (isUsableCloudUrl(image.cloud_url)) {
+    urls.push(image.cloud_url.trim());
   }
 
-  // Priority 3: Fallback to legacy data field
   if (image.data) {
     if (image.data.startsWith("data:")) {
-      return image.data;
-    }
-    try {
-      const blob = base64ToBlob(image.data, "image/jpeg");
-      return URL.createObjectURL(blob);
-    } catch (error) {
-      console.error("Error creating image URL:", error);
-      return "";
+      urls.push(image.data);
+    } else {
+      try {
+        const blob = base64ToBlob(image.data, "image/jpeg");
+        urls.push(URL.createObjectURL(blob));
+      } catch (error) {
+        console.error("ThumbnailViewer: Error creating image URL:", error);
+      }
     }
   }
 
-  return "";
+  return urls;
+};
+
+const resolveImageUrl = (image: ImageData): string => {
+  if (!image?.id) return "";
+  if (sourceOverrides[image.id]) return sourceOverrides[image.id];
+
+  const candidates = getCandidateUrls(image);
+  return candidates[0] || "";
+};
+
+const onImageError = (image: ImageData, event: Event) => {
+  const failedSrc = (event.target as HTMLImageElement | null)?.src || "";
+  const candidates = getCandidateUrls(image);
+  const next = candidates.find((url) => url && url !== failedSrc);
+
+  if (next) {
+    console.warn("ThumbnailViewer: image source failed, trying fallback", {
+      id: image.id,
+      failedSrc: failedSrc.slice(0, 80),
+      next: next.slice(0, 80),
+    });
+    sourceOverrides[image.id] = next;
+    return;
+  }
+
+  console.warn("ThumbnailViewer: all image sources failed", {
+    id: image.id,
+    hasThumb: !!image.thumbnail_data,
+    hasCloud: !!image.cloud_url,
+    hasData: !!image.data,
+  });
+  sourceOverrides[image.id] = "";
 };
 
 const handleImageClick = (image: ImageData) => {

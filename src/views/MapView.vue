@@ -230,7 +230,7 @@
 
   <!-- Photo Plot Creation Modal -->
   <PlotCreationWizard
-    :is-visible="showPlotCreationWizard"
+    v-model:visible="showPlotCreationWizard"
     :initial-location="persistentContextLocation"
     @close="handlePlotCreationWizardClose"
     @plot-created="handlePhotoPlotCreated"
@@ -734,16 +734,34 @@ const handleMapError = (error) => {
 
 // New handler for context menu actions from MapComponent
 const handleContextMenuAction = async ({ action, location }) => {
-  if (action === "add-plot" && location) {
-    // Store the location for the plot creation wizard
-    persistentContextLocation.value = location;
+  console.log("MapView: context menu action", { action, location });
+  if (action !== "add-plot") return;
 
-    // Wait for the next tick to ensure the location is set before opening modal
-    await nextTick();
-
-    // Start photo plot creation with the clicked location
-    showPlotCreationWizard.value = true;
+  if (location?.latitude != null && location?.longitude != null) {
+    persistentContextLocation.value = {
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+      accuracy: Number(location.accuracy ?? 5),
+    };
+  } else if (location?.lat != null && location?.lon != null) {
+    persistentContextLocation.value = {
+      latitude: Number(location.lat),
+      longitude: Number(location.lon),
+      accuracy: Number(location.accuracy ?? 5),
+    };
+  } else {
+    console.warn(
+      "MapView: add-plot without map coordinates, opening wizard anyway",
+      location,
+    );
+    persistentContextLocation.value = null;
   }
+
+  // Open immediately — overlay is Teleport-based, no outside-click race
+  showPlotCreationWizard.value = true;
+  console.log("MapView: plot creation wizard opened", {
+    location: persistentContextLocation.value,
+  });
 };
 
 // Image click handler

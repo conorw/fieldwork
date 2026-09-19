@@ -163,12 +163,25 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         return db;
       } catch (err) {
         console.error("Failed to initialize PowerSync store:", err);
+        const message = err instanceof Error ? err.message : "Unknown error";
         console.error("Error details:", {
-          message: err instanceof Error ? err.message : "Unknown error",
+          message,
           stack: err instanceof Error ? err.stack : undefined,
           name: err instanceof Error ? err.name : undefined,
         });
-        error.value = err instanceof Error ? err.message : "Unknown error";
+        if (
+          message.includes("PSYNC_S2101") ||
+          message.includes("keystore") ||
+          message.includes("token KID")
+        ) {
+          console.error(
+            "PowerSync auth (PSYNC_S2101): Client Auth JWT keys don't match this Supabase project. " +
+              "maqutdhaforvqbdsqxua uses legacy HS256 (JWKS is empty). In PowerSync Dashboard → Client Auth: " +
+              "enable Use Supabase Auth, paste the JWT Secret from Supabase → Project Settings → JWT Keys, " +
+              "Save & Deploy, then sign out and back in.",
+          );
+        }
+        error.value = message;
         // Don't throw the error - let the app continue in offline mode
         console.warn(
           "PowerSync initialization failed, continuing in offline mode",
@@ -1462,7 +1475,9 @@ export const usePlots = () => {
           for await (const result of watchIterator!) {
             if (!watchActive) break; // Stop if watch was cancelled
 
-            const rows = result.rows?._array ?? [];
+            const rows = Array.isArray(result.rows)
+              ? result.rows
+              : (result.rows?._array ?? []);
             data.value = rows;
             loading.value = false;
             console.log(`📊 [usePlots] Watch updated: ${rows.length} plots`);
@@ -1596,7 +1611,9 @@ export const usePlotImages = (
           for await (const result of watchIterator!) {
             if (!watchActive) break;
 
-            const rows = result.rows?._array ?? [];
+            const rows = Array.isArray(result.rows)
+              ? result.rows
+              : (result.rows?._array ?? []);
             data.value = rows;
             loading.value = false;
             console.log(

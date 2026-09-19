@@ -156,11 +156,17 @@ export const useMapStore = defineStore("map", () => {
 
         // Prefer thumbnail_data, then cloud_url, then data
         if (image.thumbnail_data) {
-          thumbnailUrl = `data:image/jpeg;base64,${image.thumbnail_data}`;
-        } else if (image.cloud_url) {
+          const raw = String(image.thumbnail_data).trim();
+          thumbnailUrl = raw.startsWith("data:")
+            ? raw
+            : `data:image/jpeg;base64,${raw.replace(/^(data:image\/[a-zA-Z+]+;base64,)+/i, "")}`;
+        } else if (image.cloud_url && !String(image.cloud_url).includes("mock-storage.dev")) {
           thumbnailUrl = image.cloud_url;
         } else if (image.data) {
-          thumbnailUrl = `data:image/jpeg;base64,${image.data}`;
+          const raw = String(image.data).trim();
+          thumbnailUrl = raw.startsWith("data:")
+            ? raw
+            : `data:image/jpeg;base64,${raw}`;
         }
 
         if (thumbnailUrl) {
