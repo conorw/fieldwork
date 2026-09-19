@@ -10,6 +10,7 @@ import {
 } from "../services/adapterInstallService";
 import type { HeadstonePhysicalAttrs } from "../types/headstoneTraining";
 import { normalizePhysicalAttrs } from "../types/headstoneTraining";
+import { normalizeDateToIso } from "./inscriptionDates";
 
 /** Fold API relationships / occupation into person.notes for storage */
 function composePersonNotes(apiPerson: {
@@ -382,8 +383,8 @@ export class HeadstoneAnalysisService {
 
       // Personal details
       gender: apiPerson.gender || "",
-      date_of_birth: apiPerson.date_of_birth || "",
-      date_of_death: apiPerson.date_of_death || "",
+      date_of_birth: normalizeDateToIso(apiPerson.date_of_birth) || "",
+      date_of_death: normalizeDateToIso(apiPerson.date_of_death) || "",
       age_at_death: apiPerson.age_at_death || null,
       time_of_death: apiPerson.time_of_death || null,
 

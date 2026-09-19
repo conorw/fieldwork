@@ -156,13 +156,34 @@ export const DEFAULT_ONNX_MODEL_ID = "onnx-community/FastVLM-0.5B-ONNX";
 
 /** Prompt shared by train jobs and on-device inference — keep in sync with training/schema.py */
 export const REASONING_PROMPT =
-  "Look at this headstone. Reason about each deceased person using layout " +
-  "(left/right, upper/lower), relationships (wife/husband/son/daughter of… " +
-  "and equivalents in other languages), occupations or regiments when inscribed, " +
-  "and date blocks. Also report the monument's material, physical form, and condition. " +
-  "Inscriptions may be English, French, German, Spanish, Italian, " +
-  "Latin, Irish, Welsh, Swedish, Polish, Dutch, or mixed. " +
-  "Return ONLY valid JSON matching the cemetery reasoning schema.";
+  "Read every inscription on this headstone. Return ONLY one valid compact JSON object, " +
+  "with no markdown and no repeated keys, using exactly this shape: " +
+  '{"people":[{"full_name":"","role_on_stone":"primary","position":"upper",' +
+  '"dates":{"birth":"","death":"","aged":null},"relationships":[],' +
+  '"occupation":"","veteran":false,"evidence":""}],' +
+  '"shared":{"surname":"","epitaph":""},' +
+  '"physical":{"material":"unknown","form":"unknown","condition":"unknown","detail":""},' +
+  '"notes":""}. ' +
+  "Copy dates as yyyy-mm-dd (example: 1933-06-25). " +
+  "Relationships such as dear husband, wife, mother, son or daughter belong in " +
+  "relationships, never occupation. notes is a concise full transcription. " +
+  "Valid role_on_stone values: primary, spouse, child, parent, other. " +
+  "Valid positions: upper, lower, left, right, center, shared, unknown. " +
+  "Never use a stones or persons key.";
+
+/**
+ * The stock 0.5B model is useful for bootstrapping/evaluation but is not yet
+ * fine-tuned to the rich reasoning schema. Keep this response deliberately
+ * small, then normalize it through reasoningMapper.
+ */
+export const STOCK_REASONING_PROMPT =
+  "Read the headstone inscription. For every deceased person, copy the name " +
+  "AND the two dates carved with that name (birth then death). Convert each date " +
+  "to yyyy-mm-dd (example: 25th June 1933 → 1933-06-25). Return ONLY JSON: " +
+  '{"people":[{"full_name":"","birth":"yyyy-mm-dd","death":"yyyy-mm-dd"}],' +
+  '"transcription":""}. ' +
+  "transcription is the full readable inscription including every date. " +
+  "Never leave birth or death blank if a date is visible under that name.";
 
 export const STONE_TYPES: StoneType[] = [
   "single",

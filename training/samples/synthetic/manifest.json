@@ -1192,5 +1192,169 @@
       },
       "notes": "IN MEMORIA DI\nANNA BIANCHI\nMOGLIE DI LUIGI BIANCHI\n1915 \u2014 1989\nE SUO MARITO\nLUIGI BIANCHI\nFALEGNAME\n1912 \u2014 1991"
     }
+  },
+  {
+    "id": "syn-013",
+    "path": "training/samples/synthetic/syn-013.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "couple",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Dennis William Fone",
+          "title": "",
+          "forename": "Dennis William",
+          "surname": "Fone",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "1933-06-25",
+            "death": "2020-10-01",
+            "aged": null
+          },
+          "relationships": [
+            "husband of Beryl Jean Fone"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "consecutive UK ordinal dates"
+        },
+        {
+          "full_name": "Beryl Jean Fone",
+          "title": "",
+          "forename": "Beryl Jean",
+          "surname": "Fone",
+          "maiden_name": "",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "1948-02-02",
+            "death": "2021-11-01",
+            "aged": null
+          },
+          "relationships": [
+            "wife of Dennis William Fone"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "consecutive UK ordinal dates"
+        }
+      ],
+      "shared": {
+        "surname": "Fone",
+        "epitaph": "IN LOVING MEMORY OF"
+      },
+      "notes": "IN LOVING MEMORY OF\nDENNIS WILLIAM FONE\n25TH JUNE 1933\n1ST OCTOBER 2020\nAND HIS WIFE\nBERYL JEAN FONE\n2ND FEBRUARY 1948\n1ST NOVEMBER 2021"
+    }
+  },
+  {
+    "id": "syn-014",
+    "path": "training/samples/synthetic/syn-014.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Augustus Abner McGuire",
+          "title": "",
+          "forename": "Augustus Abner",
+          "surname": "McGuire",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1856-04-24",
+            "death": "1913-09-23",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Diver",
+          "veteran": false,
+          "evidence": "US month-first dates"
+        }
+      ],
+      "shared": {
+        "surname": "McGuire",
+        "epitaph": ""
+      },
+      "notes": "AUGUSTUS ABNER MCGUIRE\nDIVER\nBORN APRIL 24, 1856\nDIED SEPTEMBER 23, 1913"
+    }
+  },
+  {
+    "id": "syn-015",
+    "path": "training/samples/synthetic/syn-015.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Janet Dods",
+          "title": "",
+          "forename": "Janet",
+          "surname": "Dods",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1706-05-01",
+            "aged": 70
+          },
+          "relationships": [
+            "wife of Walter Scot"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "colonial word-ordinal date"
+        }
+      ],
+      "shared": {
+        "surname": "Dods",
+        "epitaph": ""
+      },
+      "notes": "JANET DODS\nSPOWS TO WALTER SCOT\nDIED MAY THE FIRST 1706\nHER AGE 70"
+    }
+  },
+  {
+    "id": "syn-016",
+    "path": "training/samples/synthetic/syn-016.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "war",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Arnold Jason Aronson",
+          "title": "",
+          "forename": "Arnold Jason",
+          "surname": "Aronson",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1926-02-14",
+            "death": "2009-01-23",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "US Merchant Marine",
+          "veteran": true,
+          "evidence": "two US dates on one line"
+        }
+      ],
+      "shared": {
+        "surname": "Aronson",
+        "epitaph": ""
+      },
+      "notes": "ARNOLD JASON ARONSON\nUS MERCHANT MARINE\nFEB 14 1926 JAN 23 2009"
+    }
   }
 ]

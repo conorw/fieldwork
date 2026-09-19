@@ -1,8 +1,8 @@
 {
-  "passed": 34,
-  "total": 34,
-  "accuracy": 100.0,
-  "perfect": true,
+  "passed": 40,
+  "total": 47,
+  "accuracy": 85.1063829787234,
+  "perfect": false,
   "reasoning_fields": [
     "names",
     "dates",
@@ -11,5 +11,89 @@
     "occupation",
     "veteran"
   ],
-  "failures": []
+  "failures": [
+    {
+      "id": "commons-penfold",
+      "detail": "names ['in ever loving memory of', 'austen arthur penfold', 'also of frances rosina penfold', 'also of frances penfold', 'mother of the above', 'also of morris edwin penfold'] vs ['austen arthur penfold', 'frances rosina penfold', 'frances penfold', 'morris edwin penfold']",
+      "got": [
+        "in ever loving memory of",
+        "austen arthur penfold",
+        "also of frances rosina penfold",
+        "also of frances penfold",
+        "mother of the above",
+        "also of morris edwin penfold"
+      ],
+      "expected": [
+        "austen arthur penfold",
+        "frances rosina penfold",
+        "frances penfold",
+        "morris edwin penfold"
+      ]
+    },
+    {
+      "id": "commons-bower",
+      "detail": "names ['mary ann bower', 'also francis bower', 'at rest'] vs ['mary ann bower', 'francis bower']",
+      "got": [
+        "mary ann bower",
+        "also francis bower",
+        "at rest"
+      ],
+      "expected": [
+        "mary ann bower",
+        "francis bower"
+      ]
+    },
+    {
+      "id": "commons-aronson",
+      "detail": "names ['arnold jason aronson', 'beloved father and grandfather'] vs ['arnold jason aronson']",
+      "got": [
+        "arnold jason aronson",
+        "beloved father and grandfather"
+      ],
+      "expected": [
+        "arnold jason aronson"
+      ]
+    },
+    {
+      "id": "commons-adlington",
+      "detail": "names [] vs ['florence georgina adlington', 'l r adlington', 'arthur frederick adlington', 'lilian annie adlington']",
+      "got": [],
+      "expected": [
+        "florence georgina adlington",
+        "l r adlington",
+        "arthur frederick adlington",
+        "lilian annie adlington"
+      ]
+    },
+    {
+      "id": "commons-gordon",
+      "detail": "names ['gordon highlanders'] vs ['w h e gordon']",
+      "got": [
+        "gordon highlanders"
+      ],
+      "expected": [
+        "w h e gordon"
+      ]
+    },
+    {
+      "id": "commons-wigglesworth",
+      "detail": "names ['mrs sibyll wigglesworth'] vs ['sibyll wigglesworth']",
+      "got": [
+        "mrs sibyll wigglesworth"
+      ],
+      "expected": [
+        "sibyll wigglesworth"
+      ]
+    },
+    {
+      "id": "syn-la-001",
+      "detail": "marcus aurelius birth ''!='120'; marcus aurelius death ''!='180'",
+      "got": [
+        "marcus aurelius"
+      ],
+      "expected": [
+        "marcus aurelius"
+      ]
+    }
+  ]
 }

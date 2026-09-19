@@ -7,6 +7,7 @@ import {
   DEFAULT_ONNX_MODEL_ID,
   normalizePhysicalAttrs,
   REASONING_PROMPT,
+  STOCK_REASONING_PROMPT,
 } from "../types/headstoneTraining";
 import {
   parseReasoningJson,
@@ -166,6 +167,16 @@ class LocalLLMService {
         this.readyPromise = null;
         break;
 
+      case "inference-start":
+        console.log("LocalLLMService: inference started");
+        break;
+
+      case "inference-progress":
+        console.log(
+          `LocalLLMService: still generating (${Math.round((msg.elapsedMs || 0) / 1000)}s)`,
+        );
+        break;
+
       case "result":
         if (this.analyzeResolve) {
           this.analyzeResolve(msg.text);
@@ -219,26 +230,39 @@ class LocalLLMService {
     }
 
     return new Promise((resolve, reject) => {
-      const imageUrl = URL.createObjectURL(imageFile);
-
       this.analyzeResolve = (text: string) => {
-        URL.revokeObjectURL(imageUrl);
         try {
           resolve(this.parseStructuredOutput(text));
         } catch (e) {
           reject(e);
         }
       };
-      this.analyzeReject = (err: Error) => {
-        URL.revokeObjectURL(imageUrl);
-        reject(err);
-      };
+      this.analyzeReject = reject;
 
-      this.worker!.postMessage({
-        type: "analyze",
-        imageUrl,
-        prompt: REASONING_PROMPT,
-      });
+      void imageFile.arrayBuffer().then(
+        (imageBuffer) => {
+          const prompt =
+            this.modelState.modelUrl === DEFAULT_ONNX_MODEL_ID
+              ? STOCK_REASONING_PROMPT
+              : REASONING_PROMPT;
+          this.worker!.postMessage(
+            {
+              type: "analyze",
+              imageBuffer,
+              mimeType: imageFile.type || "image/jpeg",
+              prompt,
+            },
+            [imageBuffer],
+          );
+        },
+        (err) => {
+          this.analyzeReject?.(
+            err instanceof Error ? err : new Error(String(err)),
+          );
+          this.analyzeResolve = null;
+          this.analyzeReject = null;
+        },
+      );
     });
   }
 

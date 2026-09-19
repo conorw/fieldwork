@@ -46,7 +46,7 @@ describe("reasoningMapper", () => {
     const persons = reasoningTargetToPersons(target, "plot-1");
     expect(persons[0].full_name).toBe("Ada Lovelace");
     expect(persons[0].plot_id).toBe("plot-1");
-    expect(persons[0].date_of_death).toBe("1852");
+    expect(persons[0].date_of_death).toBe("1852-01-01");
   });
 
   it("parses legacy persons JSON", () => {
@@ -57,6 +57,107 @@ describe("reasoningMapper", () => {
     const target = parseReasoningJson(text);
     expect(target.people[0].full_name).toContain("Ann");
     expect(target.notes).toBe("Hello");
+  });
+
+  it("parses a legacy stones array", () => {
+    const target = parseReasoningJson(
+      JSON.stringify({
+        stones: [
+          {
+            name: "Dennis William Fone",
+            age: 87,
+            date: "25th June 1933 - 1st October 2020",
+          },
+          {
+            name: "Beryl Jean Fone",
+            date: "2nd February 1948 - 1st November 2021",
+          },
+        ],
+      }),
+    );
+    expect(target.people).toHaveLength(2);
+    expect(target.people[0].full_name).toBe("Dennis William Fone");
+    expect(target.people[0].dates.birth).toBe("1933-06-25");
+    expect(target.people[0].dates.death).toBe("2020-10-01");
+    expect(target.shared.surname).toBe("Fone");
+  });
+
+  it("recovers a person from truncated stones JSON", () => {
+    const target = parseReasoningJson(
+      '{"stones":[{"name":"Dennis William Fone","age":87,' +
+        '"date":"25th June 1933 - 1st October 2020",' +
+        '"occupation":"dear husband","occupation":"dear',
+    );
+    expect(target.people).toHaveLength(1);
+    expect(target.people[0].full_name).toBe("Dennis William Fone");
+    expect(target.people[0].dates.death).toBe("2020-10-01");
+  });
+
+  it("parses the compact stock-model schema", () => {
+    const target = parseReasoningJson(
+      JSON.stringify({
+        people: [
+          {
+            full_name: "Dennis William Fone",
+            birth: "25th June 1933",
+            death: "1st October 2020",
+          },
+          {
+            full_name: "Beryl Jean Fone",
+            birth: "2nd February 1948",
+            death: "1st November 2021",
+          },
+        ],
+        transcription: "With love we remember",
+      }),
+    );
+    expect(target.people).toHaveLength(2);
+    expect(target.people[1].full_name).toBe("Beryl Jean Fone");
+    expect(target.people[1].dates.death).toBe("2021-11-01");
+    expect(target.notes).toBe("With love we remember");
+  });
+
+  it("recovers a malformed full_name key from stock output", () => {
+    const target = parseReasoningJson(
+      '{"people":[{"full_nameplex="Dennis William Fone" {' +
+        '"dear_husband":null}',
+    );
+    expect(target.people).toHaveLength(1);
+    expect(target.people[0].full_name).toBe("Dennis William Fone");
+  });
+
+  it("fills missing birth and death from the inscription transcription", () => {
+    const target = parseReasoningJson(
+      JSON.stringify({
+        people: [
+          { full_name: "Dennis William Fone", birth: "", death: "" },
+          { full_name: "Beryl Jean Fone", birth: "", death: "" },
+        ],
+        transcription:
+          "DENNIS WILLIAM FONE\n25th June 1933\n1st October 2020\n" +
+          "BERYL JEAN FONE\n2nd February 1948\n1st November 2021",
+      }),
+    );
+    expect(target.people[0].dates.birth).toBe("1933-06-25");
+    expect(target.people[0].dates.death).toBe("2020-10-01");
+    expect(target.people[1].dates.birth).toBe("1948-02-02");
+    expect(target.people[1].dates.death).toBe("2021-11-01");
+  });
+
+  it("maps dob/dod aliases into dates", () => {
+    const target = parseReasoningJson(
+      JSON.stringify({
+        people: [
+          {
+            full_name: "Ada Lovelace",
+            dob: "10 December 1815",
+            dod: "27 November 1852",
+          },
+        ],
+      }),
+    );
+    expect(target.people[0].dates.birth).toBe("1815-12-10");
+    expect(target.people[0].dates.death).toBe("1852-11-27");
   });
 
   it("infers staff stone kinds", () => {

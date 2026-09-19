@@ -198,5 +198,494 @@
       },
       "notes": "JESSICA HILL\nSTEVEN DUQUE"
     }
+  },
+  {
+    "id": "commons-penfold",
+    "path": "training/samples/curated/commons-penfold.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "family",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/0/0b/A_headstone_for_two_victims.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Austen Arthur Penfold",
+          "forename": "Austen Arthur",
+          "surname": "Penfold",
+          "role_on_stone": "child",
+          "position": "upper",
+          "dates": {
+            "birth": "",
+            "death": "1897-09-13",
+            "aged": 18
+          },
+          "relationships": [
+            "only son of Frances and Morris Edwin Penfold"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "typhoid, Maidstone"
+        },
+        {
+          "full_name": "Frances Rosina Penfold",
+          "forename": "Frances Rosina",
+          "surname": "Penfold",
+          "role_on_stone": "child",
+          "position": "upper",
+          "dates": {
+            "birth": "",
+            "death": "1897-09-07",
+            "aged": 22
+          },
+          "relationships": [
+            "only daughter of Frances and Morris Edwin Penfold"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "typhoid, Maidstone"
+        },
+        {
+          "full_name": "Frances Penfold",
+          "forename": "Frances",
+          "surname": "Penfold",
+          "role_on_stone": "parent",
+          "position": "lower",
+          "dates": {
+            "birth": "",
+            "death": "1909-02-14",
+            "aged": 59
+          },
+          "relationships": [
+            "mother of the above"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "mother of Austen and Frances Rosina"
+        },
+        {
+          "full_name": "Morris Edwin Penfold",
+          "forename": "Morris Edwin",
+          "surname": "Penfold",
+          "role_on_stone": "parent",
+          "position": "lower",
+          "dates": {
+            "birth": "",
+            "death": "1917-01-20",
+            "aged": 65
+          },
+          "relationships": [
+            "husband of Frances Penfold"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "listed last on family stone"
+        }
+      ],
+      "shared": {
+        "surname": "Penfold",
+        "epitaph": "LOVING STRAIGHT TRUE"
+      },
+      "physical": {
+        "material": "limestone",
+        "form": "arched",
+        "condition": "weathered",
+        "detail": "lichen, rural churchyard"
+      },
+      "notes": "Penfold family; two children died of typhoid 1897"
+    }
+  },
+  {
+    "id": "commons-bower",
+    "path": "training/samples/curated/commons-bower.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "couple",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/0/0a/City_of_London_Cemetery_Mary_Ann_Bower_Francis_Bower_monument_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Mary Ann Bower",
+          "forename": "Mary Ann",
+          "surname": "Bower",
+          "role_on_stone": "primary",
+          "position": "upper",
+          "dates": {
+            "birth": "",
+            "death": "1931-08-10",
+            "aged": 81
+          },
+          "relationships": [
+            "wife of Francis Bower"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "City of London Cemetery granite monument"
+        },
+        {
+          "full_name": "Francis Bower",
+          "forename": "Francis",
+          "surname": "Bower",
+          "role_on_stone": "spouse",
+          "position": "lower",
+          "dates": {
+            "birth": "",
+            "death": "1933-08-10",
+            "aged": 74
+          },
+          "relationships": [
+            "husband of the above"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "named below Mary Ann"
+        }
+      ],
+      "shared": {
+        "surname": "Bower",
+        "epitaph": "AT REST"
+      },
+      "physical": {
+        "material": "granite",
+        "form": "upright",
+        "condition": "good",
+        "detail": "polished pink granite with pediment B"
+      },
+      "notes": "MARY ANN BOWER 1931 / FRANCIS BOWER 1933"
+    }
+  },
+  {
+    "id": "commons-aronson",
+    "path": "training/samples/curated/commons-aronson.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "war",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/a/ae/Arnold_Jason_Aronson_-_US_Merchant_Marine_World_War_II_Sharon_Memorial_Park.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Arnold Jason Aronson",
+          "forename": "Arnold Jason",
+          "surname": "Aronson",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1926-02-14",
+            "death": "2009-01-23",
+            "aged": null
+          },
+          "relationships": [
+            "beloved father and grandfather"
+          ],
+          "occupation": "US Merchant Marine",
+          "veteran": true,
+          "evidence": "bronze plaque, Star of David"
+        }
+      ],
+      "shared": {
+        "surname": "Aronson",
+        "epitaph": "BELOVED FATHER AND GRANDFATHER"
+      },
+      "physical": {
+        "material": "bronze",
+        "form": "plaque",
+        "condition": "excellent",
+        "detail": "flush bronze marker"
+      },
+      "notes": "ARNOLD JASON ARONSON\nUS MERCHANT MARINE\n14 FEB 1926 \u2014 23 JAN 2009"
+    }
+  },
+  {
+    "id": "commons-adlington",
+    "path": "training/samples/curated/commons-adlington.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "family",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Art_Deco_grave_monument_-_City_of_London_Cemetery_and_Crematorium_~_Adlington_dedication.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Florence Georgina Adlington",
+          "forename": "Florence Georgina",
+          "surname": "Adlington",
+          "role_on_stone": "spouse",
+          "position": "upper",
+          "dates": {
+            "birth": "",
+            "death": "1934-03-14",
+            "aged": 63
+          },
+          "relationships": [
+            "beloved wife of Arthur F. Adlington"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "City of London Cemetery Art Deco granite"
+        },
+        {
+          "full_name": "L. R. Adlington",
+          "forename": "L. R.",
+          "surname": "Adlington",
+          "role_on_stone": "child",
+          "position": "upper",
+          "dates": {
+            "birth": "",
+            "death": "1944-05-08",
+            "aged": 34
+          },
+          "relationships": [
+            "son of Florence Georgina and Arthur Frederick"
+          ],
+          "occupation": "Captain",
+          "veteran": true,
+          "evidence": "killed in Burma"
+        },
+        {
+          "full_name": "Arthur Frederick Adlington",
+          "forename": "Arthur Frederick",
+          "surname": "Adlington",
+          "role_on_stone": "primary",
+          "position": "lower",
+          "dates": {
+            "birth": "",
+            "death": "1949-01-01",
+            "aged": 79
+          },
+          "relationships": [
+            "husband of Florence Georgina"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "named on same monument"
+        },
+        {
+          "full_name": "Lilian Annie Adlington",
+          "forename": "Lilian Annie",
+          "surname": "Adlington",
+          "role_on_stone": "other",
+          "position": "lower",
+          "dates": {
+            "birth": "",
+            "death": "1971-01-01",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "later inscription 1971"
+        }
+      ],
+      "shared": {
+        "surname": "Adlington",
+        "epitaph": ""
+      },
+      "physical": {
+        "material": "granite",
+        "form": "upright",
+        "condition": "good",
+        "detail": "dark polished granite Art Deco monument"
+      },
+      "notes": "Adlington family monument, City of London Cemetery"
+    }
+  },
+  {
+    "id": "commons-gordon",
+    "path": "training/samples/curated/commons-gordon.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "war",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/d/d4/10893486_f180fca1-2e7a-4381-913f-1735e2650c63.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "W. H. E. Gordon",
+          "title": "Lieutenant",
+          "forename": "W. H. E.",
+          "surname": "Gordon",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1915-09-30",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Gordon Highlanders",
+          "veteran": true,
+          "evidence": "CWGC-style Portland stone, stag BYDAND"
+        }
+      ],
+      "shared": {
+        "surname": "Gordon",
+        "epitaph": "OF SUCH IS THE KINGDOM OF HEAVEN"
+      },
+      "physical": {
+        "material": "limestone",
+        "form": "upright",
+        "condition": "good",
+        "detail": "military pattern headstone"
+      },
+      "notes": "LIEUTENANT W. H. E. GORDON, GORDON HIGHLANDERS, 30 SEPTEMBER 1915"
+    }
+  },
+  {
+    "id": "commons-wigglesworth",
+    "path": "training/samples/curated/commons-wigglesworth.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by 2.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/0/00/1708_Gravestone.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Sibyll Wigglesworth",
+          "title": "Mrs",
+          "forename": "Sibyll",
+          "surname": "Wigglesworth",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1708-08-06",
+            "aged": 53
+          },
+          "relationships": [
+            "last wife to the Reverend Mr Michael Wigglesworth"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "Maldon, 1708 slate death's-head stone"
+        }
+      ],
+      "shared": {
+        "surname": "Wigglesworth",
+        "epitaph": "MEMENTO MORI / FUGIT HORA"
+      },
+      "physical": {
+        "material": "slate",
+        "form": "arched",
+        "condition": "weathered",
+        "detail": "colonial death's head, winged skull"
+      },
+      "notes": "Sibyll Wigglesworth, died 6 August 1708, aged 53"
+    }
+  },
+  {
+    "id": "commons-mcguire",
+    "path": "training/samples/curated/commons-mcguire.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/4/48/%22Old_Diver%27s%22_Headstone.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Augustus Abner McGuire",
+          "forename": "Augustus Abner",
+          "surname": "McGuire",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1856-04-24",
+            "death": "1913-09-23",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Diver",
+          "veteran": false,
+          "evidence": "Ocracoke Island memorial, Old Diver"
+        }
+      ],
+      "shared": {
+        "surname": "McGuire",
+        "epitaph": ""
+      },
+      "physical": {
+        "material": "marble",
+        "form": "arched",
+        "condition": "good",
+        "detail": "white upright, painted inscription"
+      },
+      "notes": "Augustus Abner McGuire (Old Diver), 24 April 1856 \u2013 23 September 1913"
+    }
+  },
+  {
+    "id": "commons-walker",
+    "path": "training/samples/curated/commons-walker.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 2.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/2/28/A_misprint_on_a_gravestone_-_geograph.org.uk_-_2594866.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Joseph Walker",
+          "forename": "Joseph",
+          "surname": "Walker",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "weathered sandstone, City of London area churchyard"
+        }
+      ],
+      "shared": {
+        "surname": "Walker",
+        "epitaph": "SACRED TO THE MEMORY OF"
+      },
+      "physical": {
+        "material": "sandstone",
+        "form": "arched",
+        "condition": "weathered",
+        "detail": "dates illegible; SAARED/SACRED miscut"
+      },
+      "notes": "JOSEPH WALKER; dates worn away"
+    }
+  },
+  {
+    "id": "commons-dods",
+    "path": "training/samples/curated/commons-dods.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 2.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/6/65/A_symbolic_stone_at_Longnewton_burial_ground_-_geograph.org.uk_-_951350.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Janet Dods",
+          "forename": "Janet",
+          "surname": "Dods",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1706-05-01",
+            "aged": 70
+          },
+          "relationships": [
+            "wife of Walter Scot"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "Longnewton memento mori, inscription on reverse"
+        }
+      ],
+      "shared": {
+        "surname": "Dods",
+        "epitaph": "MEMENTO MORI"
+      },
+      "physical": {
+        "material": "sandstone",
+        "form": "arched",
+        "condition": "weathered",
+        "detail": "skull, hourglass, crossed bones"
+      },
+      "notes": "Janet Dods, spouse of Walter Scot, died 1 May 1706 aged 70"
+    }
   }
 ]

@@ -1,6 +1,7 @@
 // API endpoint for analyzing headstone images using OpenAI Vision API
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
+import { normalizeDateToIso } from "../src/utils/inscriptionDates";
 
 // Types matching the persons table schema
 interface HeadstonePerson {
@@ -462,8 +463,8 @@ Provide complete transcription of ALL text in full_text_transcription, preservin
 
           // Personal details
           gender: getField(person.gender),
-          date_of_birth: getField(person.date_of_birth),
-          date_of_death: getField(person.date_of_death),
+          date_of_birth: normalizeDateToIso(person.date_of_birth) || null,
+          date_of_death: normalizeDateToIso(person.date_of_death) || null,
           age_at_death:
             person.age_at_death !== undefined && person.age_at_death !== ""
               ? person.age_at_death

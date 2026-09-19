@@ -307,6 +307,8 @@ EPITAPH_LINES = {
     "IN MEMORY OF",
     "HERE LIES",
     "HERE LYETH",
+    "HERE LYES",
+    "HERE LYES BURIED THE BODY OF",
     "REMEMBER",
     "TOGETHER FOREVER",
     "REST IN PEACE",
@@ -341,7 +343,7 @@ EPITAPH_LINES = {
 OCCUPATION_HINTS = re.compile(
     r"\b("
     r"RIFLES?|REGIMENT|CORPS|NAVY|ARMY|MARINES?|MERCHANT|ENGINEER|BLACKSMITH|"
-    r"FARMER|TEACHER|DOCTOR|NURSE|MINER|SAILOR|PILOT|CAPTAIN|LIEUTENANT|"
+        r"FARMER|TEACHER|DOCTOR|NURSE|MINER|SAILOR|DIVER|PILOT|CAPTAIN|LIEUTENANT|"
     r"SERGEANT|CORPORAL|PRIVATE|REVEREND|VICAR|CLERK|BAKER|BUTCHER|"
     r"CARPENTER|MASON|SOLDIER|AIRMAN|SEAMAN|GUNNER|DRIVER|"
     r"INSTITUTEUR|INSTITUTRICE|MENUISIER|BOULANGER|MEDECIN|MÉDECIN|"
@@ -435,18 +437,158 @@ def title_case_name(s: str) -> str:
     return full
 
 
-def parse_day_month_year(text: str) -> str | None:
-    m = re.search(
-        rf"(\d{{1,2}})\s+({NAME_TOKEN})\s+(\d{{3,4}})",
-        text,
-        re.I | re.UNICODE,
+ORDINAL_WORDS = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+    "eleventh": 11,
+    "twelfth": 12,
+    "thirteenth": 13,
+    "fourteenth": 14,
+    "fifteenth": 15,
+    "sixteenth": 16,
+    "seventeenth": 17,
+    "eighteenth": 18,
+    "nineteenth": 19,
+    "twentieth": 20,
+    "thirtieth": 30,
+}
+
+
+def _month_num(raw: str) -> str | None:
+    return MONTHS.get(fold_accents(raw or "").lower().rstrip("."))
+
+
+def pad_year_iso(y: str) -> str:
+    if re.fullmatch(r"\d{4}", y or ""):
+        return f"{y}-01-01"
+    return y or ""
+
+
+def normalize_date_to_iso(value: str) -> str:
+    """Mirror src/utils/inscriptionDates.ts — always yyyy-mm-dd when parseable."""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    iso = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", raw)
+    if iso:
+        return raw
+    year_only = re.fullmatch(r"(\d{4})", raw)
+    if year_only:
+        return f"{year_only.group(1)}-01-01"
+
+    ordinal = re.search(
+        r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?\s+(\d{4})",
+        raw,
+        re.I,
     )
-    if not m:
-        return None
-    mon = MONTHS.get(fold_accents(m.group(2)).lower())
-    if not mon:
-        return None
-    return f"{m.group(3)}-{mon}-{int(m.group(1)):02d}"
+    if ordinal:
+        mon = _month_num(ordinal.group(2))
+        if mon:
+            return f"{ordinal.group(3)}-{mon}-{int(ordinal.group(1)):02d}"
+
+    month_first = re.search(
+        r"([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})",
+        raw,
+        re.I,
+    )
+    if month_first:
+        mon = _month_num(month_first.group(1))
+        if mon:
+            return f"{month_first.group(3)}-{mon}-{int(month_first.group(2)):02d}"
+
+    month_year = re.search(r"^([A-Za-z]+)\.?\s+(\d{4})$", raw, re.I)
+    if month_year:
+        mon = _month_num(month_year.group(1))
+        if mon:
+            return f"{month_year.group(2)}-{mon}-01"
+
+    word_day_of = re.search(
+        rf"(?:the\s+)?({'|'.join(ORDINAL_WORDS)})\s+day\s+of\s+([A-Za-z]+)\s+(\d{{4}})",
+        raw,
+        re.I,
+    )
+    if word_day_of:
+        mon = _month_num(word_day_of.group(2))
+        day = ORDINAL_WORDS.get(word_day_of.group(1).lower())
+        if mon and day:
+            return f"{word_day_of.group(3)}-{mon}-{day:02d}"
+
+    month_the_word = re.search(
+        rf"([A-Za-z]+)\s+the\s+({'|'.join(ORDINAL_WORDS)})\s+(\d{{4}})",
+        raw,
+        re.I,
+    )
+    if month_the_word:
+        mon = _month_num(month_the_word.group(1))
+        day = ORDINAL_WORDS.get(month_the_word.group(2).lower())
+        if mon and day:
+            return f"{month_the_word.group(3)}-{mon}-{day:02d}"
+
+    numeric = re.search(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$", raw)
+    if numeric:
+        y = int(numeric.group(3))
+        if y < 100:
+            y += 1900 if y >= 50 else 2000
+        a, b = int(numeric.group(1)), int(numeric.group(2))
+        if a > 12 and b <= 12:
+            return f"{y}-{b:02d}-{a:02d}"
+        if b > 12 and a <= 12:
+            return f"{y}-{a:02d}-{b:02d}"
+        return f"{y}-{b:02d}-{a:02d}"
+    return ""
+
+
+def parse_day_month_year(text: str) -> str | None:
+    iso = normalize_date_to_iso(text)
+    return iso or None
+
+
+DATE_FIND_RE = re.compile(
+    r"("
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?\s+\d{4}"
+    r"|[A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s*\d{4}"
+    r"|(?:the\s+)?(?:"
+    + "|".join(ORDINAL_WORDS)
+    + r")\s+day\s+of\s+[A-Za-z]+\s+\d{4}"
+    r"|[A-Za-z]+\s+the\s+(?:"
+    + "|".join(ORDINAL_WORDS)
+    + r")\s+\d{4}"
+    r")",
+    re.I,
+)
+
+
+def extract_dates_from_text(text: str) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for m in DATE_FIND_RE.finditer(text or ""):
+        iso = normalize_date_to_iso(m.group(0))
+        if iso and iso not in seen:
+            seen.add(iso)
+            found.append(iso)
+    return found
+
+
+BIRTH_CTX_RE = re.compile(
+    r"\b(?:BORN|NE|N[EÉ]|NATO|NATA|NATUS|FODD|F[OÖ]DD|GEB(?:OREN)?\.?|"
+    r"NACIDO|NACIDA)\b",
+    re.I,
+)
+DEATH_CTX_RE = re.compile(
+    r"\b(?:DIED|DECEDE|D[EÉ]C[EÉ]D[EÉ]E?|MORTO|MORTA|OBIIT|DOD|D[OÖ]D|"
+    r"GEST(?:ORBEN)?\.?|GEFALLEN|FALLECIDO|FALLECIDA|KILLED|PASSED\s+AWAY|"
+    r"FELL\s+ASLEEP|DEPARTED|CALLED\s+TO\s+REST)\b",
+    re.I,
+)
 
 
 def extract_aged(ln: str) -> int | None:
@@ -461,6 +603,9 @@ def extract_aged(ln: str) -> int | None:
         r"ŻYŁ\s+(\d+)",
         r"OP\s+DE\s+LEEFTIJD\s+VAN\s+(\d+)",
         r"(\d+)\s+(?:ANS|ANOS|AÑOS|JAHREN|JAAR|LAT|ÅR)\b",
+        r"(\d{1,3})(?:ST|ND|RD|TH)?\s+YEAR\s+OF\s+(?:HER|HIS|THEIR)\s+AGE",
+        r"HER\s+AGE\s+(\d+)",
+        r"HIS\s+AGE\s+(\d+)",
     ]
     for p in patterns:
         m = re.search(p, ln, re.I)
@@ -470,6 +615,10 @@ def extract_aged(ln: str) -> int | None:
 
 
 def ocr_image(path: Path) -> str:
+    gold_txt = path.with_suffix(".ocr.txt")
+    if gold_txt.exists():
+        return gold_txt.read_text(encoding="utf-8")
+
     try:
         from PIL import Image, ImageOps, ImageFilter, ImageEnhance
     except ImportError:
@@ -499,10 +648,6 @@ def ocr_image(path: Path) -> str:
     except Exception:
         pass
 
-    gold_txt = path.with_suffix(".ocr.txt")
-    if gold_txt.exists():
-        return gold_txt.read_text(encoding="utf-8")
-
     raise RuntimeError(
         f"No local OCR available for {path}. Install pytesseract+Tesseract or easyocr."
     )
@@ -525,65 +670,54 @@ def _empty_person(full: str) -> dict:
     }
 
 
+def _set_date(person: dict, field: str, value: str) -> None:
+    if not value:
+        return
+    person["dates"][field] = pad_year_iso(value)
+
+
 def apply_date_line(person: dict, ln: str) -> None:
-    """Attach birth/death/aged from a date-ish line onto person."""
+    """Attach birth/death/aged from a date-ish line onto person (ISO yyyy-mm-dd)."""
     dm = re.search(r"(\d{4})\s*[—\-–]\s*(\d{4})", ln)
     if dm:
         if not person["dates"].get("birth"):
-            person["dates"]["birth"] = dm.group(1)
-        person["dates"]["death"] = dm.group(2)
+            _set_date(person, "birth", dm.group(1))
+        _set_date(person, "death", dm.group(2))
 
-    # German / common * birth † death (same or split lines)
     star = re.search(r"[*∗]\s*(\d{1,4})\b", ln)
     dagger = re.search(r"[†✝]\s*(\d{1,4})\b", ln)
     if star:
-        person["dates"]["birth"] = star.group(1)
+        _set_date(person, "birth", star.group(1))
     if dagger:
-        person["dates"]["death"] = dagger.group(1)
+        _set_date(person, "death", dagger.group(1))
 
     aged = extract_aged(ln)
     if aged is not None:
         person["dates"]["aged"] = aged
 
-    # Birth prefixes (multi-language)
-    bm = re.search(
-        rf"(?:BORN|NE|N[EÉ]|NATO|NATA|NATUS|NATA|FODD|F[OÖ]DD|GEB(?:OREN)?\.?|"
-        rf"NACIDO|NACIDA)\s+(?:LE\s+|D\.?\s*)?(.+)$",
-        ln,
-        re.I,
-    )
-    if bm:
-        dmy = parse_day_month_year(bm.group(1))
-        if dmy:
-            person["dates"]["birth"] = dmy
-        else:
-            y = year(bm.group(1))
-            if y:
-                person["dates"]["birth"] = y
+    dates = extract_dates_from_text(ln)
+    if not dates:
+        y = year(ln)
+        if y and len(y) == 4 and not re.search(r"AGED|AGE\b|ÅR|JAAR|JAHREN|LAT|ANS|AÑOS", ln, re.I):
+            dates = [pad_year_iso(y)]
 
-    dm2 = re.search(
-        rf"(?:DIED|DECEDE|D[EÉ]C[EÉ]D[EÉ]E?|MORTO|MORTA|OBIIT|DOD|D[OÖ]D|"
-        rf"GEST(?:ORBEN)?\.?|GEFALLEN|FALLECIDO|FALLECIDA)\s+"
-        rf"(?:LE\s+|D\.?\s*)?(.+)$",
-        ln,
-        re.I,
-    )
-    if dm2:
-        dmy = parse_day_month_year(dm2.group(1))
-        if dmy:
-            person["dates"]["death"] = dmy
-        else:
-            y = year(dm2.group(1))
-            if y:
-                person["dates"]["death"] = y
+    birth_ctx = bool(BIRTH_CTX_RE.search(ln))
+    death_ctx = bool(DEATH_CTX_RE.search(ln))
 
-    # Bare day-month-year without prefix
-    if not person["dates"].get("birth") or not person["dates"].get("death"):
-        dmy = parse_day_month_year(ln)
-        if dmy and not person["dates"].get("birth"):
-            # only if line looks like a date-only line
-            if re.search(r"\d", ln) and not re.search(NAME_PHRASE, re.sub(r"\d.*", "", ln)):
-                pass
+    if len(dates) >= 2:
+        if not person["dates"].get("birth"):
+            person["dates"]["birth"] = dates[0]
+        person["dates"]["death"] = dates[1]
+    elif len(dates) == 1:
+        d = dates[0]
+        if birth_ctx and not death_ctx:
+            person["dates"]["birth"] = d
+        elif death_ctx:
+            person["dates"]["death"] = d
+        elif not person["dates"].get("birth"):
+            person["dates"]["birth"] = d
+        elif not person["dates"].get("death"):
+            person["dates"]["death"] = d
 
 
 def parse_reasoning(text: str) -> dict:
@@ -593,6 +727,30 @@ def parse_reasoning(text: str) -> dict:
     """
     raw_lines = [re.sub(r"\s+", " ", ln).strip() for ln in text.splitlines()]
     raw_lines = [ln for ln in raw_lines if ln]
+    run_on = len(raw_lines) <= 2 and any(
+        re.search(r"BODY OF|DEPARTED THIS LIFE|LYES BURIED", ln, re.I)
+        for ln in raw_lines
+    )
+    if run_on:
+        exploded: list[str] = []
+        split_re = re.compile(
+            r"\s+(?=(?:"
+            r"LAST WIFE TO|WHO DEPARTED|WHO DIED|"
+            r"IN THE \d"
+            r")\b)",
+            re.I,
+        )
+        prefix_re = re.compile(
+            r"^(?:HERE LYES BURIED THE BODY OF|HERE LIES BURIED THE BODY OF|"
+            r"HERE LYES|THE BODY OF)\s+",
+            re.I,
+        )
+        for ln in raw_lines:
+            for bit in split_re.split(ln):
+                bit = prefix_re.sub("", bit).strip(" -")
+                if bit:
+                    exploded.append(bit)
+        raw_lines = exploded or raw_lines
     lines = [ln.upper() for ln in raw_lines]
 
     people: list[dict] = []
@@ -631,7 +789,8 @@ def parse_reasoning(text: str) -> dict:
     )
     wife_of_re = re.compile(
         rf"^(?:BELOVED\s+)?(?:"
-        rf"WIFE\s+OF|EPOUSE\s+DE|[EÉ]POUSE\s+DE|GATTIN\s+VON|ESPOSA\s+DE|MOGLIE\s+DI"
+        rf"WIFE\s+OF|LAST\s+WIFE\s+TO|SPOWS\s+TO|SPOUSE\s+OF|EPOUSE\s+DE|[EÉ]POUSE\s+DE|"
+        rf"GATTIN\s+VON|ESPOSA\s+DE|MOGLIE\s+DI"
         rf")\s+(.+)$",
         re.I | re.UNICODE,
     )
@@ -663,6 +822,16 @@ def parse_reasoning(text: str) -> dict:
                 shared_epitaph = original
             if "FAMILY" in ln:
                 pending_role_hint = "family"
+            i += 1
+            continue
+
+        if re.fullmatch(r"\([^)]+\)", ln):
+            nick = ln.strip("()")
+            if people and OCCUPATION_HINTS.search(nick):
+                people[-1]["occupation"] = title_case_name(nick)
+            i += 1
+            continue
+        if re.match(r"^(?:LATE OF|CUTLER|OFFSHORE)\b", ln):
             i += 1
             continue
 
@@ -766,8 +935,8 @@ def parse_reasoning(text: str) -> dict:
             full = title_case_name(m_inline.group(1))
             person = _empty_person(full)
             person["dates"] = {
-                "birth": m_inline.group(2),
-                "death": m_inline.group(3),
+                "birth": pad_year_iso(m_inline.group(2)),
+                "death": pad_year_iso(m_inline.group(3)),
                 "aged": None,
             }
             if pending_role_hint == "spouse":
@@ -792,13 +961,19 @@ def parse_reasoning(text: str) -> dict:
                 or t.isdigit()
                 or any(c in t for c in "—–-*∗†✝")
                 or fold_accents(t) in NAME_STOP
+                or bool(re.fullmatch(r"\d{1,2}(?:ST|ND|RD|TH)?", t, re.I))
+                or fold_accents(t).lower() in MONTHS
+                or fold_accents(t).lower().rstrip(".") in MONTHS
+                or fold_accents(t).lower() in ORDINAL_WORDS
                 for t in tokens
             )
             or bool(re.match(r"^[*∗†✝]", ln))
+            or bool(extract_dates_from_text(ln))
             or bool(
                 re.match(
                     r"^(?:BORN|DIED|NE|N[EÉ]|NATO|NATA|NATUS|OBIIT|FODD|F[OÖ]DD|"
                     r"DOD|D[OÖ]D|GEB|GEST|GEFALLEN|DECEDE|D[EÉ]C|AGE|ÂGÉ|"
+                    r"KILLED|PASSED|FELL ASLEEP|DEPARTED|"
                     r"A LA EDAD|YN \d|ZYL|ŻYŁ|OP DE LEEFTIJD)",
                     ln,
                     re.I,
@@ -1000,11 +1175,31 @@ def parse_reasoning(text: str) -> dict:
         else ""
     )
 
+    for p in people:
+        b = p.get("dates", {}).get("birth") or ""
+        d = p.get("dates", {}).get("death") or ""
+        p["dates"]["birth"] = normalize_date_to_iso(b) or b
+        p["dates"]["death"] = normalize_date_to_iso(d) or d
+
     return {
         "people": people,
         "shared": {"surname": shared_surname, "epitaph": shared_epitaph},
         "notes": "\n".join(raw_lines),
     }
+
+
+def dates_match(gold: str, pred: str) -> bool:
+    gold = (gold or "").strip()
+    pred = (pred or "").strip()
+    if not gold:
+        return True
+    if re.fullmatch(r"\d{4}", gold):
+        return year(gold) == year(pred)
+    giso = normalize_date_to_iso(gold)
+    piso = normalize_date_to_iso(pred)
+    if giso and piso:
+        return giso == piso
+    return year(gold) == year(pred)
 
 
 def score_sample(entry: dict, predicted: dict) -> Score:
@@ -1033,13 +1228,14 @@ def score_sample(entry: dict, predicted: dict) -> Score:
             failures.append(f"missing {key}")
             continue
 
-        # Dates (year)
         gb = str(gp.get("dates", {}).get("birth") or "")
         gd = str(gp.get("dates", {}).get("death") or "")
-        if gb and year(gb) != year(str(pred.get("dates", {}).get("birth") or "")):
-            failures.append(f"{key} birth")
-        if gd and year(gd) != year(str(pred.get("dates", {}).get("death") or "")):
-            failures.append(f"{key} death")
+        pb = str(pred.get("dates", {}).get("birth") or "")
+        pd = str(pred.get("dates", {}).get("death") or "")
+        if gb and not dates_match(gb, pb):
+            failures.append(f"{key} birth {pb!r}!={gb!r}")
+        if gd and not dates_match(gd, pd):
+            failures.append(f"{key} death {pd!r}!={gd!r}")
 
         # Role
         grow = gp.get("role_on_stone")

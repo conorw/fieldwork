@@ -24,8 +24,21 @@ let loadedModelUrl: string | null = null;
 
 type WorkerMessage =
   | { type: "initialize"; modelUrl?: string; device?: "webgpu" | "wasm" }
-  | { type: "analyze"; imageUrl: string; prompt: string }
+  | {
+      type: "analyze";
+      prompt: string;
+      imageUrl?: string;
+      imageBuffer?: ArrayBuffer;
+      mimeType?: string;
+    }
   | { type: "status" };
+
+/** Vision encoder is expensive; shrink photos before generate. */
+const MAX_IMAGE_SIDE = 768;
+/** Headstone JSON is small; 1024 tokens routinely exceeds a minute on WASM. */
+const MAX_NEW_TOKENS = 512;
+/** First WebGPU compile + WASM decode can take well over 60s. */
+const INFERENCE_TIMEOUT_MS = 180_000;
 
 function postProgress(progress: number) {
   self.postMessage({ type: "progress", progress });
@@ -108,42 +121,93 @@ async function initialize(
   }
 }
 
-async function analyze(imageUrl: string, prompt: string) {
+async function loadImage(
+  data: Extract<WorkerMessage, { type: "analyze" }>,
+): Promise<any> {
+  if (data.imageBuffer) {
+    const blob = new Blob([data.imageBuffer], {
+      type: data.mimeType || "image/jpeg",
+    });
+    return RawImage.read(blob);
+  }
+  if (data.imageUrl) {
+    return RawImage.read(data.imageUrl);
+  }
+  throw new Error("No image provided");
+}
+
+async function resizeForInference(image: any): Promise<any> {
+  const rgb = typeof image.rgb === "function" ? image.rgb() : image;
+  const width = Number(rgb?.width || 0);
+  const height = Number(rgb?.height || 0);
+  const longSide = Math.max(width, height);
+  if (!longSide || longSide <= MAX_IMAGE_SIDE || typeof rgb.resize !== "function") {
+    return rgb;
+  }
+  const scale = MAX_IMAGE_SIDE / longSide;
+  return rgb.resize(
+    Math.max(1, Math.round(width * scale)),
+    Math.max(1, Math.round(height * scale)),
+  );
+}
+
+async function analyze(data: Extract<WorkerMessage, { type: "analyze" }>) {
   if (!model || !processor) {
     postError("Model not loaded");
     return;
   }
 
+  const started = Date.now();
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+
   try {
     self.postMessage({ type: "inference-start" });
+    heartbeat = setInterval(() => {
+      self.postMessage({
+        type: "inference-progress",
+        elapsedMs: Date.now() - started,
+      });
+    }, 5000);
 
     const messages = [
       {
         role: "user",
-        content: `<image>${prompt}`,
+        content: `<image>${data.prompt}`,
       },
     ];
 
-    const formattedPrompt = processor.apply_chat_template(messages, {
-      add_generation_prompt: true,
-    });
+    const formattedPrompt = await Promise.resolve(
+      processor.apply_chat_template(messages, {
+        add_generation_prompt: true,
+      }),
+    );
 
-    const image = await RawImage.read(imageUrl);
+    const image = await resizeForInference(await loadImage(data));
+    if (!image?.width || !image?.height || !image?.data) {
+      throw new Error("Failed to decode image for local analysis");
+    }
 
     const inputs = await processor(image, formattedPrompt, {
       add_special_tokens: false,
     });
 
+    const isCompactStockPrompt = data.prompt.includes('"transcription":""');
     const outputs = await Promise.race([
       model.generate({
         ...inputs,
-        max_new_tokens: 1024,
+        max_new_tokens: isCompactStockPrompt ? 320 : MAX_NEW_TOKENS,
         do_sample: false,
+        repetition_penalty: 1.08,
       }),
       new Promise((_, reject) =>
         setTimeout(
-          () => reject(new Error("Inference timeout after 60s")),
-          60000,
+          () =>
+            reject(
+              new Error(
+                `Inference timeout after ${INFERENCE_TIMEOUT_MS / 1000}s — keep the tab in the foreground and try a smaller photo`,
+              ),
+            ),
+          INFERENCE_TIMEOUT_MS,
         ),
       ),
     ]);
@@ -157,6 +221,8 @@ async function analyze(imageUrl: string, prompt: string) {
   } catch (err) {
     console.error("[llmWorker] Error during analysis:", err);
     postError(err instanceof Error ? err.message : String(err));
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
   }
 }
 
@@ -165,7 +231,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   if (data.type === "initialize") {
     await initialize(data.modelUrl, data.device);
   } else if (data.type === "analyze") {
-    await analyze(data.imageUrl, data.prompt);
+    await analyze(data);
   } else if (data.type === "status") {
     self.postMessage({
       type: "status",

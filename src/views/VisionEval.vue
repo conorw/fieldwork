@@ -53,11 +53,21 @@
             <img :src="preview" alt="Preview" class="max-h-64 object-contain" />
           </div>
           <Button
-            label="Run analysis"
-            :disabled="!file || !state.isLoaded"
-            :loading="analyzing"
+            :label="
+              !state.isLoaded
+                ? 'Load model and run'
+                : analyzing
+                  ? 'Running…'
+                  : 'Run analysis'
+            "
+            :disabled="!file || loading"
+            :loading="analyzing || loading"
             @click="run"
           />
+          <p class="text-xs text-surface-500">
+            First run can take 1–3 minutes. Keep this tab in the foreground —
+            Chrome throttles workers when the app is backgrounded.
+          </p>
           <pre
             v-if="output"
             class="text-xs bg-surface-100 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap"
@@ -126,6 +136,12 @@ async function run() {
   analyzing.value = true;
   output.value = "";
   try {
+    if (!localLLMService.isReady()) {
+      loading.value = true;
+      await ensureStockModelForEval();
+      state.value = localLLMService.getState();
+      loading.value = false;
+    }
     const result = await localLLMService.analyzeImage(file.value);
     const target = parseReasoningJson(result.raw_analysis || "");
     output.value = JSON.stringify(
@@ -147,6 +163,7 @@ async function run() {
     output.value = e instanceof Error ? e.message : String(e);
   } finally {
     analyzing.value = false;
+    loading.value = false;
     state.value = localLLMService.getState();
   }
 }

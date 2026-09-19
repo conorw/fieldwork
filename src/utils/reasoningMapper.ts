@@ -16,6 +16,7 @@ import {
   normalizePhysicalAttrs,
   STAFF_STONE_KIND_TO_TYPE,
 } from "../types/headstoneTraining";
+import { extractInscriptionDates, normalizeDateToIso } from "./inscriptionDates";
 
 export interface ConfirmPersonInput {
   full_name: string;
@@ -88,8 +89,8 @@ export function personsToReasoningTarget(
         position:
           p.position || defaultPosition(index, people.length),
         dates: {
-          birth: p.date_of_birth || "",
-          death: p.date_of_death || "",
+          birth: normalizeDateToIso(p.date_of_birth || ""),
+          death: normalizeDateToIso(p.date_of_death || ""),
           aged: p.age_at_death ?? null,
         },
         relationships: p.relationships || [],
@@ -257,6 +258,10 @@ export function staffKindToStoneType(kind: StaffStoneKind): StoneType {
 export function parseReasoningJson(text: string): HeadstoneReasoningTarget {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
+    const recovered = recoverMalformedPeople(text);
+    if (recovered.length > 0) {
+      return targetFromLegacyStones(recovered, text);
+    }
     return {
       people: [],
       shared: { surname: "", epitaph: "" },
@@ -269,6 +274,10 @@ export function parseReasoningJson(text: string): HeadstoneReasoningTarget {
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
+    const recovered = recoverMalformedPeople(text);
+    if (recovered.length > 0) {
+      return targetFromLegacyStones(recovered, text);
+    }
     return {
       people: [],
       shared: { surname: "", epitaph: "" },
@@ -279,15 +288,20 @@ export function parseReasoningJson(text: string): HeadstoneReasoningTarget {
 
   // Already reasoning schema
   if (Array.isArray(parsed.people)) {
-    return {
-      people: parsed.people.map((p: any, i: number) => normalizePersonTarget(p, i)),
-      shared: {
-        surname: parsed.shared?.surname || "",
-        epitaph: parsed.shared?.epitaph || "",
+    return fillMissingPersonDates(
+      {
+        people: parsed.people.map((p: any, i: number) =>
+          normalizePersonTarget(p, i),
+        ),
+        shared: {
+          surname: parsed.shared?.surname || "",
+          epitaph: parsed.shared?.epitaph || "",
+        },
+        physical: normalizePhysicalAttrs(parsed.physical),
+        notes: parsed.notes || parsed.transcription || "",
       },
-      physical: normalizePhysicalAttrs(parsed.physical),
-      notes: parsed.notes || "",
-    };
+      text,
+    );
   }
 
   // Legacy GPT / persons array
@@ -317,15 +331,23 @@ export function parseReasoningJson(text: string): HeadstoneReasoningTarget {
         i,
       ),
     );
-    return {
-      people,
-      shared: {
-        surname: "",
-        epitaph: parsed.shared_epitaph || "",
+    return fillMissingPersonDates(
+      {
+        people,
+        shared: {
+          surname: "",
+          epitaph: parsed.shared_epitaph || "",
+        },
+        physical: normalizePhysicalAttrs(parsed.physical),
+        notes: parsed.full_text_transcription || "",
       },
-      physical: normalizePhysicalAttrs(parsed.physical),
-      notes: parsed.full_text_transcription || "",
-    };
+      text,
+    );
+  }
+
+  // Older/small VLMs sometimes invent { stones: [{ name, date, age }] }.
+  if (Array.isArray(parsed.stones)) {
+    return targetFromLegacyStones(parsed.stones, parsed.notes || text);
   }
 
   return {
@@ -334,6 +356,118 @@ export function parseReasoningJson(text: string): HeadstoneReasoningTarget {
     physical: normalizePhysicalAttrs(undefined),
     notes: typeof parsed === "object" ? JSON.stringify(parsed).slice(0, 500) : "",
   };
+}
+
+function splitDateRange(value: unknown): { birth: string; death: string } {
+  if (typeof value !== "string") return { birth: "", death: "" };
+  const parts = value
+    .split(/\s+(?:-|–|—|to)\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return {
+    birth: parts[0] || "",
+    death: parts.length > 1 ? parts.slice(1).join(" – ") : "",
+  };
+}
+
+function targetFromLegacyStones(
+  stones: any[],
+  sourceText: string,
+): HeadstoneReasoningTarget {
+  const people = stones
+    .filter((stone) => stone && (stone.name || stone.full_name))
+    .map((stone, index) => {
+      const dates = splitDateRange(stone.date || stone.dates);
+      return normalizePersonTarget(
+        {
+          full_name: stone.name || stone.full_name,
+          role_on_stone: index === 0 ? "primary" : "other",
+          position: index === 0 ? "upper" : "lower",
+          dates: {
+        birth: stone.birth || stone.date_of_birth || dates.birth,
+        death: stone.death || stone.date_of_death || dates.death,
+            aged: stone.age ?? null,
+          },
+          // Small stock models often mislabel relationships as occupations.
+          relationships: stone.relationships || [],
+          occupation: stone.occupation || "",
+          evidence: stone.evidence || "",
+        },
+        index,
+      );
+    });
+
+  const surnames = people.map((person) => person.surname).filter(Boolean);
+  const sharedSurname =
+    surnames.length > 0 && surnames.every((surname) => surname === surnames[0])
+      ? surnames[0]
+      : "";
+
+  return fillMissingPersonDates(
+    {
+      people,
+      shared: { surname: sharedSurname, epitaph: "" },
+      physical: normalizePhysicalAttrs(undefined),
+      notes: sourceText.slice(0, 1000),
+    },
+    sourceText,
+  );
+}
+
+/**
+ * Salvage name/date/age when a small VLM is cut off before closing its JSON.
+ * This is intentionally narrow; staff still reviews every recovered value.
+ */
+function recoverLegacyStones(text: string): any[] {
+  if (!/"stones"\s*:/.test(text)) return [];
+
+  const names = [...text.matchAll(/"name"\s*:\s*"([^"]+)"/g)];
+  return names.map((match, index) => {
+    const start = match.index ?? 0;
+    const end = names[index + 1]?.index ?? text.length;
+    const segment = text.slice(start, end);
+    const date = segment.match(/"date"\s*:\s*"([^"]+)"/)?.[1] || "";
+    const ageText = segment.match(/"age"\s*:\s*(\d+)/)?.[1];
+    return {
+      name: match[1],
+      date,
+      age: ageText ? Number(ageText) : null,
+    };
+  });
+}
+
+function recoverMalformedPeople(text: string): any[] {
+  const legacy = recoverLegacyStones(text);
+  if (legacy.length > 0) return legacy;
+
+  const results: any[] = [];
+  const seen = new Set<string>();
+  const patterns = [
+    /"full_name"\s*:\s*"([^"]+)"/gi,
+    /"full_name[^"=:\n]*\s*(?:=|:)\s*"([^"]+)"/gi,
+    /"name"\s*:\s*"([^"]+)"/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const name = match[1]?.trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+
+      const start = match.index ?? 0;
+      const segment = text.slice(start, start + 500);
+      results.push({
+        name,
+        birth:
+          segment.match(/"(?:birth|date_of_birth)"\s*:\s*"([^"]*)"/i)?.[1] ||
+          "",
+        death:
+          segment.match(/"(?:death|date_of_death)"\s*:\s*"([^"]*)"/i)?.[1] ||
+          "",
+      });
+    }
+  }
+  return results;
 }
 
 function normalizePersonTarget(p: any, index: number): HeadstonePersonTarget {
@@ -353,8 +487,22 @@ function normalizePersonTarget(p: any, index: number): HeadstonePersonTarget {
     role_on_stone: (p.role_on_stone as PersonRoleOnStone) || (index === 0 ? "primary" : "other"),
     position: (p.position as PersonPosition) || "unknown",
     dates: {
-      birth: p.dates?.birth || p.date_of_birth || "",
-      death: p.dates?.death || p.date_of_death || "",
+      birth: normalizeDateToIso(
+        p.dates?.birth ||
+          p.date_of_birth ||
+          p.birth ||
+          p.dob ||
+          p.born ||
+          "",
+      ),
+      death: normalizeDateToIso(
+        p.dates?.death ||
+          p.date_of_death ||
+          p.death ||
+          p.dod ||
+          p.died ||
+          "",
+      ),
       aged: p.dates?.aged ?? p.age_at_death ?? null,
     },
     relationships: Array.isArray(p.relationships) ? p.relationships : [],
@@ -364,7 +512,44 @@ function normalizePersonTarget(p: any, index: number): HeadstonePersonTarget {
   };
 }
 
-/** Transcription string from reasoning target for plot notes */
+function datesNearName(text: string, name: string): string[] {
+  if (!text || !name) return [];
+  const idx = text.toLowerCase().indexOf(name.toLowerCase());
+  if (idx < 0) return [];
+  return extractInscriptionDates(text.slice(idx, idx + 220));
+}
+
+/** Attach birth/death when the model named people but omitted the carved dates. */
+export function fillMissingPersonDates(
+  target: HeadstoneReasoningTarget,
+  sourceText: string,
+): HeadstoneReasoningTarget {
+  const fromNotes = extractInscriptionDates(target.notes || "");
+  const haystack = fromNotes.length > 0 ? target.notes || "" : sourceText;
+  const pool = extractInscriptionDates(haystack);
+  let poolIndex = 0;
+
+  for (const person of target.people) {
+    if (person.dates.birth && person.dates.death) continue;
+    const nearby = datesNearName(haystack, person.full_name);
+    if (!person.dates.birth) {
+      person.dates.birth = nearby[0] || pool[poolIndex] || "";
+      if (!nearby[0] && person.dates.birth) poolIndex += 1;
+    }
+    if (!person.dates.death) {
+      person.dates.death = nearby[1] || pool[poolIndex] || "";
+      if (!nearby[1] && person.dates.death) poolIndex += 1;
+    }
+    person.dates.birth = normalizeDateToIso(person.dates.birth);
+    person.dates.death = normalizeDateToIso(person.dates.death);
+  }
+
+  if (!target.notes?.trim() && pool.length > 0) {
+    target.notes = haystack.slice(0, 1000);
+  }
+
+  return target;
+}
 export function reasoningToTranscription(target: HeadstoneReasoningTarget): string {
   if (target.notes && target.notes.trim()) return target.notes.trim();
   const lines: string[] = [];

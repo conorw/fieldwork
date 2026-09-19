@@ -760,6 +760,127 @@ SAMPLES = [
             ),
         },
     },
+    {
+        "id": "syn-013",
+        "language": "en",
+        "stone_type": "couple",
+        "lines": [
+            "IN LOVING MEMORY OF",
+            "DENNIS WILLIAM FONE",
+            "25TH JUNE 1933",
+            "1ST OCTOBER 2020",
+            "AND HIS WIFE",
+            "BERYL JEAN FONE",
+            "2ND FEBRUARY 1948",
+            "1ST NOVEMBER 2021",
+        ],
+        "target": {
+            "people": [
+                person(
+                    "Dennis William Fone",
+                    birth="1933-06-25",
+                    death="2020-10-01",
+                    position="upper",
+                    relationships=["husband of Beryl Jean Fone"],
+                    evidence="consecutive UK ordinal dates",
+                ),
+                person(
+                    "Beryl Jean Fone",
+                    role="spouse",
+                    position="lower",
+                    birth="1948-02-02",
+                    death="2021-11-01",
+                    relationships=["wife of Dennis William Fone"],
+                    evidence="consecutive UK ordinal dates",
+                ),
+            ],
+            "shared": {"surname": "Fone", "epitaph": "IN LOVING MEMORY OF"},
+            "notes": "\n".join(
+                [
+                    "IN LOVING MEMORY OF",
+                    "DENNIS WILLIAM FONE",
+                    "25TH JUNE 1933",
+                    "1ST OCTOBER 2020",
+                    "AND HIS WIFE",
+                    "BERYL JEAN FONE",
+                    "2ND FEBRUARY 1948",
+                    "1ST NOVEMBER 2021",
+                ]
+            ),
+        },
+    },
+    {
+        "id": "syn-014",
+        "language": "en",
+        "stone_type": "single",
+        "lines": [
+            "AUGUSTUS ABNER MCGUIRE",
+            "DIVER",
+            "BORN APRIL 24, 1856",
+            "DIED SEPTEMBER 23, 1913",
+        ],
+        "target": {
+            "people": [
+                person(
+                    "Augustus Abner McGuire",
+                    birth="1856-04-24",
+                    death="1913-09-23",
+                    occupation="Diver",
+                    evidence="US month-first dates",
+                )
+            ],
+            "shared": {"surname": "McGuire", "epitaph": ""},
+            "notes": "AUGUSTUS ABNER MCGUIRE\nDIVER\nBORN APRIL 24, 1856\nDIED SEPTEMBER 23, 1913",
+        },
+    },
+    {
+        "id": "syn-015",
+        "language": "en",
+        "stone_type": "single",
+        "lines": [
+            "JANET DODS",
+            "SPOWS TO WALTER SCOT",
+            "DIED MAY THE FIRST 1706",
+            "HER AGE 70",
+        ],
+        "target": {
+            "people": [
+                person(
+                    "Janet Dods",
+                    death="1706-05-01",
+                    aged=70,
+                    relationships=["wife of Walter Scot"],
+                    evidence="colonial word-ordinal date",
+                )
+            ],
+            "shared": {"surname": "Dods", "epitaph": ""},
+            "notes": "JANET DODS\nSPOWS TO WALTER SCOT\nDIED MAY THE FIRST 1706\nHER AGE 70",
+        },
+    },
+    {
+        "id": "syn-016",
+        "language": "en",
+        "stone_type": "war",
+        "lines": [
+            "ARNOLD JASON ARONSON",
+            "US MERCHANT MARINE",
+            "FEB 14 1926 JAN 23 2009",
+        ],
+        "target": {
+            "people": [
+                person(
+                    "Arnold Jason Aronson",
+                    birth="1926-02-14",
+                    death="2009-01-23",
+                    occupation="US Merchant Marine",
+                    veteran=True,
+                    evidence="two US dates on one line",
+                )
+            ],
+            "shared": {"surname": "Aronson", "epitaph": ""},
+            "notes": "ARNOLD JASON ARONSON\nUS MERCHANT MARINE\nFEB 14 1926 JAN 23 2009",
+        },
+    },
 ]
 
 
