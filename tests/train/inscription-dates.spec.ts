@@ -33,4 +33,9 @@ describe("normalizeDateToIso", () => {
     expect(normalizeDateToIso("May the first 1706")).toBe("1706-05-01");
     expect(normalizeDateToIso("the sixth day of August 1708")).toBe("1708-08-06");
   });
+
+  it("parses US dates with a comma after the day", () => {
+    expect(normalizeDateToIso("April 2, 1743")).toBe("1743-04-02");
+    expect(normalizeDateToIso("July 4, 1826")).toBe("1826-07-04");
+  });
 });

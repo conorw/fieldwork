@@ -1,6 +1,8 @@
 """
 LoRA fine-tune FastVLM-0.5B on cemetery reasoning JSON.
-Uses PEFT + a simple supervised loop compatible with small datasets (15–40 images).
+FastVLM is a LLaVA-style remote-code repo: no AutoProcessor. We use
+AutoTokenizer + the model's vision tower image processor, and splice the
+IMAGE_TOKEN_INDEX (-200) placeholder into input_ids (per the model card).
 """
 
 from __future__ import annotations
@@ -12,34 +14,42 @@ from typing import Any
 import torch
 from peft import LoraConfig, get_peft_model, TaskType
 from torch.utils.data import Dataset as TorchDataset
-from transformers import AutoModelForCausalLM, AutoProcessor, Trainer, TrainingArguments
-
-try:
-    from transformers import AutoModelForImageTextToText
-except ImportError:  # older transformers
-    AutoModelForImageTextToText = None  # type: ignore
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
 from .schema import BASE_MODEL_ID
 
+IMAGE_TOKEN = "<image>"
+IMAGE_TOKEN_INDEX = -200
+IGNORE_INDEX = -100
 
-def _load_base_model(base_model: str):
-    kwargs = dict(
+
+def load_base_model(base_model: str):
+    return AutoModelForCausalLM.from_pretrained(
+        base_model,
         torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
         device_map="auto" if torch.cuda.is_available() else None,
         trust_remote_code=True,
     )
-    if AutoModelForImageTextToText is not None:
-        try:
-            return AutoModelForImageTextToText.from_pretrained(base_model, **kwargs)
-        except Exception as e:
-            print(f"[train] AutoModelForImageTextToText failed ({e}); trying CausalLM")
-    return AutoModelForCausalLM.from_pretrained(base_model, **kwargs)
+
+
+def _encode_with_image(
+    tokenizer, rendered: str
+) -> torch.Tensor:
+    """Tokenize chat text, replacing the literal <image> with IMAGE_TOKEN_INDEX."""
+    if IMAGE_TOKEN in rendered:
+        pre, post = rendered.split(IMAGE_TOKEN, 1)
+        pre_ids = tokenizer(pre, return_tensors="pt", add_special_tokens=False).input_ids
+        post_ids = tokenizer(post, return_tensors="pt", add_special_tokens=False).input_ids
+        img = torch.tensor([[IMAGE_TOKEN_INDEX]], dtype=pre_ids.dtype)
+        return torch.cat([pre_ids, img, post_ids], dim=1).squeeze(0)
+    return tokenizer(rendered, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0)
 
 
 class HeadstoneSFTDataset(TorchDataset):
-    def __init__(self, rows: list[dict[str, Any]], processor):
+    def __init__(self, rows: list[dict[str, Any]], tokenizer, image_processor):
         self.rows = rows
-        self.processor = processor
+        self.tokenizer = tokenizer
+        self.image_processor = image_processor
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -49,63 +59,48 @@ class HeadstoneSFTDataset(TorchDataset):
         from PIL import Image
 
         image = Image.open(row["image"]).convert("RGB")
-        # Chat-style: user prompt with image, assistant = reasoning JSON
-        messages = [
-            {
-                "role": "user",
-                "content": f"<image>\n{row['prompt']}",
-            },
-            {
-                "role": "assistant",
-                "content": row["response"],
-            },
-        ]
+        pixel_values = self.image_processor(images=image, return_tensors="pt")[
+            "pixel_values"
+        ].squeeze(0)
 
-        # Fallback if apply_chat_template is unavailable
-        if hasattr(self.processor, "apply_chat_template"):
-            text = self.processor.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=False
-            )
-        else:
-            text = f"<image>\n{row['prompt']}\n{row['response']}"
+        user = {"role": "user", "content": f"{IMAGE_TOKEN}\n{row['prompt']}"}
+        assistant = {"role": "assistant", "content": row["response"]}
 
-        inputs = self.processor(
-            text=text,
-            images=image,
-            return_tensors="pt",
-            padding=True,
+        rendered_full = self.tokenizer.apply_chat_template(
+            [user, assistant], tokenize=False, add_generation_prompt=False
         )
-        # Squeeze batch dim added by processor
-        item = {k: v.squeeze(0) for k, v in inputs.items()}
-        if "input_ids" in item:
-            item["labels"] = item["input_ids"].clone()
-        return item
+        rendered_prompt = self.tokenizer.apply_chat_template(
+            [user], tokenize=False, add_generation_prompt=True
+        )
+
+        input_ids = _encode_with_image(self.tokenizer, rendered_full)
+        prompt_ids = _encode_with_image(self.tokenizer, rendered_prompt)
+
+        labels = input_ids.clone()
+        prompt_len = min(len(prompt_ids), len(labels))
+        labels[:prompt_len] = IGNORE_INDEX
+        labels[labels == IMAGE_TOKEN_INDEX] = IGNORE_INDEX
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": torch.ones_like(input_ids),
+            "labels": labels,
+            "images": pixel_values,
+        }
 
 
-def _collate(features: list[dict[str, Any]], processor) -> dict[str, torch.Tensor]:
-    # Pad variable-length tensors
-    keys = [k for k in features[0].keys() if k != "labels"]
+def _collate(features: list[dict[str, Any]], pad_id: int) -> dict[str, torch.Tensor]:
     batch: dict[str, Any] = {}
-    pad_id = getattr(processor.tokenizer, "pad_token_id", 0) or 0
-
-    for key in keys:
-        vals = [f[key] for f in features]
-        if vals[0].dim() == 1:
-            batch[key] = torch.nn.utils.rnn.pad_sequence(
-                vals, batch_first=True, padding_value=pad_id if key == "input_ids" else 0
-            )
-        else:
-            # vision tensors — stack if same shape, else keep list (rare)
-            try:
-                batch[key] = torch.stack(vals)
-            except RuntimeError:
-                batch[key] = vals
-
-    if "labels" in features[0]:
-        labels = [f["labels"] for f in features]
-        batch["labels"] = torch.nn.utils.rnn.pad_sequence(
-            labels, batch_first=True, padding_value=-100
-        )
+    batch["input_ids"] = torch.nn.utils.rnn.pad_sequence(
+        [f["input_ids"] for f in features], batch_first=True, padding_value=pad_id
+    )
+    batch["attention_mask"] = torch.nn.utils.rnn.pad_sequence(
+        [f["attention_mask"] for f in features], batch_first=True, padding_value=0
+    )
+    batch["labels"] = torch.nn.utils.rnn.pad_sequence(
+        [f["labels"] for f in features], batch_first=True, padding_value=IGNORE_INDEX
+    )
+    batch["images"] = torch.stack([f["images"] for f in features])
     return batch
 
 
@@ -138,8 +133,12 @@ def train_lora(
     train_rows = rows[:-1] if eval_rows else rows
 
     print(f"[train] loading base model {base_model}")
-    processor = AutoProcessor.from_pretrained(base_model, trust_remote_code=True)
-    model = _load_base_model(base_model)
+    tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = load_base_model(base_model)
+    model.config.use_cache = False
+    image_processor = model.get_vision_tower().image_processor
 
     continued_from: str | None = None
     if (
@@ -183,12 +182,17 @@ def train_lora(
 
     model.print_trainable_parameters()
 
-    train_ds = HeadstoneSFTDataset(train_rows, processor)
-    eval_ds = HeadstoneSFTDataset(eval_rows, processor) if eval_rows else None
+    train_ds = HeadstoneSFTDataset(train_rows, tokenizer, image_processor)
+    eval_ds = (
+        HeadstoneSFTDataset(eval_rows, tokenizer, image_processor)
+        if eval_rows
+        else None
+    )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     adapter_dir = output_dir / "adapter"
 
+    pad_id = tokenizer.pad_token_id or 0
     args = TrainingArguments(
         output_dir=str(output_dir / "checkpoints"),
         num_train_epochs=num_epochs,
@@ -197,14 +201,13 @@ def train_lora(
         gradient_accumulation_steps=4,
         learning_rate=learning_rate,
         logging_steps=1,
-        save_strategy="epoch",
+        save_strategy="no",
         eval_strategy="epoch" if eval_ds else "no",
         bf16=torch.cuda.is_available(),
         remove_unused_columns=False,
         report_to=[],
         max_steps=max_steps if max_steps is not None else -1,
-        load_best_model_at_end=bool(eval_ds),
-        metric_for_best_model="eval_loss" if eval_ds else None,
+        dataloader_pin_memory=False,
     )
 
     trainer = Trainer(
@@ -212,7 +215,7 @@ def train_lora(
         args=args,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        data_collator=lambda feats: _collate(feats, processor),
+        data_collator=lambda feats: _collate(feats, pad_id),
     )
 
     print(f"[train] starting LoRA on {len(train_rows)} examples")
@@ -220,7 +223,7 @@ def train_lora(
 
     adapter_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(str(adapter_dir))
-    processor.save_pretrained(str(adapter_dir))
+    tokenizer.save_pretrained(str(adapter_dir))
     meta = {
         "base_model": base_model,
         "num_train": len(train_rows),

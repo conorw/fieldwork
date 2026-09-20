@@ -346,11 +346,16 @@ CURATED_GOLD = [
         "id": "commons-adlington",
         "stone_type": "family",
         "ocr": (
-            "IN LOVING MEMORY OF FLORENCE GEORGINA THE BELOVED WIFE OF "
-            "ARTHUR F. ADLINGTON WHO PASSED AWAY 14TH MARCH 1934 AGED 63 YEARS\n"
-            "AND HER SON CAPT. L. R. ADLINGTON WHO WAS KILLED IN BURMA 8TH MAY 1944 "
-            "AGED 34 YEARS\nARTHUR FREDERICK ADLINGTON WHO FELL ASLEEP 1ST JAN 1949 "
-            "AGED 79 YEARS\nLILIAN A. ADLINGTON LILIAN ANNIE ADLINGTON 1971"
+            "IN LOVING MEMORY OF\n"
+            "FLORENCE GEORGINA ADLINGTON\n"
+            "THE BELOVED WIFE OF ARTHUR F. ADLINGTON\n"
+            "WHO PASSED AWAY 14TH MARCH 1934 AGED 63 YEARS\n"
+            "AND HER SON\n"
+            "CAPT. L. R. ADLINGTON\n"
+            "WHO WAS KILLED IN BURMA 8TH MAY 1944 AGED 34 YEARS\n"
+            "ARTHUR FREDERICK ADLINGTON\n"
+            "WHO FELL ASLEEP 1ST JAN 1949 AGED 79 YEARS\n"
+            "LILIAN ANNIE ADLINGTON\n1971"
         ),
         "target": {
             "people": [
@@ -373,7 +378,7 @@ CURATED_GOLD = [
                     "role_on_stone": "child",
                     "position": "upper",
                     "dates": {"birth": "", "death": "1944-05-08", "aged": 34},
-                    "relationships": ["son of Florence Georgina and Arthur Frederick"],
+                    "relationships": ["son of Florence Georgina Adlington"],
                     "occupation": "Captain",
                     "veteran": True,
                     "evidence": "killed in Burma",
@@ -382,7 +387,7 @@ CURATED_GOLD = [
                     "full_name": "Arthur Frederick Adlington",
                     "forename": "Arthur Frederick",
                     "surname": "Adlington",
-                    "role_on_stone": "primary",
+                    "role_on_stone": "other",
                     "position": "lower",
                     "dates": {"birth": "", "death": "1949-01-01", "aged": 79},
                     "relationships": ["husband of Florence Georgina"],
@@ -596,6 +601,208 @@ CURATED_GOLD = [
                 "detail": "skull, hourglass, crossed bones",
             },
             "notes": "Janet Dods, spouse of Walter Scot, died 1 May 1706 aged 70",
+        },
+    },
+    {
+        "match": "Thomas_Jefferson",
+        "id": "commons-jefferson",
+        "stone_type": "single",
+        "ocr": (
+            "THOMAS JEFFERSON\n"
+            "BORN APRIL 2, 1743\n"
+            "DIED JULY 4, 1826"
+        ),
+        "target": {
+            "people": [
+                {
+                    "full_name": "Thomas Jefferson",
+                    "forename": "Thomas",
+                    "surname": "Jefferson",
+                    "role_on_stone": "primary",
+                    "position": "center",
+                    "dates": {
+                        "birth": "1743-04-02",
+                        "death": "1826-07-04",
+                        "aged": None,
+                    },
+                    "relationships": [],
+                    "occupation": "",
+                    "veteran": False,
+                    "evidence": "Monticello obelisk date panel",
+                }
+            ],
+            "shared": {"surname": "Jefferson", "epitaph": ""},
+            "physical": {
+                "material": "granite",
+                "form": "obelisk",
+                "condition": "weathered",
+                "detail": "cropped date panel of Jefferson's self-designed grave marker",
+            },
+            "notes": "Thomas Jefferson, born 2 April 1743 (O.S.), died 4 July 1826",
+        },
+    },
+    {
+        "match": "Charles_Godfrey_Beane",
+        "id": "commons-beane",
+        "stone_type": "war",
+        "ocr": (
+            "IN EVER LOVING MEMORY\n"
+            "OF OUR DEAR SON\n"
+            "PRIVATE CHARLES GODFREY BEANE\n"
+            "WHO DIED FROM WOUNDS RECEIVED IN FRANCE\n"
+            "JANUARY 14TH 1916\n"
+            "AGED 23 YEARS"
+        ),
+        "target": {
+            "people": [
+                {
+                    "full_name": "Charles Godfrey Beane",
+                    "title": "Private",
+                    "forename": "Charles Godfrey",
+                    "surname": "Beane",
+                    "role_on_stone": "child",
+                    "position": "center",
+                    "dates": {"birth": "", "death": "1916-01-14", "aged": 23},
+                    "relationships": ["son"],
+                    "occupation": "",
+                    "veteran": True,
+                    "evidence": "Northrepps churchyard, died of wounds in France",
+                }
+            ],
+            "shared": {"surname": "Beane", "epitaph": "IN EVER LOVING MEMORY"},
+            "physical": {
+                "material": "sandstone",
+                "form": "arched",
+                "condition": "good",
+                "detail": "foliate border, For God King and Country roundel",
+            },
+            "notes": "Private Charles Godfrey Beane, died 14 January 1916 aged 23",
+        },
+    },
+    {
+        "match": "Frederick_Skae",
+        "id": "commons-skae",
+        "stone_type": "single",
+        "ocr": (
+            "DR FREDERICK W A SKAE\n"
+            "DOCTOR\n"
+            "BORN MAY 14TH 1842\n"
+            "DIED JUNE 20TH 1881"
+        ),
+        "target": {
+            "people": [
+                {
+                    "full_name": "Frederick W A Skae",
+                    "title": "Dr",
+                    "forename": "Frederick W A",
+                    "surname": "Skae",
+                    "role_on_stone": "primary",
+                    "position": "center",
+                    "dates": {
+                        "birth": "1842-05-14",
+                        "death": "1881-06-20",
+                        "aged": None,
+                    },
+                    "relationships": [],
+                    "occupation": "Doctor",
+                    "veteran": False,
+                    "evidence": "Scottish granite Celtic cross, New Zealand commissioner in lunacy",
+                }
+            ],
+            "shared": {"surname": "Skae", "epitaph": "IN MEMORY OF"},
+            "physical": {
+                "material": "granite",
+                "form": "cross",
+                "condition": "good",
+                "detail": "Celtic cross of Scottish granite",
+            },
+            "notes": "Dr Frederick W.A. Skae, 14 May 1842 – 20 June 1881",
+        },
+    },
+    {
+        "match": "Higson_gravestone",
+        "id": "commons-higson",
+        "stone_type": "family",
+        "ocr": (
+            "IN MEMORIAM OF\n"
+            "PETER HIGSON\n"
+            "SON OF JACOB AND ELIZA ALICE HIGSON\n"
+            "WHO DIED OCTOBER 11TH 1927\n"
+            "AGED 33 YEARS\n"
+            "ROBERT SMITH HIGSON\n"
+            "SON OF JACOB AND ELIZA ALICE HIGSON\n"
+            "WHO DIED DEC 2ND 1917\n"
+            "AGED 19 YEARS"
+        ),
+        "target": {
+            "people": [
+                {
+                    "full_name": "Peter Higson",
+                    "forename": "Peter",
+                    "surname": "Higson",
+                    "role_on_stone": "child",
+                    "position": "upper",
+                    "dates": {"birth": "", "death": "1927-10-11", "aged": 33},
+                    "relationships": ["son of Jacob and Eliza Alice Higson"],
+                    "occupation": "",
+                    "veteran": False,
+                    "evidence": "weathered sandstone, two brothers",
+                },
+                {
+                    "full_name": "Robert Smith Higson",
+                    "forename": "Robert Smith",
+                    "surname": "Higson",
+                    "role_on_stone": "child",
+                    "position": "lower",
+                    "dates": {"birth": "", "death": "1917-12-02", "aged": 19},
+                    "relationships": ["son of Jacob and Eliza Alice Higson"],
+                    "occupation": "",
+                    "veteran": False,
+                    "evidence": "named below Peter",
+                },
+            ],
+            "shared": {"surname": "Higson", "epitaph": "IN MEMORIAM OF"},
+            "physical": {
+                "material": "sandstone",
+                "form": "upright",
+                "condition": "weathered",
+                "detail": "lichen, rural churchyard",
+            },
+            "notes": "Peter Higson 1927 and Robert Smith Higson 1917, sons of Jacob and Eliza Alice",
+        },
+    },
+    {
+        "match": "7170946",
+        "id": "commons-vaughan",
+        "stone_type": "single",
+        "ocr": (
+            "HENRICUS VAUGHAN\n"
+            "OBIIT 23 APRIL 1695\n"
+            "AGED 73"
+        ),
+        "target": {
+            "people": [
+                {
+                    "full_name": "Henricus Vaughan",
+                    "forename": "Henricus",
+                    "surname": "Vaughan",
+                    "role_on_stone": "primary",
+                    "position": "center",
+                    "dates": {"birth": "", "death": "1695-04-23", "aged": 73},
+                    "relationships": [],
+                    "occupation": "",
+                    "veteran": False,
+                    "evidence": "Llansantffraed, Latin Siluris M.D. inscription",
+                }
+            ],
+            "shared": {"surname": "Vaughan", "epitaph": ""},
+            "physical": {
+                "material": "slate",
+                "form": "arched",
+                "condition": "weathered",
+                "detail": "green lichen, Latin poet's stone",
+            },
+            "notes": "Henry Vaughan Silurist, died 23 April 1695 aged 73",
         },
     },
 ]

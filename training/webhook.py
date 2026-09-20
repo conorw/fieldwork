@@ -32,7 +32,11 @@ def post_webhook(
             print(f"[webhook] {resp.status}: {resp.read().decode()[:500]}")
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")
-        raise RuntimeError(f"Webhook failed ({e.code}): {detail}") from e
+        print(f"[webhook] failed ({e.code}): {detail[:500]} — continuing")
+    except Exception as e:
+        # No deployed webhook (or DNS failure) must not fail a finished train:
+        # artifacts are already on Blob and clients poll adapters/global/latest/.
+        print(f"[webhook] unreachable ({e}) — continuing")
 
 
 def notify_success(

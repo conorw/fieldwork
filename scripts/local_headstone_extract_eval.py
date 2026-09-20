@@ -303,6 +303,8 @@ NAME_STOP = {
 
 EPITAPH_LINES = {
     "IN LOVING MEMORY OF",
+    "IN EVER LOVING MEMORY OF",
+    "IN EVER LOVING MEMORY",
     "SACRED TO THE MEMORY OF",
     "IN MEMORY OF",
     "HERE LIES",
@@ -312,6 +314,10 @@ EPITAPH_LINES = {
     "REMEMBER",
     "TOGETHER FOREVER",
     "REST IN PEACE",
+    "IN MEMORIAM",
+    "IN MEMORIAM OF",
+    "AT REST",
+    "OF SUCH IS THE KINGDOM OF HEAVEN",
     "ICI REPOSE",
     "ICI REPOSENT",
     "A LA MEMOIRE DE",
@@ -344,6 +350,7 @@ OCCUPATION_HINTS = re.compile(
     r"\b("
     r"RIFLES?|REGIMENT|CORPS|NAVY|ARMY|MARINES?|MERCHANT|ENGINEER|BLACKSMITH|"
         r"FARMER|TEACHER|DOCTOR|NURSE|MINER|SAILOR|DIVER|PILOT|CAPTAIN|LIEUTENANT|"
+        r"HIGHLANDERS|INFANTRY|ARTILLERY|ENGINEERS|"
     r"SERGEANT|CORPORAL|PRIVATE|REVEREND|VICAR|CLERK|BAKER|BUTCHER|"
     r"CARPENTER|MASON|SOLDIER|AIRMAN|SEAMAN|GUNNER|DRIVER|"
     r"INSTITUTEUR|INSTITUTRICE|MENUISIER|BOULANGER|MEDECIN|MÉDECIN|"
@@ -370,6 +377,10 @@ TITLE_MAP = {
     "DOCTOR": "Doctor",
     "SOLDAT": "Soldat",
     "SOLDADO": "Soldado",
+    "MR": "Mr",
+    "MRS": "Mrs",
+    "MS": "Ms",
+    "MISS": "Miss",
 }
 
 
@@ -398,7 +409,14 @@ def normalize_name(s: str) -> str:
 def normalize_rel(s: str) -> str:
     s = fold_accents(s or "").lower().strip()
     s = s.replace("'", "'")
+    s = re.sub(r"[.]", "", s)
     s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"^beloved ", "", s)
+    s = s.replace("wife to ", "wife of ")
+    s = s.replace("husband to ", "husband of ")
+    s = re.sub(r"^last ", "", s)
+    s = re.sub(r"\bthe reverend (mr )?|\brev(?:erend)? (mr )?", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
     s = s.replace("wife of the late ", "wife of ")
     s = s.replace("husband of the late ", "husband of ")
     # multilingual → English canonical for scoring
@@ -606,6 +624,7 @@ def extract_aged(ln: str) -> int | None:
         r"(\d{1,3})(?:ST|ND|RD|TH)?\s+YEAR\s+OF\s+(?:HER|HIS|THEIR)\s+AGE",
         r"HER\s+AGE\s+(\d+)",
         r"HIS\s+AGE\s+(\d+)",
+        r"AETAT(?:IS)?(?:\s+SUAE)?\s+(\d+)",
     ]
     for p in patterns:
         m = re.search(p, ln, re.I)
@@ -696,13 +715,15 @@ def apply_date_line(person: dict, ln: str) -> None:
         person["dates"]["aged"] = aged
 
     dates = extract_dates_from_text(ln)
-    if not dates:
-        y = year(ln)
-        if y and len(y) == 4 and not re.search(r"AGED|AGE\b|ÅR|JAAR|JAHREN|LAT|ANS|AÑOS", ln, re.I):
-            dates = [pad_year_iso(y)]
-
     birth_ctx = bool(BIRTH_CTX_RE.search(ln))
     death_ctx = bool(DEATH_CTX_RE.search(ln))
+    if not dates:
+        y = year(ln)
+        if y and (
+            len(y) == 4
+            or (len(y) <= 4 and (birth_ctx or death_ctx) and not extract_aged(ln))
+        ):
+            dates = [pad_year_iso(y) if len(y) == 4 else y]
 
     if len(dates) >= 2:
         if not person["dates"].get("birth"):
@@ -751,6 +772,18 @@ def parse_reasoning(text: str) -> dict:
                 if bit:
                     exploded.append(bit)
         raw_lines = exploded or raw_lines
+    prose_split = re.compile(
+        r"\s+(?=(?:THE BELOVED WIFE OF|AND HER SON|AND HIS WIFE|"
+        r"WHO PASSED AWAY|WHO WAS KILLED|WHO FELL ASLEEP|WHO DIED|ALSO OF)\b)",
+        re.I,
+    )
+    split_all: list[str] = []
+    for ln in raw_lines:
+        if len(ln) > 70:
+            split_all.extend(p.strip() for p in prose_split.split(ln) if p.strip())
+        else:
+            split_all.append(ln)
+    raw_lines = split_all
     lines = [ln.upper() for ln in raw_lines]
 
     people: list[dict] = []
@@ -788,7 +821,7 @@ def parse_reasoning(text: str) -> dict:
         re.I,
     )
     wife_of_re = re.compile(
-        rf"^(?:BELOVED\s+)?(?:"
+        rf"^(?:THE\s+)?(?:BELOVED\s+)?(?:"
         rf"WIFE\s+OF|LAST\s+WIFE\s+TO|SPOWS\s+TO|SPOUSE\s+OF|EPOUSE\s+DE|[EÉ]POUSE\s+DE|"
         rf"GATTIN\s+VON|ESPOSA\s+DE|MOGLIE\s+DI"
         rf")\s+(.+)$",
@@ -808,9 +841,21 @@ def parse_reasoning(text: str) -> dict:
 
     i = 0
     while i < len(lines):
-        ln = lines[i]
+        ln = re.sub(r"\b([A-Z]+)\.(?=\s|$)", r"\1", lines[i])
         original = raw_lines[i]
         ln_fold = fold_accents(ln)
+
+        mem = re.match(
+            r"^(IN (?:EVER )?LOVING MEMORY OF|SACRED TO THE MEMORY OF|IN MEMORY OF)\s+(.+)$",
+            ln,
+            re.I,
+        )
+        if mem:
+            if not shared_epitaph:
+                shared_epitaph = mem.group(1)
+            ln = mem.group(2).strip().upper()
+            original = mem.group(2).strip()
+            ln_fold = fold_accents(ln)
 
         # Epitaph / shared headers
         if (
@@ -832,6 +877,21 @@ def parse_reasoning(text: str) -> dict:
             i += 1
             continue
         if re.match(r"^(?:LATE OF|CUTLER|OFFSHORE)\b", ln):
+            i += 1
+            continue
+
+        if re.match(r"^BELOVED\s+\w+", ln) and " AND " in ln:
+            if people:
+                people[-1]["relationships"].append(original.strip())
+            if not shared_epitaph:
+                shared_epitaph = original
+            i += 1
+            continue
+
+        if re.match(r"^(?:OF\s+)?(?:OUR\s+)?DEAR\s+(SON|DAUGHTER)$", ln):
+            kind = re.match(r"^(?:OF\s+)?(?:OUR\s+)?DEAR\s+(SON|DAUGHTER)$", ln).group(1).lower()
+            pending_role_hint = "child"
+            pending_rel_to_next = kind
             i += 1
             continue
 
@@ -860,6 +920,48 @@ def parse_reasoning(text: str) -> dict:
             i += 1
             continue
 
+        only_child = re.match(
+            r"^AN ONLY (SON|DAUGHTER)(?:\s+AGED\s+\d+\s+YEARS?)?$", ln, re.I
+        )
+        if only_child and people:
+            kind = only_child.group(1).lower()
+            people[-1]["relationships"].append(f"only {kind}")
+            people[-1]["role_on_stone"] = "child"
+            apply_date_line(people[-1], ln)
+            i += 1
+            continue
+
+        child_of = re.match(r"^(SON|DAUGHTER) OF (.+)$", ln, re.I)
+        if child_of and people and "THE ABOVE" not in ln:
+            people[-1]["role_on_stone"] = "child"
+            people[-1]["relationships"].append(
+                f"{child_of.group(1).lower()} of {title_case_name(child_of.group(2))}"
+            )
+            i += 1
+            continue
+
+        above_rel = re.match(
+            r"^(MOTHER|FATHER|HUSBAND|WIFE|SON|DAUGHTER) OF THE ABOVE$", ln, re.I
+        )
+        if above_rel and people:
+            kind = above_rel.group(1).lower()
+            people[-1]["relationships"].append(f"{kind} of the above")
+            if kind in ("mother", "father"):
+                people[-1]["role_on_stone"] = "parent"
+                pending_role_hint = "parent"
+                pending_rel_to_next = f"husband of {people[-1]['full_name']}"
+            elif kind in ("husband", "wife"):
+                people[-1]["role_on_stone"] = "spouse"
+                if len(people) >= 2:
+                    other = people[-2]
+                    people[-1]["relationships"].append(f"{kind} of {other['full_name']}")
+                    inverse = "wife" if kind == "husband" else "husband"
+                    other["relationships"].append(
+                        f"{inverse} of {people[-1]['full_name']}"
+                    )
+            i += 1
+            continue
+
         m_rel = rel_line_re.match(ln)
         if m_rel:
             kind = m_rel.group(1).lower()
@@ -884,14 +986,52 @@ def parse_reasoning(text: str) -> dict:
                     )
                     pending_rel_to_next = f"{kind} of {people[-1]['full_name']}"
                     pending_role_hint = "child"
+            if trailing_name:
+                words = trailing_name.split()
+                title_tok = None
+                if words and words[0] in TITLE_MAP:
+                    title_tok = words[0]
+                    words = words[1:]
+                full = title_case_name(" ".join(words)) if words else ""
+                if full:
+                    person = _empty_person(full)
+                    if title_tok:
+                        person["title"] = TITLE_MAP.get(title_tok, title_case_name(title_tok))
+                        if title_tok in (
+                            "PRIVATE",
+                            "PTE",
+                            "SGT",
+                            "SERGEANT",
+                            "LT",
+                            "LIEUTENANT",
+                            "CAPT",
+                            "CAPTAIN",
+                            "SOLDAT",
+                            "SOLDADO",
+                        ):
+                            person["veteran"] = True
+                            veteran_flag = True
+                    if pending_role_hint == "spouse":
+                        person["role_on_stone"] = "spouse"
+                    elif pending_role_hint == "child":
+                        person["role_on_stone"] = "child"
+                    elif pending_role_hint == "parent":
+                        person["role_on_stone"] = "parent"
+                    if pending_rel_to_next:
+                        person["relationships"].append(pending_rel_to_next)
+                        pending_rel_to_next = None
+                    people.append(person)
+                    pending_role_hint = "family" if pending_role_hint == "family" else None
             i += 1
             continue
 
         m_wo = wife_of_re.match(ln) or wife_of_re.match(ln_fold)
         if m_wo and people:
-            people[-1]["relationships"].append(
-                f"wife of {title_case_name(m_wo.group(1))}"
-            )
+            spouse = title_case_name(re.sub(r"\s+LATE OF\s+.+$", "", m_wo.group(1), flags=re.I))
+            spouse = re.sub(r"^(?:The\s+)?(?:Reverend\s+)?(?:Mr\s+|Mrs\s+)?", "", spouse, flags=re.I).strip()
+            people[-1]["relationships"].append(f"wife of {spouse}")
+            if people[-1].get("role_on_stone") in ("", None, "primary"):
+                people[-1]["role_on_stone"] = "spouse"
             i += 1
             continue
         m_ho = husband_of_re.match(ln) or husband_of_re.match(ln_fold)
@@ -973,7 +1113,7 @@ def parse_reasoning(text: str) -> dict:
                 re.match(
                     r"^(?:BORN|DIED|NE|N[EÉ]|NATO|NATA|NATUS|OBIIT|FODD|F[OÖ]DD|"
                     r"DOD|D[OÖ]D|GEB|GEST|GEFALLEN|DECEDE|D[EÉ]C|AGE|ÂGÉ|"
-                    r"KILLED|PASSED|FELL ASLEEP|DEPARTED|"
+                    r"KILLED|PASSED|FELL ASLEEP|DEPARTED|WHO DIED|WHO PASSED|WHO FELL|"
                     r"A LA EDAD|YN \d|ZYL|ŻYŁ|OP DE LEEFTIJD)",
                     ln,
                     re.I,
@@ -987,6 +1127,12 @@ def parse_reasoning(text: str) -> dict:
         if dateish and not people:
             i += 1
             continue
+
+        also_ln = re.sub(r"^ALSO(?:\s+OF)?\s+", "", ln)
+        if also_ln != ln:
+            ln = also_ln
+            original = re.sub(r"^ALSO(?:\s+OF)?\s+", "", original, flags=re.I).strip()
+            ln_fold = fold_accents(ln)
 
         m_name = name_line_re.match(ln)
         if m_name:
@@ -1128,23 +1274,26 @@ def parse_reasoning(text: str) -> dict:
     for idx, p in enumerate(people):
         if n == 1:
             p["position"] = "center"
-            if p.get("role_on_stone") in ("", None, "primary"):
+            if p.get("role_on_stone") in ("", None, "primary", "spouse"):
                 p["role_on_stone"] = "primary"
         elif n == 2:
             p["position"] = "upper" if idx == 0 else "lower"
             if idx == 0:
-                if p.get("role_on_stone") in ("", None):
+                if p.get("role_on_stone") != "child":
                     p["role_on_stone"] = "primary"
             elif p.get("role_on_stone") in ("", None, "primary"):
                 p["role_on_stone"] = "spouse" if couple_like else "other"
         else:
             p["position"] = "upper" if idx == 0 else "center" if idx == 1 else "lower"
+            current = p.get("role_on_stone")
+            if current not in ("", None, "primary"):
+                continue
             if idx == 0:
                 p["role_on_stone"] = "primary"
-            elif idx == 1 and p.get("role_on_stone") in ("", None, "primary"):
+            elif idx == 1:
                 p["role_on_stone"] = "spouse"
-            elif idx >= 2 and p.get("role_on_stone") in ("", None, "primary"):
-                p["role_on_stone"] = "child"
+            else:
+                p["role_on_stone"] = "other"
 
     if couple_like:
         a, b = people[0], people[1]
@@ -1167,6 +1316,38 @@ def parse_reasoning(text: str) -> dict:
                     p["veteran"] = True
         if n == 1 and veteran_flag:
             people[0]["veteran"] = True
+
+    # Cross-link wife/husband phrases onto the matching person on the stone
+    for p in people:
+        for r in list(p.get("relationships") or []):
+            m = re.match(r"(wife|husband) of (.+)$", normalize_rel(r))
+            if not m:
+                continue
+            target = m.group(2)
+            inverse = "husband" if m.group(1) == "wife" else "wife"
+            t_parts = target.split()
+            for other in people:
+                if other is p:
+                    continue
+                on = normalize_name(other["full_name"])
+                if on == normalize_name(target):
+                    hit = other
+                else:
+                    op = on.split()
+                    if (
+                        t_parts
+                        and op
+                        and t_parts[0] == op[0]
+                        and t_parts[-1] == op[-1]
+                    ):
+                        hit = other
+                    else:
+                        continue
+                inv = f"{inverse} of {p['full_name']}"
+                existing = [normalize_rel(x) for x in (other.get("relationships") or [])]
+                if normalize_rel(inv) not in existing:
+                    other.setdefault("relationships", []).append(inv)
+                break
 
     surnames = [p["surname"] for p in people if p.get("surname")]
     shared_surname = (

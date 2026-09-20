@@ -1356,5 +1356,40 @@
       },
       "notes": "ARNOLD JASON ARONSON\nUS MERCHANT MARINE\nFEB 14 1926 JAN 23 2009"
     }
+  },
+  {
+    "id": "syn-017",
+    "path": "training/samples/synthetic/syn-017.jpg",
+    "source": "synthetic",
+    "language": "en",
+    "stone_type": "single",
+    "license": "generated",
+    "target": {
+      "people": [
+        {
+          "full_name": "Thomas Jefferson",
+          "title": "",
+          "forename": "Thomas",
+          "surname": "Jefferson",
+          "maiden_name": "",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1743-04-02",
+            "death": "1826-07-04",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "US dates with comma after day"
+        }
+      ],
+      "shared": {
+        "surname": "Jefferson",
+        "epitaph": ""
+      },
+      "notes": "THOMAS JEFFERSON\nBORN APRIL 2, 1743\nDIED JULY 4, 1826"
+    }
   }
 ]

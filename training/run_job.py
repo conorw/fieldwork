@@ -111,12 +111,17 @@ def main(argv: list[str] | None = None) -> int:
         merged_dir = merge_lora(adapter_dir, work / "out")
         skip_onnx = args.skip_onnx and args.skip_upload
         onnx_dir = None if skip_onnx else export_onnx(merged_dir, work / "out")
+        # TRAIN_REQUIRE_ONNX=0 lets bootstrap runs publish LoRA + merged weights
+        # even when optimum cannot export FastVLM's custom architecture yet.
+        require_onnx = (not args.skip_upload) and os.environ.get(
+            "TRAIN_REQUIRE_ONNX", "1"
+        ).lower() not in ("0", "false", "no")
         prepared = prepare_upload_bundle(
             work / "out",
             adapter_dir,
             merged_dir,
             onnx_dir,
-            require_onnx=not args.skip_upload,
+            require_onnx=require_onnx,
         )
 
         # Average into shared global (weights only — no cemetery photos)

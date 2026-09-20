@@ -17,31 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from peft import PeftModel
-from transformers import AutoProcessor
+from transformers import AutoTokenizer
 
 from .schema import BASE_MODEL_ID
-
-
-def _load_base_model(base_model: str):
-    import torch
-    from transformers import AutoModelForCausalLM
-
-    try:
-        from transformers import AutoModelForImageTextToText
-    except ImportError:
-        AutoModelForImageTextToText = None  # type: ignore
-
-    kwargs = dict(
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None,
-        trust_remote_code=True,
-    )
-    if AutoModelForImageTextToText is not None:
-        try:
-            return AutoModelForImageTextToText.from_pretrained(base_model, **kwargs)
-        except Exception as e:
-            print(f"[export] AutoModelForImageTextToText failed ({e}); trying CausalLM")
-    return AutoModelForCausalLM.from_pretrained(base_model, **kwargs)
 
 
 def merge_lora(
@@ -50,16 +28,18 @@ def merge_lora(
     *,
     base_model: str = BASE_MODEL_ID,
 ) -> Path:
+    from .train_lora import load_base_model
+
     print(f"[export] merging LoRA from {adapter_dir}")
-    processor = AutoProcessor.from_pretrained(adapter_dir, trust_remote_code=True)
-    base = _load_base_model(base_model)
+    tokenizer = AutoTokenizer.from_pretrained(str(adapter_dir), trust_remote_code=True)
+    base = load_base_model(base_model)
     model = PeftModel.from_pretrained(base, str(adapter_dir))
     merged = model.merge_and_unload()
 
     merged_dir = output_dir / "merged"
     merged_dir.mkdir(parents=True, exist_ok=True)
     merged.save_pretrained(str(merged_dir))
-    processor.save_pretrained(str(merged_dir))
+    tokenizer.save_pretrained(str(merged_dir))
     print(f"[export] merged model at {merged_dir}")
     return merged_dir
 

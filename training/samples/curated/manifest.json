@@ -433,7 +433,7 @@
             "aged": 34
           },
           "relationships": [
-            "son of Florence Georgina and Arthur Frederick"
+            "son of Florence Georgina Adlington"
           ],
           "occupation": "Captain",
           "veteran": true,
@@ -443,7 +443,7 @@
           "full_name": "Arthur Frederick Adlington",
           "forename": "Arthur Frederick",
           "surname": "Adlington",
-          "role_on_stone": "primary",
+          "role_on_stone": "other",
           "position": "lower",
           "dates": {
             "birth": "",
@@ -686,6 +686,225 @@
         "detail": "skull, hourglass, crossed bones"
       },
       "notes": "Janet Dods, spouse of Walter Scot, died 1 May 1706 aged 70"
+    }
+  },
+  {
+    "id": "commons-jefferson",
+    "path": "training/samples/curated/commons-jefferson.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/5/5c/Thomas_Jefferson_grave.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Thomas Jefferson",
+          "forename": "Thomas",
+          "surname": "Jefferson",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1743-04-02",
+            "death": "1826-07-04",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "Monticello obelisk date panel"
+        }
+      ],
+      "shared": {
+        "surname": "Jefferson",
+        "epitaph": ""
+      },
+      "physical": {
+        "material": "granite",
+        "form": "obelisk",
+        "condition": "weathered",
+        "detail": "cropped date panel of Jefferson's self-designed grave marker"
+      },
+      "notes": "Thomas Jefferson, born 2 April 1743 (O.S.), died 4 July 1826"
+    }
+  },
+  {
+    "id": "commons-beane",
+    "path": "training/samples/curated/commons-beane.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "war",
+    "license": "cc by-sa 4.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/5/52/-2020-01-05_Headstone_of_Private_%281706%29_Charles_Godfrey_Beane%2C_Saint_Mary%2C_Northrepps.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Charles Godfrey Beane",
+          "title": "Private",
+          "forename": "Charles Godfrey",
+          "surname": "Beane",
+          "role_on_stone": "child",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1916-01-14",
+            "aged": 23
+          },
+          "relationships": [
+            "son"
+          ],
+          "occupation": "",
+          "veteran": true,
+          "evidence": "Northrepps churchyard, died of wounds in France"
+        }
+      ],
+      "shared": {
+        "surname": "Beane",
+        "epitaph": "IN EVER LOVING MEMORY"
+      },
+      "physical": {
+        "material": "sandstone",
+        "form": "arched",
+        "condition": "good",
+        "detail": "foliate border, For God King and Country roundel"
+      },
+      "notes": "Private Charles Godfrey Beane, died 14 January 1916 aged 23"
+    }
+  },
+  {
+    "id": "commons-skae",
+    "path": "training/samples/curated/commons-skae.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Grave_of_Dr_Frederick_Skae.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Frederick W A Skae",
+          "title": "Dr",
+          "forename": "Frederick W A",
+          "surname": "Skae",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "1842-05-14",
+            "death": "1881-06-20",
+            "aged": null
+          },
+          "relationships": [],
+          "occupation": "Doctor",
+          "veteran": false,
+          "evidence": "Scottish granite Celtic cross, New Zealand commissioner in lunacy"
+        }
+      ],
+      "shared": {
+        "surname": "Skae",
+        "epitaph": "IN MEMORY OF"
+      },
+      "physical": {
+        "material": "granite",
+        "form": "cross",
+        "condition": "good",
+        "detail": "Celtic cross of Scottish granite"
+      },
+      "notes": "Dr Frederick W.A. Skae, 14 May 1842 \u2013 20 June 1881"
+    }
+  },
+  {
+    "id": "commons-higson",
+    "path": "training/samples/curated/commons-higson.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "family",
+    "license": "cc by-sa 2.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Higson_gravestone_inscription_-_geograph.org.uk_-_5220481.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Peter Higson",
+          "forename": "Peter",
+          "surname": "Higson",
+          "role_on_stone": "child",
+          "position": "upper",
+          "dates": {
+            "birth": "",
+            "death": "1927-10-11",
+            "aged": 33
+          },
+          "relationships": [
+            "son of Jacob and Eliza Alice Higson"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "weathered sandstone, two brothers"
+        },
+        {
+          "full_name": "Robert Smith Higson",
+          "forename": "Robert Smith",
+          "surname": "Higson",
+          "role_on_stone": "child",
+          "position": "lower",
+          "dates": {
+            "birth": "",
+            "death": "1917-12-02",
+            "aged": 19
+          },
+          "relationships": [
+            "son of Jacob and Eliza Alice Higson"
+          ],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "named below Peter"
+        }
+      ],
+      "shared": {
+        "surname": "Higson",
+        "epitaph": "IN MEMORIAM OF"
+      },
+      "physical": {
+        "material": "sandstone",
+        "form": "upright",
+        "condition": "weathered",
+        "detail": "lichen, rural churchyard"
+      },
+      "notes": "Peter Higson 1927 and Robert Smith Higson 1917, sons of Jacob and Eliza Alice"
+    }
+  },
+  {
+    "id": "commons-vaughan",
+    "path": "training/samples/curated/commons-vaughan.jpg",
+    "source": "wikimedia_commons_curated",
+    "stone_type": "single",
+    "license": "cc by-sa 2.0",
+    "source_url": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Inscription%2C_gravestone_of_Henry_Vaughan%2C_Llansantffraed_-_geograph.org.uk_-_7170946.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+    "target": {
+      "people": [
+        {
+          "full_name": "Henricus Vaughan",
+          "forename": "Henricus",
+          "surname": "Vaughan",
+          "role_on_stone": "primary",
+          "position": "center",
+          "dates": {
+            "birth": "",
+            "death": "1695-04-23",
+            "aged": 73
+          },
+          "relationships": [],
+          "occupation": "",
+          "veteran": false,
+          "evidence": "Llansantffraed, Latin Siluris M.D. inscription"
+        }
+      ],
+      "shared": {
+        "surname": "Vaughan",
+        "epitaph": ""
+      },
+      "physical": {
+        "material": "slate",
+        "form": "arched",
+        "condition": "weathered",
+        "detail": "green lichen, Latin poet's stone"
+      },
+      "notes": "Henry Vaughan Silurist, died 23 April 1695 aged 73"
     }
   }
 ]

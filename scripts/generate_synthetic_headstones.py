@@ -881,6 +881,28 @@ SAMPLES = [
             "notes": "ARNOLD JASON ARONSON\nUS MERCHANT MARINE\nFEB 14 1926 JAN 23 2009",
         },
     },
+    {
+        "id": "syn-017",
+        "language": "en",
+        "stone_type": "single",
+        "lines": [
+            "THOMAS JEFFERSON",
+            "BORN APRIL 2, 1743",
+            "DIED JULY 4, 1826",
+        ],
+        "target": {
+            "people": [
+                person(
+                    "Thomas Jefferson",
+                    birth="1743-04-02",
+                    death="1826-07-04",
+                    evidence="US dates with comma after day",
+                )
+            ],
+            "shared": {"surname": "Jefferson", "epitaph": ""},
+            "notes": "THOMAS JEFFERSON\nBORN APRIL 2, 1743\nDIED JULY 4, 1826",
+        },
+    },
 ]
 
 
