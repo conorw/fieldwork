@@ -17,9 +17,9 @@
 
           <template v-else>
             <p class="text-surface-600">
-              To get started, you need to either create a new location or join an
-              existing one. After that, you can teach the app a few of your
-              stones so reading works offline.
+              To get started, create a new location or join an existing one.
+              On-device reading starts automatically — you do not need to add
+              teaching photos first.
             </p>
 
             <div class="flex flex-col sm:flex-row gap-4">
@@ -38,9 +38,9 @@
 
             <Button
               v-if="existingLocationId"
-              label="Teach this cemetery"
+              label="Optional: extra teaching photos"
               class="w-full"
-              severity="help"
+              severity="secondary"
               outlined
               @click="startTeach(existingLocationId)"
             />

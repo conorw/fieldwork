@@ -7,7 +7,7 @@
     >
       <i class="pi pi-spin pi-spinner text-xs"></i>
       <span
-        >Preparing offline headstone reading…
+        >Preparing on-device headstone reading…
         {{ llmProgress.toFixed(0) }}%</span
       >
     </div>
@@ -42,7 +42,7 @@ import Toast from "primevue/toast";
 import MainLayout from "./components/layouts/MainLayout.vue";
 import { toastService } from "./services/toastService";
 import { useLocationsStore } from "./stores/locations";
-import { ensureLocalModelForLocation } from "./services/adapterInstallService";
+import { ensureLocalModelForLocation, ensureSharedLocalModel } from "./services/adapterInstallService";
 import { onLocationBecameLocal } from "./services/autoTrainService";
 import {
   setCachedGlobalAdapterMeta,
@@ -74,11 +74,11 @@ watch(
       return;
     }
     if (loc.aiStatus === "training") {
-      aiBanner.value = "Learning this cemetery’s stones for offline use…";
+      aiBanner.value = "Improving the shared model in the background…";
     } else if (loc.aiStatus === "error") {
       aiBanner.value =
         loc.aiTrainError ||
-        "Offline training needs attention — online reading still works.";
+        "Shared-model training needs attention — on-device reading still works.";
     } else {
       aiBanner.value = "";
     }
@@ -115,7 +115,12 @@ onMounted(() => {
   window.addEventListener("llm-download-complete", handleComplete);
   window.addEventListener("llm-load-error", handleError);
 
-  // When a cemetery is offline-ready, install/cache its adapter quietly.
+  // Load the shared on-device model immediately so new cemeteries can read
+  // stones without a teaching step. Cemetery adapters override when ready.
+  ensureSharedLocalModel().catch((err) =>
+    console.warn("Shared model download deferred:", err),
+  );
+
   watch(
     () => locationsStore.selectedLocation,
     (loc) => {
@@ -126,6 +131,10 @@ onMounted(() => {
         absorbGlobalForLocation(loc).catch((err) =>
           console.warn("Global absorb deferred:", err),
         );
+      } else if (loc) {
+        ensureSharedLocalModel().catch((err) =>
+          console.warn("Shared model download deferred:", err),
+        );
       }
     },
     { immediate: true },
@@ -135,7 +144,7 @@ onMounted(() => {
   const stopGlobalPoll = startGlobalAdapterPolling();
   const stopGlobalLearn = startGlobalLearningSync();
 
-  // Seed from env so onboarding gate works before first /api/global-adapter hit
+  // Shared adapter URL so field sampling can start training before the first poll
   const globalUrl = import.meta.env.VITE_GLOBAL_ADAPTER_URL;
   if (globalUrl) {
     setCachedGlobalAdapterMeta({

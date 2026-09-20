@@ -241,6 +241,7 @@ import { useRouter } from "vue-router";
 import { usePowerSyncStore } from "../stores/powersync";
 import { useLocationsStore } from "../stores/locations";
 import { PlotRecord } from "@/powersync-schema";
+import { rewritePublicStorageUrl } from "../utils/storageUrl";
 
 const router = useRouter();
 
@@ -531,7 +532,7 @@ const loadPlotImagesBatch = async (plotIds: string[]) => {
           `data:image/jpeg;base64,${image.thumbnail_data}`,
         );
       } else if (image.cloud_url) {
-        plotImages.value.set(plotId, image.cloud_url);
+        plotImages.value.set(plotId, rewritePublicStorageUrl(image.cloud_url));
       } else if (image.data) {
         plotImages.value.set(plotId, `data:image/jpeg;base64,${image.data}`);
       }

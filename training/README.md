@@ -7,8 +7,8 @@ reasoning JSON. Vercel only **starts** the job; this package does the GPU work.
 
 1. Fieldworkers accept/correct GPT analyses → rows in `headstone_training_examples`
 2. Owner calls `POST /api/train-headstone` with ≥15 examples
-3. Vercel creates an HF Job that clones this repo and runs `python -m training.run_job`
-4. Job: download images → LoRA train → merge → (try) ONNX export → Vercel Blob
+3. Vercel/Cloudflare Worker creates an HF Job that clones this repo and runs `python -m training.run_job`
+4. Job: download images → LoRA train → merge → (try) ONNX export → Cloudflare R2
 5. Webhook `POST /api/train-headstone-webhook` sets location `ai_status=local`
 
 ## Job payload (`TRAIN_PAYLOAD_JSON`)
@@ -75,17 +75,19 @@ Recommended flavor: **`l4x1`** (~$0.80/hr, ~$0.50/train). Try `t4-small` first i
 
 | Name | Where | Purpose |
 |------|--------|---------|
-| `HF_TOKEN` | Vercel | Create Jobs |
-| `HF_NAMESPACE` | Vercel | HF username or org |
-| `HF_JOB_FLAVOR` | Vercel | default `l4x1` |
-| `TRAIN_REPO_URL` | Vercel | Git repo containing `training/` |
-| `TRAIN_REPO_REF` | Vercel | Branch/tag to clone |
-| `BLOB_READ_WRITE_TOKEN` | Vercel + Job secret | Upload adapters |
-| `TRAIN_WEBHOOK_SECRET` | Vercel + Job secret | Authenticate webhook |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Vercel | Update location AI fields |
-| `SUPABASE_ANON_KEY` or `VITE_SUPABASE_ANON_KEY` | Vercel | Validate caller JWT |
+| `HF_TOKEN` | Worker secret | Create Jobs |
+| `HF_NAMESPACE` | Worker var | HF username or org |
+| `HF_JOB_FLAVOR` | Worker var | default `l4x1` |
+| `TRAIN_REPO_URL` | Worker var | Git repo containing `training/` |
+| `TRAIN_REPO_REF` | Worker var | Branch/tag to clone |
+| `STORAGE_SECRET` | Worker + Job secret | Upload adapters to R2 |
+| `STORAGE_UPLOAD_URL` | Job env | `https://<worker>/api/storage` |
+| `STORAGE_PUBLIC_BASE` | Job env | Worker origin for `/files/` URLs |
+| `TRAIN_WEBHOOK_SECRET` | Worker + Job secret | Authenticate webhook |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Worker | Update location AI fields |
+| `SUPABASE_ANON_KEY` or `VITE_SUPABASE_ANON_KEY` | Worker | Validate caller JWT |
 
-## Artifacts on Blob
+## Artifacts on R2
 
 ```
 adapters/{locationId}/{version}/

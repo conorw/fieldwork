@@ -5,9 +5,11 @@ import { localLLMService } from "../services/localLLMService";
 import type { PersonData } from "../stores/persons";
 import { useLocationsStore } from "../stores/locations";
 import {
-  ensureLocalModelForLocation,
+  ensureSharedLocalModel,
   resolveOnnxModelUrl,
 } from "../services/adapterInstallService";
+import { detectDeviceAiCapabilities } from "./deviceAiCapabilities";
+import { resolveLocalAnalysisRoute } from "./localAnalysisRoute";
 import type { HeadstonePhysicalAttrs } from "../types/headstoneTraining";
 import { normalizePhysicalAttrs } from "../types/headstoneTraining";
 import { normalizeDateToIso } from "./inscriptionDates";
@@ -67,39 +69,39 @@ export class HeadstoneAnalysisService {
   }
 
   /**
-   * Use on-device model only when this cemetery is offline-ready and the
-   * matching adapter is loaded. Otherwise keep GPT (teacher / training / error).
+   * Use the on-device model if it is already loaded. Never block a photo on
+   * the Hub download — OpenAI covers the gap while that runs in the background.
+   * Cemetery ai_status does not gate this: new cemeteries use the shared FastVLM.
    */
   private async shouldUseLocalModel(): Promise<{
     useLocal: boolean;
     reason: string;
   }> {
+    const caps = await detectDeviceAiCapabilities();
     const loc = this.locationsStore.selectedLocation;
-    if (!loc) {
-      return { useLocal: false, reason: "no_location" };
-    }
-    if (loc.aiStatus !== "local" || !loc.adapterUrl) {
-      return {
-        useLocal: false,
-        reason: `ai_status=${loc.aiStatus || "teacher"}`,
-      };
-    }
 
-    try {
-      const modelUrl = await resolveOnnxModelUrl(loc.adapterUrl);
-      if (localLLMService.isReadyFor(modelUrl)) {
-        return { useLocal: true, reason: "adapter_loaded" };
+    if (loc?.aiStatus === "local" && loc.adapterUrl) {
+      try {
+        const modelUrl = await resolveOnnxModelUrl(loc.adapterUrl);
+        if (localLLMService.isReadyFor(modelUrl)) {
+          return { useLocal: true, reason: "adapter_loaded" };
+        }
+      } catch (e) {
+        console.warn("Cemetery adapter not usable; trying shared model:", e);
       }
-
-      const ok = await ensureLocalModelForLocation(loc);
-      if (ok) return { useLocal: true, reason: "adapter_installed" };
-
-      // Cemetery is marked local — do not send photos to GPT.
-      return { useLocal: false, reason: "adapter_install_failed" };
-    } catch (e) {
-      console.warn("shouldUseLocalModel:", e);
-      return { useLocal: false, reason: "adapter_error" };
     }
+
+    const route = resolveLocalAnalysisRoute({
+      canRunOfflineAi: caps.canRunOfflineAi,
+      modelReady: localLLMService.isReady(),
+      modelLoading: localLLMService.isLoading(),
+    });
+
+    if (route.startDownload) {
+      void ensureSharedLocalModel();
+    }
+
+    return { useLocal: route.useLocal, reason: route.reason };
   }
 
   /** Exposed for tests */
@@ -198,8 +200,9 @@ export class HeadstoneAnalysisService {
   }
   /**
    * Analyze a headstone image and create person records.
-   * Teacher-first: use GPT until this cemetery is offline-ready AND the
-   * matching adapter is loaded. Never use an untrained stock model in the field.
+   * Uses the on-device model as soon as it is ready (shared FastVLM, or a
+   * cemetery adapter). Falls back to online reading only while the model
+   * is still downloading.
    */
   async analyzeHeadstoneImage(
     imageFile: File,
@@ -214,15 +217,6 @@ export class HeadstoneAnalysisService {
       const base64Data = await this.fileToBase64(imageFile, true);
 
       let analysisData: any;
-
-      if (
-        this.locationsStore.selectedLocation?.aiStatus === "local" &&
-        !useLocal
-      ) {
-        throw new Error(
-          "Offline reading is still preparing on this device. Wait for the download to finish, or check the stone yourself.",
-        );
-      }
 
       if (useLocal) {
         try {
@@ -241,10 +235,8 @@ export class HeadstoneAnalysisService {
         } catch (localError) {
           const errorMsg =
             localError instanceof Error ? localError.message : "Unknown error";
-          // After cemetery is local, do not silently fall back to GPT (privacy / product rule).
-          // Staff can correct the form manually.
           throw new Error(
-            `Offline reading failed: ${errorMsg}. Check the names yourself or try again.`,
+            `On-device reading failed: ${errorMsg}. Check the names yourself or try again.`,
           );
         }
       } else {

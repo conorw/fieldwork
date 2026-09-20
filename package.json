@@ -7,7 +7,14 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "vite dev",
+    "dev": "concurrently -k -n vite,worker -c cyan,magenta \"vite dev\" \"wrangler dev --port 8787\"",
+    "dev:vite": "vite dev",
+    "dev:worker": "wrangler dev --port 8787",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "cf:types": "wrangler types",
+    "migrate:blob": "python scripts/migrate_vercel_blob_to_r2.py",
     "test": "node ./node_modules/vitest/vitest.mjs run --config vitest.config.ts",
     "test:watch": "node ./node_modules/vitest/vitest.mjs --config vitest.config.ts",
     "test:train": "node ./node_modules/vitest/vitest.mjs run --config vitest.config.ts tests/train",
@@ -16,9 +23,7 @@
     "test:e2e:onboarding": "playwright test e2e/onboarding-new-cemetery.spec.ts --project=chromium",
     "test:e2e:fone": "playwright test e2e/onboarding-fone-extract-plot.spec.ts --project=chromium && node e2e/helpers/collect-videos.mjs",
     "test:e2e:videos": "playwright test e2e/onboarding-new-cemetery.spec.ts e2e/usage-scenarios.spec.ts e2e/onboarding-fone-extract-plot.spec.ts --project=chromium && node e2e/helpers/collect-videos.mjs",
-    "test:api": "vercel dev && vitest run -t 'clips 1km×1km successfully'",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview",
+    "test:api": "wrangler dev --port 8787",
     "type-check": "vue-tsc --noEmit",
     "type-check:watch": "vue-tsc --noEmit --watch",
     "lint": "eslint . --fix",
@@ -76,7 +81,8 @@
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.11",
     "vue-eslint-parser": "^10.4.1",
-    "vue-tsc": "^3.3.11"
+    "vue-tsc": "^3.3.11",
+    "wrangler": "^4.135.0"
   },
   "keywords": [
     "cemetery",

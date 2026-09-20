@@ -364,7 +364,7 @@
 
             <Card v-if="analysisResult && analysisResult.success">
               <template #title>
-                <span>Check the names</span>
+                <span>Check the names (optional)</span>
               </template>
               <template #content>
                 <HeadstoneConfirmCard
@@ -435,19 +435,14 @@ import MapEdit from "./MapEdit.vue";
 import { headstoneAnalysisService } from "../utils/headstoneAnalysisService";
 import HeadstoneConfirmCard from "./headstone/HeadstoneConfirmCard.vue";
 import {
-  saveReviewedTrainingExample,
-} from "../utils/headstoneTrainingService";
-import { maybeAutoStartTraining } from "../services/autoTrainService";
+  fieldSampleFromAnalysis,
+  persistFieldSample,
+} from "../services/fieldSamplingService";
 import type {
   HeadstoneReasoningTarget,
+  ReviewSource,
   StoneType,
 } from "../types/headstoneTraining";
-import {
-  personsToReasoningTarget,
-  personDataToConfirmInputs,
-  inferStaffStoneKind,
-  staffKindToStoneType,
-} from "../utils/reasoningMapper";
 
 // PrimeVue components
 import Button from "primevue/button";
@@ -469,6 +464,7 @@ import { base64ToBlob } from "../powersync-schema";
 import { DEFAULT_PLOT_SIZE, getSimplifiedPlotSizes } from "../utils/plotSizes";
 import { wizardLogger } from "../utils/logger";
 import { generatePlotGeometry } from "../utils/locationUtils";
+import { rewritePublicStorageUrl } from "../utils/storageUrl";
 import { useToastService } from "../utils/toastService";
 import { collectGPSReadings, averageGPSReadings } from "../utils/gpsAveraging";
 import { waitForGPSStability, checkGPSStability } from "../utils/gpsStability";
@@ -554,6 +550,7 @@ const pendingTraining = ref<{
   target: HeadstoneReasoningTarget;
   wasCorrected?: boolean;
   physical?: import("@/types/headstoneTraining").HeadstonePhysicalAttrs;
+  reviewSource?: ReviewSource;
 } | null>(null);
 const trainingConfirmed = ref(false);
 const lastWasCorrected = ref(false);
@@ -1400,6 +1397,7 @@ const onTrainingConfirmed = (payload: {
     target: payload.target,
     wasCorrected: !!payload.wasCorrected,
     physical: payload.physical,
+    reviewSource: payload.wasCorrected ? "correction" : "confirm",
   };
   trainingConfirmed.value = true;
   lastWasCorrected.value = !!payload.wasCorrected;
@@ -1433,22 +1431,15 @@ const onTrainingConfirmed = (payload: {
 };
 
 const onTrainingSkipped = () => {
-  // Still capture a soft label from current analysis so teaching can progress
-  if (analysisResult.value?.success && analysisResult.value.persons?.length) {
-    const kind = inferStaffStoneKind(analysisResult.value.persons.length);
-    pendingTraining.value = {
-      stoneType: staffKindToStoneType(kind),
-      target: personsToReasoningTarget(
-        personDataToConfirmInputs(analysisResult.value.persons),
-        {
-          stoneKind: kind,
-          epitaph: analysisResult.value.shared_epitaph || "",
-          notes: analysisResult.value.full_text_transcription || "",
-          physical: analysisResult.value.physical,
-        },
-      ),
-      physical: analysisResult.value.physical,
-    };
+  // Keep a soft field sample so skipped stones still help the shared model
+  if (analysisResult.value?.success) {
+    const sample = fieldSampleFromAnalysis(analysisResult.value, "soft_skip");
+    if (sample) {
+      pendingTraining.value = {
+        ...sample,
+        reviewSource: "soft_skip",
+      };
+    }
   }
   trainingConfirmed.value = false;
 };
@@ -1487,10 +1478,14 @@ const analyzeHeadstoneImage = async () => {
 
       // Prepopulate form with analysis results
       populateFormFromAnalysis(result);
-      // Soft-default training payload until staff confirms
+      // Soft-default a field sample so saving the plot trains the shared model
+      // even if staff skip the confirm card.
       trainingConfirmed.value = false;
       lastWasCorrected.value = false;
-      pendingTraining.value = null;
+      const sample = fieldSampleFromAnalysis(result, "field_sample");
+      pendingTraining.value = sample
+        ? { ...sample, reviewSource: "field_sample" }
+        : null;
     } else {
       showError(`Analysis failed: ${(result as any).error || "Unknown error"}`);
     }
@@ -1845,19 +1840,17 @@ const processRemainingOperationsInBackground = async (
         locationsStore.selectedLocationId
       ) {
         try {
-          await saveReviewedTrainingExample({
+          await persistFieldSample({
             locationId: locationsStore.selectedLocationId,
-            imageUrl: savedImage.cloud_url,
+            imageUrl: rewritePublicStorageUrl(savedImage.cloud_url),
             stoneType: pendingTraining.value.stoneType,
             target: pendingTraining.value.target,
             plotId: newPlot.id,
             plotImageId: savedImage.id,
             wasCorrected: pendingTraining.value.wasCorrected,
+            reviewSource: pendingTraining.value.reviewSource,
+            location: locationsStore.selectedLocation,
           });
-          const loc = locationsStore.selectedLocation;
-          if (loc) {
-            await maybeAutoStartTraining(loc);
-          }
         } catch (trainErr) {
           wizardLogger.warn("Training example save skipped:", trainErr);
         }

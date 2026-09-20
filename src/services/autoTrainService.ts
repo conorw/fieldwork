@@ -53,8 +53,8 @@ export async function maybeAutoStartTraining(
     const { jobId, version } = await startLocationTraining(location.id);
     lastTrainExampleCount.set(location.id, counts.total);
     toastService.info(
-      "Learning this cemetery",
-      "Offline reading will turn on automatically when ready.",
+      "Improving the shared model",
+      "Plot photos are being used in the background. On-device reading stays available.",
       5000,
     );
     void pollUntilDone(location, jobId);
@@ -99,8 +99,8 @@ export async function onLocationBecameLocal(
     lastTrainExampleCount.set(location.id, examples.length);
     await ensureLocalModelForLocation(location);
     toastService.success(
-      "Offline ready",
-      "This cemetery now works offline on this device.",
+      "Cemetery model updated",
+      "This cemetery now uses a finer on-device model.",
       6000,
     );
   } catch (e) {

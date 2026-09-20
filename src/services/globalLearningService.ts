@@ -70,7 +70,6 @@ async function tryRetrainForGlobal(
   if (!location?.id || location.aiStatus !== "local") return false;
   if (!locationNeedsGlobalAbsorb(location.id, meta.version)) return false;
   if (pendingRetrain.has(location.id)) return false;
-  if (location.aiStatus === "training") return false;
 
   pendingRetrain.add(location.id);
   try {

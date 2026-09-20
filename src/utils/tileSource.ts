@@ -2,9 +2,11 @@ import { pmtilesService, type PMTilesLocation } from "./pmtilesService.js";
 import VectorTile from "ol/layer/VectorTile";
 import { PMTilesVectorSource } from "ol-pmtiles";
 import { Style, Stroke, Fill, Icon } from "ol/style";
+import { publicFileUrl } from "./storageUrl";
 
 const ONLINE_PMTILES_URL =
-  "https://6ftgthlf9zt2ofxl.public.blob.vercel-storage.com/pmtiles/OUTPUT.pmtiles";
+  (import.meta.env.VITE_PMTILES_URL as string | undefined) ||
+  publicFileUrl("pmtiles/OUTPUT.pmtiles");
 
 export const createOnlinePMTilesTileSource = (sourceName = "Unknown") => {
   const url = ONLINE_PMTILES_URL;

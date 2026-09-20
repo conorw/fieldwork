@@ -5,6 +5,7 @@ import { defineStore } from "pinia";
 import { useLocationsStore } from "./locations";
 import { usePersonsStore } from "./persons";
 import { CapacitorGeolocationService } from "../services/capacitorGeolocation";
+import { rewritePublicStorageUrl } from "../utils/storageUrl";
 
 // Static imports for OpenLayers modules - loaded once at module level
 import Feature from "ol/Feature";
@@ -161,7 +162,7 @@ export const useMapStore = defineStore("map", () => {
             ? raw
             : `data:image/jpeg;base64,${raw.replace(/^(data:image\/[a-zA-Z+]+;base64,)+/i, "")}`;
         } else if (image.cloud_url && !String(image.cloud_url).includes("mock-storage.dev")) {
-          thumbnailUrl = image.cloud_url;
+          thumbnailUrl = rewritePublicStorageUrl(image.cloud_url);
         } else if (image.data) {
           const raw = String(image.data).trim();
           thumbnailUrl = raw.startsWith("data:")

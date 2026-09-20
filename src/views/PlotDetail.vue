@@ -818,6 +818,7 @@ import { createMapView } from "../utils/mapView";
 import { createBestTileSource } from "../utils/tileSource";
 import { base64ToBlob } from "../powersync-schema";
 import { progressiveImageLoader } from "../utils/imageDisplayUtils";
+import { rewritePublicStorageUrl } from "../utils/storageUrl";
 import ThumbnailViewer from "../components/ThumbnailViewer.vue";
 
 // Static imports for OpenLayers (already in bundle via manualChunks)
@@ -1259,7 +1260,7 @@ const viewPhoto = (image) => {
   // Prefer full-res cloud URL; thumbnail_data / legacy data are fallbacks.
   // `data` is intentionally empty in the hybrid storage path.
   if (image?.cloud_url && !String(image.cloud_url).includes("mock-storage.dev")) {
-    window.open(image.cloud_url, "_blank");
+    window.open(rewritePublicStorageUrl(image.cloud_url), "_blank");
     return;
   }
 

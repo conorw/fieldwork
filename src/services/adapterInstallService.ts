@@ -1,5 +1,5 @@
 /**
- * Download / load per-cemetery merged ONNX when ai_status becomes local.
+ * Load the shared FastVLM on boot, and a per-cemetery merged ONNX when available.
  */
 import { localLLMService } from "./localLLMService";
 import {
@@ -21,7 +21,23 @@ export async function resolveOnnxModelUrl(
 }
 
 /**
- * Ensure the worker has the location's ONNX loaded (or stock model for eval).
+ * Ensure the shared Hub FastVLM is loaded so new cemeteries can read
+ * on-device without a teaching onboarding step.
+ */
+export async function ensureSharedLocalModel(): Promise<boolean> {
+  if (localLLMService.isReady()) return true;
+  try {
+    await localLLMService.initialize({ modelUrl: DEFAULT_ONNX_MODEL_ID });
+    return localLLMService.isReady();
+  } catch (e) {
+    console.warn("ensureSharedLocalModel:", e);
+    return false;
+  }
+}
+
+/**
+ * Ensure the worker has the location's ONNX loaded when this cemetery
+ * has a published adapter. Falls back to the shared stock model.
  */
 export async function ensureLocalModelForLocation(
   location: Pick<
@@ -29,27 +45,33 @@ export async function ensureLocalModelForLocation(
     "id" | "aiStatus" | "adapterUrl" | "adapterVersion"
   >,
 ): Promise<boolean> {
-  if (location.aiStatus !== "local" || !location.adapterUrl) {
-    return false;
+  if (location.aiStatus === "local" && location.adapterUrl) {
+    try {
+      const modelUrl = await resolveOnnxModelUrl(location.adapterUrl);
+
+      if (localLLMService.isReadyFor(modelUrl)) {
+        return true;
+      }
+
+      await localLLMService.initialize({
+        modelUrl,
+        locationId: location.id,
+        adapterVersion: location.adapterVersion,
+      });
+
+      if (localLLMService.isReadyFor(modelUrl)) {
+        return true;
+      }
+    } catch (e) {
+      console.warn("Cemetery adapter not usable; using shared model:", e);
+    }
   }
 
-  const modelUrl = await resolveOnnxModelUrl(location.adapterUrl);
-
-  if (localLLMService.isReadyFor(modelUrl)) {
-    return true;
-  }
-
-  await localLLMService.initialize({
-    modelUrl,
-    locationId: location.id,
-    adapterVersion: location.adapterVersion,
-  });
-
-  return localLLMService.isReadyFor(modelUrl);
+  return ensureSharedLocalModel();
 }
 
 export async function ensureStockModelForEval(): Promise<void> {
-  await localLLMService.initialize({ modelUrl: DEFAULT_ONNX_MODEL_ID });
+  await ensureSharedLocalModel();
 }
 
 export async function locationModelIsCached(

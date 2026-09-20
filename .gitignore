@@ -76,6 +76,10 @@ public/workbox-*.js
 *.bak
 *.backup 
 .vercel
+.wrangler
+.dev.vars
+.migrate-cache
+worker-configuration.d.ts
 
 # Vite build artifacts with absolute paths
 vite.config.ts.timestamp-*.mjs

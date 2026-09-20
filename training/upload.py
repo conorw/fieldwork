@@ -1,4 +1,4 @@
-"""Upload adapter bundle to Vercel Blob under adapters/{locationId}/{version}/."""
+"""Upload adapter bundle to Cloudflare R2 under adapters/{locationId}/{version}/."""
 
 from __future__ import annotations
 
@@ -9,50 +9,31 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 
+def _public_file_url(pathname: str) -> str:
+    base = os.environ.get("STORAGE_PUBLIC_BASE", "").rstrip("/")
+    return f"{base}/files/{pathname}" if base else f"/files/{pathname}"
+
+
 def _put_blob(pathname: str, data: bytes, content_type: str, token: str) -> str:
-    """
-    Vercel Blob put via REST.
-    https://vercel.com/docs/storage/vercel-blob/using-blob-sdk
-    """
+    """PUT an object to the Cloudflare Worker storage route (R2)."""
     import json
 
+    upload_base = os.environ.get("STORAGE_UPLOAD_URL", "").rstrip("/")
+    if not upload_base:
+        raise RuntimeError("STORAGE_UPLOAD_URL is required (Cloudflare Worker /api/storage)")
+
     req = Request(
-        f"https://blob.vercel-storage.com/{pathname}",
+        f"{upload_base}/{pathname}",
         data=data,
         method="PUT",
         headers={
             "Authorization": f"Bearer {token}",
-            "x-api-version": "7",
-            "x-content-type": content_type,
-            "x-add-random-suffix": "false",
+            "Content-Type": content_type,
         },
     )
-    try:
-        with urlopen(req, timeout=300) as resp:
-            payload = json.loads(resp.read().decode())
-            return payload.get("url") or payload.get("downloadUrl") or pathname
-    except Exception:
-        boundary = "----FieldworkBoundary"
-        body = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="file"; filename="{Path(pathname).name}"\r\n'
-            f"Content-Type: {content_type}\r\n\r\n"
-        ).encode() + data + f"\r\n--{boundary}--\r\n".encode()
-        create = Request(
-            "https://blob.vercel-storage.com",
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "x-api-version": "7",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-                "x-pathname": pathname,
-                "x-add-random-suffix": "false",
-            },
-        )
-        with urlopen(create, timeout=300) as resp:
-            payload = json.loads(resp.read().decode())
-            return payload.get("url") or payload.get("downloadUrl") or pathname
+    with urlopen(req, timeout=300) as resp:
+        payload = json.loads(resp.read().decode())
+        return payload.get("url") or _public_file_url(pathname)
 
 
 def upload_bundle(
@@ -63,9 +44,13 @@ def upload_bundle(
     token: str | None = None,
     path_prefix: str | None = None,
 ) -> dict[str, Any]:
-    token = token or os.environ.get("BLOB_READ_WRITE_TOKEN")
+    token = (
+        token
+        or os.environ.get("STORAGE_SECRET")
+        or os.environ.get("TRAIN_WEBHOOK_SECRET")
+    )
     if not token:
-        raise RuntimeError("BLOB_READ_WRITE_TOKEN is required")
+        raise RuntimeError("STORAGE_SECRET is required")
 
     # Sanitize version for path
     safe_version = version.replace(":", "-").replace("/", "-")
@@ -97,7 +82,7 @@ def upload_bundle(
     if isinstance(adapter_url, str) and "manifest.json" in adapter_url:
         adapter_url = adapter_url.rsplit("/manifest.json", 1)[0] + "/"
     elif not uploaded:
-        adapter_url = f"https://blob.vercel-storage.com/{prefix}/"
+        adapter_url = _public_file_url(f"{prefix}/")
 
     return {
         "adapterUrl": adapter_url,
@@ -127,7 +112,11 @@ def upload_latest_pointer(
         path_prefix="adapters/global",
     )
     # Overwrite manifest with explicit latest pointer metadata
-    token = token or os.environ.get("BLOB_READ_WRITE_TOKEN")
+    token = (
+        token
+        or os.environ.get("STORAGE_SECRET")
+        or os.environ.get("TRAIN_WEBHOOK_SECRET")
+    )
     if token:
         pointer = {
             "kind": "global_lora",

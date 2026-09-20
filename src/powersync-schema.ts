@@ -151,7 +151,7 @@ const headstone_training_examples = new Table(
     date_created: column.text,
     was_corrected: column.text, // "true" | "false" — SQLite-friendly
     prediction_json: column.text,
-    review_source: column.text, // confirm | correction | soft_skip
+    review_source: column.text, // confirm | correction | soft_skip | field_sample
   },
   {
     indexes: {

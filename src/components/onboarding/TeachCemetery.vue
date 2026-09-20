@@ -1,17 +1,18 @@
 <template>
   <div class="space-y-6">
     <div>
-      <h3 class="text-xl font-semibold mb-1">Teach this cemetery</h3>
+      <h3 class="text-xl font-semibold mb-1">Help improve reading</h3>
       <p class="text-sm text-surface-600">
-        Photograph a few real stones and check the names. This helps the app
-        read headstones offline here. You can finish later from Settings.
+        Optional. Photograph a few real stones and check the names. Plot photos
+        you already take are sampled in the background — this just gives clearer
+        labels. You can skip and add plots right away.
       </p>
       <p class="text-sm mt-2 font-medium">{{ coverage.message }}</p>
     </div>
 
     <Message severity="info" :closable="false" v-if="!isOnline">
-      You need a connection for teaching photos (online reading). After
-      offline is ready, reading works without the internet.
+      You need a connection for extra teaching photos. Plot photos are still
+      sampled in the background, and on-device reading works without teaching.
     </Message>
 
     <Message severity="info" :closable="false" v-else>
@@ -74,7 +75,7 @@
     <div class="flex flex-col sm:flex-row gap-2">
       <Button
         v-if="coverage.ready"
-        label="Done — start offline learning"
+        label="Done"
         class="flex-1"
         @click="finish"
       />

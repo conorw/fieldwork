@@ -4,6 +4,7 @@
  * benefits when any cemetery makes the model smarter.
  */
 import { prefetchAdapterManifest } from "./modelCacheService";
+import { rewritePublicStorageUrl } from "../utils/storageUrl";
 
 const GLOBAL_META_KEY = "fieldwork-global-adapter-meta";
 const GLOBAL_UPDATED_EVENT = "fieldwork-global-adapter-updated";
@@ -107,7 +108,10 @@ export async function refreshGlobalAdapterMeta(): Promise<GlobalAdapterMeta | nu
   let candidateVersion: string | null = null;
 
   if (api?.adapterUrl) {
-    candidateUrl = String(api.adapterUrl).replace(/\/?$/, "/");
+    candidateUrl = rewritePublicStorageUrl(String(api.adapterUrl)).replace(
+      /\/?$/,
+      "/",
+    );
     candidateVersion = api.version || null;
   }
 

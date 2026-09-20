@@ -16,6 +16,12 @@ export type StoneType =
   | "weathered"
   | "unknown";
 
+export type ReviewSource =
+  | "confirm"
+  | "correction"
+  | "soft_skip"
+  | "field_sample";
+
 /** Physical material of the monument (separate from occupancy stoneType) */
 export type StoneMaterial =
   | "granite"
@@ -117,7 +123,7 @@ export interface HeadstoneReasoningTarget {
    */
   review?: {
     was_corrected: boolean;
-    source: "confirm" | "correction" | "soft_skip";
+    source: ReviewSource;
     /** Original model prediction before edits (JSON-serializable) */
     prediction?: HeadstoneReasoningTarget | Record<string, unknown>;
   };

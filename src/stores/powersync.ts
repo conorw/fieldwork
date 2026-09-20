@@ -565,6 +565,14 @@ export const usePowerSyncStore = defineStore("powersync", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     locationStore.selectLocation(createdLocation.id);
+
+    // New cemeteries use the shared on-device model; download in the background.
+    void import("../services/adapterInstallService").then((m) =>
+      m.ensureSharedLocalModel().catch((err) =>
+        console.warn("Shared model download deferred:", err),
+      ),
+    );
+
     return createdLocation;
   };
 
@@ -916,6 +924,46 @@ export const usePowerSyncStore = defineStore("powersync", () => {
                 },
               }),
             );
+
+            if (createdImage.cloud_url) {
+              try {
+                const plotRow = (await powerSync.value.get(
+                  "SELECT location_id FROM plots WHERE id = ?",
+                  [plotId],
+                )) as { location_id?: string } | null;
+                const { fieldSampleFromAnalysis, persistFieldSample } =
+                  await import("../services/fieldSamplingService");
+                const { useLocationsStore } = await import("./locations");
+                const sample = fieldSampleFromAnalysis(
+                  analysisResult,
+                  "field_sample",
+                );
+                if (sample && plotRow?.location_id) {
+                  const { rewritePublicStorageUrl } = await import(
+                    "../utils/storageUrl"
+                  );
+                  const locationsStore = useLocationsStore();
+                  await persistFieldSample({
+                    locationId: plotRow.location_id,
+                    imageUrl: rewritePublicStorageUrl(createdImage.cloud_url),
+                    stoneType: sample.stoneType,
+                    target: sample.target,
+                    plotId,
+                    plotImageId: createdImage.id,
+                    reviewSource: "field_sample",
+                    location:
+                      locationsStore.locations.find(
+                        (l) => l.id === plotRow.location_id,
+                      ) || locationsStore.selectedLocation,
+                  });
+                }
+              } catch (sampleErr) {
+                console.warn(
+                  "PowerSync: background field sample skipped:",
+                  sampleErr,
+                );
+              }
+            }
           } else {
             console.warn(
               "⚠️ PowerSync: Headstone analysis failed:",

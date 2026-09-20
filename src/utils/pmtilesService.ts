@@ -53,6 +53,8 @@ class PMTilesService {
         "📦 [PMTilesService] ✅ pmtilesUrl is valid, downloading from URL:",
         location.pmtilesUrl,
       );
+      const { rewritePublicStorageUrl } = await import("./storageUrl");
+      const downloadUrl = rewritePublicStorageUrl(location.pmtilesUrl);
       // Use credentials: 'omit' to prevent sending cookies/auth headers
       // PMTiles files are public assets (Vercel Blob Storage) and don't need authentication
       // This prevents the "431 Request Header Fields Too Large" error caused by
@@ -72,7 +74,7 @@ class PMTilesService {
 
       let response: Response;
       try {
-        response = await fetch(location.pmtilesUrl, requestInit);
+        response = await fetch(downloadUrl, requestInit);
       } catch (fetchError) {
         // If fetch fails, it might be a network error or header size issue
         console.error("PMTiles fetch error:", fetchError);

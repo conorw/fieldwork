@@ -344,9 +344,9 @@
               <p class="text-sm font-medium">{{ cemeteryAiHeadline }}</p>
               <p class="text-xs">{{ cemeteryAiBody }}</p>
               <p class="text-xs text-surface-500">
-                Photos used to teach stay with this cemetery’s training job.
-                Other cemeteries only receive model weights — never your photos
-                or names.
+                Some plot photos are sampled in the background to improve the
+                shared model. Other cemeteries only receive model weights —
+                never your photos or names.
               </p>
             </div>
           </Message>
@@ -355,8 +355,9 @@
             <template #content>
               <p class="text-sm mb-2">{{ coverageMessage }}</p>
               <Button
-                label="Teach this cemetery"
+                label="Help improve reading"
                 size="small"
+                outlined
                 @click="goTeach"
               />
             </template>
@@ -369,17 +370,14 @@
                   v-if="localModelState.isLoading"
                   class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800"
                 >
-                  Preparing offline reading…
+                  Preparing on-device reading…
                   {{ localModelState.loadProgress.toFixed(0) }}%
                 </div>
                 <div
-                  v-else-if="
-                    selectedLocation?.aiStatus === 'local' &&
-                    localModelState.isLoaded
-                  "
+                  v-else-if="localModelState.isLoaded"
                   class="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-800"
                 >
-                  Offline reading is ready on this device.
+                  On-device reading is ready.
                 </div>
                 <div
                   v-else-if="localModelState.error"
@@ -390,8 +388,8 @@
 
                 <div class="flex flex-wrap gap-2">
                   <Button
-                    v-if="selectedLocation?.aiStatus === 'local'"
-                    label="Download offline model"
+                    v-if="!localModelState.isLoaded"
+                    label="Download on-device model"
                     size="small"
                     :loading="installingModel"
                     @click="installAdapter"
@@ -563,7 +561,7 @@ import { storageAnalytics } from "../utils/storageAnalytics";
 import type { StorageSummary } from "../utils/storageAnalytics";
 import { localLLMService } from "../services/localLLMService";
 import { consoleLogger, type LogEntry } from "../utils/consoleLogger";
-import { ensureLocalModelForLocation } from "../services/adapterInstallService";
+import { ensureLocalModelForLocation, ensureSharedLocalModel } from "../services/adapterInstallService";
 import { detectDeviceAiCapabilities } from "../utils/deviceAiCapabilities";
 import {
   countTrainingExamples,
@@ -593,50 +591,54 @@ const deviceMessage = ref("");
 const coverageMessage = ref("");
 
 const cemeteryAiLabel = computed(() => {
+  if (localModelState.value.isLoaded) return "On-device";
+  if (localModelState.value.isLoading) return "Downloading";
   const s = selectedLocation.value?.aiStatus || "teacher";
-  if (s === "local" && localModelState.value.isLoaded) return "Offline-ready";
-  if (s === "local") return "Offline (download)";
-  if (s === "training") return "Training";
+  if (s === "training") return "Improving";
   if (s === "error") return "Needs attention";
-  return "Teaching";
+  return "On-device";
 });
 
 const cemeteryAiSeverity = computed(() => {
+  if (localModelState.value.isLoaded) return "success";
+  if (localModelState.value.isLoading) return "info";
   const s = selectedLocation.value?.aiStatus || "teacher";
-  if (s === "local") return "success";
   if (s === "training") return "info";
   if (s === "error") return "warn";
   return "secondary";
 });
 
 const cemeteryAiHeadline = computed(() => {
+  if (localModelState.value.isLoaded) return "On-device reading is ready";
+  if (localModelState.value.isLoading) {
+    return "Downloading the on-device model…";
+  }
   const s = selectedLocation.value?.aiStatus || "teacher";
-  if (s === "local") return "This cemetery works offline";
-  if (s === "training") return "Learning this cemetery’s stones…";
-  if (s === "error") return "Offline training needs attention";
-  return "Teaching mode (online reading)";
+  if (s === "training") return "Improving the shared model in the background…";
+  if (s === "error") return "Shared-model training needs attention";
+  return "On-device reading starts automatically";
 });
 
 const cemeteryAiBody = computed(() => {
   const s = selectedLocation.value?.aiStatus || "teacher";
-  if (s === "local") {
-    return "New photos are read on this device. Tap “Something’s wrong” to fix names — your correction trains this cemetery and improves the shared model for others.";
+  if (localModelState.value.isLoaded) {
+    return "New photos are read on this device. Checking names is optional and helps improve reading for everyone.";
   }
   if (s === "training") {
-    return "You can keep working. Photos still use online reading until offline is ready.";
+    return "You can keep working. Plot photos are sampled in the background to improve the shared model.";
   }
   if (s === "error") {
     return (
       selectedLocation.value?.aiTrainError ||
-      "Online reading still works. Try teaching a few more stones, or contact support."
+      "On-device reading still works. Shared-model training can retry from sampled plot photos."
     );
   }
-  return "Photograph and confirm stones so the app can learn this cemetery. After that, reading works without sending photos to the cloud.";
+  return "Add plots as usual. The on-device model downloads in the background. Some photos are sampled to improve reading for everyone.";
 });
 
 async function refreshCoverage() {
   const loc = selectedLocation.value;
-  if (!loc || loc.aiStatus === "local" || loc.aiStatus === "training") {
+  if (!loc) {
     coverageMessage.value = "";
     return;
   }
@@ -649,8 +651,8 @@ async function refreshCoverage() {
       hasGlobalAdapter: hasGlobal,
     });
     coverageMessage.value = status.ready
-      ? "Enough stones confirmed — offline training will start automatically."
-      : status.message;
+      ? "Enough sampled stones — shared-model training can run automatically."
+      : `${status.message} Optional — reading already works on-device.`;
   } catch {
     coverageMessage.value = "";
   }
@@ -662,10 +664,15 @@ function goTeach() {
 
 async function installAdapter() {
   const loc = selectedLocation.value;
-  if (!loc) return;
   installingModel.value = true;
+  startPollingLLMState();
   try {
-    await ensureLocalModelForLocation(loc);
+    if (loc?.aiStatus === "local" && loc.adapterUrl) {
+      const ok = await ensureLocalModelForLocation(loc);
+      if (!ok) await ensureSharedLocalModel();
+    } else {
+      await ensureSharedLocalModel();
+    }
     localModelState.value = localLLMService.getState();
   } catch (e) {
     console.error(e);
@@ -754,9 +761,7 @@ const startPollingLLMState = () => {
 
 onMounted(() => {
   localModelState.value = localLLMService.getState();
-  if (localModelState.value.isLoading) {
-    startPollingLLMState();
-  }
+  startPollingLLMState();
   detectDeviceAiCapabilities().then((c) => {
     deviceMessage.value = c.staffMessage;
   });

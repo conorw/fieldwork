@@ -1,6 +1,5 @@
 // Local browser-based VLM service for headstone analysis (FastVLM via Web Worker).
-// Teacher-first routing lives in headstoneAnalysisService — only call this when
-// the cemetery is ai_status=local and the adapter is cached.
+// Loaded on app boot so new customers can read stones on-device immediately.
 
 import type { HeadstoneAnalysisResult } from "../utils/headstoneAnalysisService";
 import {
@@ -48,7 +47,7 @@ class LocalLLMService {
 
   /**
    * Load stock Hub FastVLM or a per-cemetery merged ONNX URL.
-   * Does NOT auto-start on app boot — call when cemetery is local or for eval.
+   * Called on app boot for the shared model, and again when a cemetery adapter is ready.
    */
   async initialize(options?: {
     modelUrl?: string;
@@ -304,6 +303,10 @@ class LocalLLMService {
 
   isReadyFor(modelUrl: string): boolean {
     return this.isReady() && this.modelState.modelUrl === modelUrl;
+  }
+
+  isLoading(): boolean {
+    return this.modelState.isLoading;
   }
 
   reset(): void {

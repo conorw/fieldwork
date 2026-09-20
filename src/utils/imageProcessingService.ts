@@ -79,7 +79,7 @@ class ImageProcessingService {
       console.log("ImageProcessingService: Uploading to cloud storage...");
       let cloudUrl: string = "";
       try {
-        cloudUrl = await this.uploadToVercelStorage(processedFile);
+        cloudUrl = await this.uploadToCloudStorage(processedFile);
       } catch (uploadError) {
         console.warn(
           "ImageProcessingService: Cloud upload failed:",
@@ -240,7 +240,7 @@ class ImageProcessingService {
   /**
    * Upload file to Vercel storage
    */
-  private async uploadToVercelStorage(file: File): Promise<string> {
+  private async uploadToCloudStorage(file: File): Promise<string> {
     try {
       // Validate file object
       if (!file) {
@@ -271,7 +271,7 @@ class ImageProcessingService {
       const fileName = `plot-images/${timestamp}_${randomId}.${extension}`;
 
       console.log(
-        "ImageProcessingService: Uploading to Vercel storage:",
+        "ImageProcessingService: Uploading image:",
         fileName,
       );
       console.log("ImageProcessingService: File details:", {
@@ -288,7 +288,7 @@ class ImageProcessingService {
         fileData.length,
       );
 
-      // Upload to Vercel storage
+      // Upload to Cloudflare R2 via Worker
       const response = await fetch("/api/upload-image", {
         method: "POST",
         headers: {
@@ -326,7 +326,7 @@ class ImageProcessingService {
    * Public upload helper (teaching / confirm flow).
    */
   async uploadImage(file: File): Promise<{ url: string; fileName: string }> {
-    const url = await this.uploadToVercelStorage(file);
+    const url = await this.uploadToCloudStorage(file);
     return { url, fileName: file.name };
   }
 

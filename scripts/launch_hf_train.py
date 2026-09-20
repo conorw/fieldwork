@@ -5,7 +5,7 @@ locally labeled sample set (training/samples/{curated,synthetic}).
 
 Why not `git clone` in the job? The local training/ package is ahead of
 origin, and we avoid pushing. Instead this script:
-  1. Uploads sample images to Vercel Blob (public URLs for the job)
+  1. Uploads sample images to Cloudflare R2 (public /files URLs for the job)
   2. Builds TRAIN_PAYLOAD_JSON and uploads payload.json to Blob
   3. Tars the local training/ package and uploads it to Blob
   4. Creates an HF Job that downloads code + payload and runs training.run_job
@@ -54,27 +54,25 @@ def load_env() -> dict[str, str]:
     return env
 
 
-def put_blob(pathname: str, data: bytes, content_type: str, token: str) -> str:
+def put_blob(pathname: str, data: bytes, content_type: str, token: str, upload_base: str) -> str:
     req = urllib.request.Request(
-        f"https://blob.vercel-storage.com/{pathname}",
+        f"{upload_base.rstrip('/')}/{pathname}",
         data=data,
         method="PUT",
         headers={
             "Authorization": f"Bearer {token}",
-            "x-api-version": "7",
-            "x-content-type": content_type,
-            "x-add-random-suffix": "false",
+            "Content-Type": content_type,
         },
     )
     with urllib.request.urlopen(req, timeout=300) as resp:
         payload = json.loads(resp.read().decode())
-        url = payload.get("url") or payload.get("downloadUrl")
+        url = payload.get("url")
         if not url:
-            raise RuntimeError(f"Blob upload returned no url for {pathname}")
+            raise RuntimeError(f"Storage upload returned no url for {pathname}")
         return url
 
 
-def build_examples(token: str, version: str) -> list[dict]:
+def build_examples(token: str, version: str, upload_base: str) -> list[dict]:
     examples: list[dict] = []
     for sub in ("curated", "synthetic"):
         man = SAMPLES / sub / "manifest.json"
@@ -87,7 +85,7 @@ def build_examples(token: str, version: str) -> list[dict]:
                 continue
             ct = mimetypes.guess_type(img.name)[0] or "image/jpeg"
             blob_path = f"training-data/{LOCATION_ID}/{version}/{sub}/{img.name}"
-            url = put_blob(blob_path, img.read_bytes(), ct, token)
+            url = put_blob(blob_path, img.read_bytes(), ct, token, upload_base)
             examples.append(
                 {
                     "imageUrl": url,
@@ -151,12 +149,14 @@ def main() -> int:
     env = load_env()
     hf_token = env.get("HF_TOKEN", "")
     namespace = env.get("HF_NAMESPACE", "")
-    blob_token = env.get("BLOB_READ_WRITE_TOKEN", "")
+    blob_token = env.get("STORAGE_SECRET") or env.get("TRAIN_WEBHOOK_SECRET") or ""
+    upload_base = env.get("STORAGE_UPLOAD_URL", "")
+    public_base = env.get("STORAGE_PUBLIC_BASE", "")
     if not hf_token or not namespace:
         print("HF_TOKEN and HF_NAMESPACE required in .env", file=sys.stderr)
         return 2
-    if not blob_token:
-        print("BLOB_READ_WRITE_TOKEN required in .env", file=sys.stderr)
+    if not blob_token or not upload_base:
+        print("STORAGE_SECRET and STORAGE_UPLOAD_URL required in .env", file=sys.stderr)
         return 2
 
     if args.status:
@@ -178,7 +178,7 @@ def main() -> int:
     version = time.strftime("%Y-%m-%dT%H-%M-%SZ", time.gmtime())
     print(f"[launch] version {version}")
 
-    examples = build_examples(blob_token, version)
+    examples = build_examples(blob_token, version, upload_base)
     if len(examples) < 15:
         print(f"Need >=15 examples, got {len(examples)}", file=sys.stderr)
         return 1
@@ -195,6 +195,7 @@ def main() -> int:
         json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         "application/json",
         blob_token,
+        upload_base,
     )
     print("[launch] payload uploaded")
 
@@ -203,6 +204,7 @@ def main() -> int:
         build_code_tarball(),
         "application/gzip",
         blob_token,
+        upload_base,
     )
     print("[launch] training code tarball uploaded")
 
@@ -234,9 +236,12 @@ def main() -> int:
             "TRAIN_PAYLOAD_URL": payload_url,
             "TRAIN_REQUIRE_ONNX": "0",
             "HF_HOME": "/tmp/hf",
+            "STORAGE_UPLOAD_URL": upload_base,
+            "STORAGE_PUBLIC_BASE": public_base,
         },
         "secrets": {
-            "BLOB_READ_WRITE_TOKEN": blob_token,
+            "STORAGE_SECRET": blob_token,
+            "TRAIN_WEBHOOK_SECRET": env.get("TRAIN_WEBHOOK_SECRET", ""),
         },
         "labels": {"name": f"fieldwork-train-{LOCATION_ID}"},
     }

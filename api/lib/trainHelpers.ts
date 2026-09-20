@@ -147,9 +147,12 @@ export async function startHuggingFaceJob(payload: TrainJobPayload): Promise<{
       TRAIN_REPO_URL: repoUrl,
       TRAIN_REPO_REF: repoRef,
       HF_HOME: "/tmp/hf",
+      STORAGE_UPLOAD_URL: process.env.STORAGE_UPLOAD_URL || "",
+      STORAGE_PUBLIC_BASE: process.env.STORAGE_PUBLIC_BASE || "",
     },
     secrets: {
-      BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN || "",
+      STORAGE_SECRET:
+        process.env.STORAGE_SECRET || process.env.TRAIN_WEBHOOK_SECRET || "",
       TRAIN_WEBHOOK_SECRET: process.env.TRAIN_WEBHOOK_SECRET || "",
       HF_TOKEN: token,
     },

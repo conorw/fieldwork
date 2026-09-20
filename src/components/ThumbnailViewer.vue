@@ -97,6 +97,7 @@
 <script setup lang="ts">
 import { reactive } from "vue";
 import { base64ToBlob } from "../powersync-schema";
+import { rewritePublicStorageUrl } from "../utils/storageUrl";
 
 interface ImageData {
   id: string;
@@ -142,7 +143,7 @@ const isUsableCloudUrl = (url: string | null | undefined): url is string => {
   const trimmed = url.trim();
   if (!trimmed) return false;
   if (trimmed.includes("mock-storage.dev")) return false;
-  return /^https?:\/\//i.test(trimmed);
+  return /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/files/");
 };
 
 const toDataUrl = (raw: string): string => {
@@ -164,7 +165,7 @@ const getCandidateUrls = (image: ImageData): string[] => {
   }
 
   if (isUsableCloudUrl(image.cloud_url)) {
-    urls.push(image.cloud_url.trim());
+    urls.push(rewritePublicStorageUrl(image.cloud_url.trim()));
   }
 
   if (image.data) {

@@ -2,6 +2,7 @@ import { usePowerSyncStore } from "../stores/powersync";
 import { useAuthStore } from "../stores/auth";
 import type {
   HeadstoneReasoningTarget,
+  ReviewSource,
   StoneType,
   TrainingExamplePayload,
 } from "../types/headstoneTraining";
@@ -55,6 +56,7 @@ export async function saveReviewedTrainingExample(input: {
   plotId?: string;
   plotImageId?: string;
   wasCorrected?: boolean;
+  reviewSource?: ReviewSource;
 }): Promise<TrainingExampleRecord> {
   const powerSyncStore = usePowerSyncStore();
   const authStore = useAuthStore();
@@ -72,8 +74,10 @@ export async function saveReviewedTrainingExample(input: {
   const now = new Date().toISOString();
   const wasCorrected =
     input.wasCorrected ?? input.target.review?.was_corrected ?? false;
-  const reviewSource =
-    input.target.review?.source || (wasCorrected ? "correction" : "confirm");
+  const reviewSource: ReviewSource =
+    input.reviewSource ||
+    input.target.review?.source ||
+    (wasCorrected ? "correction" : "confirm");
   const predictionJson = input.target.review?.prediction
     ? JSON.stringify(input.target.review.prediction)
     : null;
@@ -83,7 +87,7 @@ export async function saveReviewedTrainingExample(input: {
     ...input.target,
     review: {
       was_corrected: wasCorrected,
-      source: reviewSource as "confirm" | "correction" | "soft_skip",
+      source: reviewSource,
       prediction: input.target.review?.prediction,
     },
   };

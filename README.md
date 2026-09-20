@@ -14,7 +14,7 @@ A local-first progressive web application for cemetery plot documentation and fi
 ### 📸 Smart Image Processing
 - **Automatic Compression**: Client-side image compression for faster uploads
 - **Thumbnail Generation**: Automatic thumbnail creation for efficient storage
-- **Cloud Storage**: Integration with Vercel Blob Storage for image hosting
+- **Cloud Storage**: Cloudflare R2 via the Worker `/files/` route for images, PMTiles, and adapters
 - **Image Analysis**: AI-powered headstone text extraction and person data extraction
 
 ### 🤖 AI-Powered Headstone Analysis
