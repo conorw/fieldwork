@@ -39,6 +39,9 @@ import Toast from "primevue/toast";
 import Toolbar from "primevue/toolbar";
 import Card from "primevue/card";
 import Chip from "primevue/chip";
+import Tag from "primevue/tag";
+import Skeleton from "primevue/skeleton";
+import ConfirmDialog from "primevue/confirmdialog";
 import Avatar from "primevue/avatar";
 import Accordion from "primevue/accordion";
 import AccordionTab from "primevue/accordiontab";
@@ -74,7 +77,9 @@ app.use(PrimeVue, {
     preset: Aura,
     options: {
       prefix: "p",
-      darkModeSelector: "system",
+      // The app's own surfaces are light-only, so following the OS dark mode
+      // left dark PrimeVue components sitting on light backgrounds.
+      darkModeSelector: ".app-dark",
       cssLayer: false,
     },
   },
@@ -92,6 +97,9 @@ app.component("Toast", Toast);
 app.component("Toolbar", Toolbar);
 app.component("Card", Card);
 app.component("Chip", Chip);
+app.component("Tag", Tag);
+app.component("Skeleton", Skeleton);
+app.component("ConfirmDialog", ConfirmDialog);
 app.component("Avatar", Avatar);
 app.component("Accordion", Accordion);
 app.component("AccordionTab", AccordionTab);
@@ -217,15 +225,14 @@ CapacitorApp.addListener(
 
 // Make install prompt available globally
 if (import.meta.env.DEV) {
-  (window as any).getDeferredPrompt = () =>
-    (deferredPrompt(window as any).triggerInstall = async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
-        deferredPrompt = null;
-      }
-    });
+  (window as any).getDeferredPrompt = () => deferredPrompt;
+  (window as any).triggerInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    deferredPrompt = null;
+  };
 }
 
 // Make test functions available globally in development

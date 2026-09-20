@@ -30,17 +30,20 @@
         @context-menu-action="handleContextMenuAction"
       />
 
-      <!-- Camera Button Overlay -->
+      <!-- Primary field action: large labelled control, thumb-reachable on phones -->
       <button
+        v-if="!selectedPlot"
+        type="button"
         @click="startPlotCreationWizard"
-        class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center justify-center w-12 h-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-        title="Create from Photo"
+        class="absolute left-1/2 z-20 flex min-h-14 -translate-x-1/2 items-center gap-2 rounded-full bg-primary-600 px-5 text-white shadow-lg transition-all hover:bg-primary-700 hover:shadow-xl bottom-4 sm:bottom-auto sm:top-4"
+        aria-label="Add plot from photo"
       >
         <svg
-          class="w-6 h-6"
+          class="h-6 w-6 shrink-0"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <path
             stroke-linecap="round"
@@ -55,7 +58,23 @@
             d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
           />
         </svg>
+        <span class="text-sm font-semibold">Add plot</span>
       </button>
+
+      <div
+        v-if="boundsError"
+        class="absolute left-3 right-3 top-4 z-30 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow sm:left-auto sm:right-4 sm:max-w-sm"
+        role="alert"
+      >
+        {{ boundsError }}
+        <button
+          type="button"
+          class="ml-2 font-medium underline"
+          @click="boundsError = ''"
+        >
+          Dismiss
+        </button>
+      </div>
 
       <!-- Drawing Instructions Overlay -->
       <div
@@ -88,7 +107,7 @@
       <!-- Plot Editor Modal -->
       <div
         v-if="showMapEdit"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
         <div
           class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
@@ -109,19 +128,31 @@
         </div>
       </div>
 
-      <!-- Plot Info Panel -->
+      <!-- Selected plot sheet: bottom on phones so it doesn't cover the map -->
       <div
         v-if="selectedPlot"
-        class="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-20 max-h-[calc(100vh-8rem)] overflow-y-auto"
+        class="absolute z-20 max-h-[45vh] overflow-y-auto rounded-xl bg-surface-0 p-4 shadow-lg left-3 right-3 bottom-3 sm:bottom-auto sm:left-auto sm:right-4 sm:top-4 sm:max-w-sm sm:max-h-[calc(100vh-8rem)]"
       >
-        <h3 class="font-medium text-gray-900 mb-2">
-          Plot {{ selectedPlot.section }}-{{ selectedPlot.row }}-{{
-            selectedPlot.number
-          }}
-        </h3>
-        <p class="text-sm text-gray-600 mb-2">{{ selectedPlot.status }}</p>
-        <p class="text-sm text-gray-600 mb-3">
-          {{ selectedPlotPersonsNames || "No deceased persons" }}
+        <div class="mb-2 flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <h3 class="m-0 truncate font-medium text-surface-900">
+              Plot {{ selectedPlot.section }}-{{ selectedPlot.row }}-{{
+                selectedPlot.number
+              }}
+            </h3>
+            <p class="m-0 text-sm text-surface-600">{{ selectedPlot.status }}</p>
+          </div>
+          <button
+            type="button"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-500 hover:bg-surface-100"
+            aria-label="Close plot"
+            @click="mapStore.clearSelectedPlot"
+          >
+            <i class="pi pi-times"></i>
+          </button>
+        </div>
+        <p class="mb-3 text-sm text-surface-600">
+          {{ selectedPlotPersonsNames || "No names recorded yet" }}
         </p>
 
         <!-- Thumbnail Images -->
@@ -135,93 +166,24 @@
           @image-click="viewImage"
         />
 
-        <div class="flex space-x-2">
+        <div class="mt-3 flex gap-2">
           <router-link
             :to="`/plots/${selectedPlot.id}`"
-            class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-600 hover:bg-primary-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-            title="View Details"
+            class="flex min-h-10 flex-1 items-center justify-center rounded-lg bg-primary-600 px-3 text-sm font-medium text-white hover:bg-primary-700"
           >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg>
+            Details
           </router-link>
           <button
-            @click="togglePlotEditing"
-            :class="[
-              'flex items-center justify-center w-10 h-10 rounded-lg shadow-md hover:shadow-lg transition-all duration-200',
+            type="button"
+            class="flex min-h-10 flex-1 items-center justify-center rounded-lg px-3 text-sm font-medium text-white"
+            :class="
               editingMode
-                ? 'bg-green-500 hover:bg-green-600 text-white'
-                : 'bg-red-500 hover:bg-red-600 text-white',
-            ]"
-            :title="
-              editingMode
-                ? 'Finish Editing & Save'
-                : 'Start Editing (Scale, Rotate, Move)'
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-surface-700 hover:bg-surface-800'
             "
+            @click="togglePlotEditing"
           >
-            <svg
-              v-if="!editingMode"
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-            <svg
-              v-else
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
-              />
-            </svg>
-          </button>
-          <button
-            @click="mapStore.clearSelectedPlot"
-            class="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 hover:bg-gray-600 text-white shadow-md hover:shadow-lg transition-all duration-200"
-            title="Close"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            {{ editingMode ? "Save position" : "Move plot" }}
           </button>
         </div>
       </div>
@@ -264,6 +226,7 @@ const router = useRouter();
 const mapComponent = ref(null);
 const showPlotCreationWizard = ref(false);
 const showMapEdit = ref(false);
+const boundsError = ref("");
 
 // Context menu state
 const persistentContextLocation = ref(null);
@@ -417,13 +380,12 @@ const startPlotCreationWizard = async () => {
   const isWithinBounds = isLocationWithinBounds(currentLocation, allowedExtent);
 
   if (!isWithinBounds) {
-    // Show error message and prevent plot creation
-    alert(
-      "Location Outside Bounds\n\nYour current location is outside the allowed cemetery area. Please move to a valid location within the cemetery boundaries to create a plot.",
-    );
+    boundsError.value =
+      "You’re outside this cemetery’s map area. Move inside the boundary to add a plot.";
     return;
   }
 
+  boundsError.value = "";
   showPlotCreationWizard.value = true;
 };
 

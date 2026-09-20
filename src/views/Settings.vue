@@ -7,7 +7,7 @@
           <div>
             <h1 class="text-xl font-semibold text-surface-900">Settings</h1>
             <p class="text-sm text-surface-600">
-              Manage app settings and facility selection
+              Manage cemeteries, storage, and on-device reading
             </p>
           </div>
 
@@ -31,9 +31,9 @@
       <AccordionTab>
         <template #header>
           <div class="flex items-center justify-between w-full">
-            <span>Facility Selection</span>
+            <span>Cemeteries</span>
             <div class="text-sm text-surface-500">
-              {{ locations.length }} facilities
+              {{ locations.length }} cemeteries
             </div>
           </div>
         </template>
@@ -49,7 +49,7 @@
             <i class="pi pi-building"></i>
           </template>
           <div class="space-y-2">
-            <h3 class="font-medium text-sm">Current Facility</h3>
+            <h3 class="font-medium text-sm">Current cemetery</h3>
             <p class="text-sm">{{ selectedLocation.name }}</p>
             <div class="flex items-center justify-between text-xs">
               <span
@@ -73,7 +73,7 @@
         <!-- Facility List -->
         <div v-if="loading" class="text-center py-6">
           <ProgressSpinner />
-          <p class="text-sm mt-2">Loading facilities...</p>
+          <p class="text-sm mt-2">Loading cemeteries...</p>
         </div>
 
         <Message
@@ -84,14 +84,14 @@
           <template #icon>
             <i class="pi pi-exclamation-triangle"></i>
           </template>
-          No facilities available
+          No cemeteries available
         </Message>
 
         <div v-else class="space-y-3">
           <!-- Search -->
           <InputText
             v-model="searchQuery"
-            placeholder="Search facilities..."
+            placeholder="Search cemeteries..."
             class="w-full"
           />
 
@@ -174,12 +174,12 @@
                       :title="
                         deletingLocationId === location.id
                           ? 'Deleting...'
-                          : 'Delete facility'
+                          : 'Delete cemetery'
                       "
                       :aria-label="
                         deletingLocationId === location.id
                           ? 'Deleting...'
-                          : 'Delete facility'
+                          : 'Delete cemetery'
                       "
                     />
                   </div>
@@ -824,8 +824,8 @@ const confirmDeleteLocation = async (location: any) => {
   const confirmed = confirm(
     `Are you sure you want to delete "${location.name}"?\n\n` +
       `This will permanently delete:\n` +
-      `• The facility and all its data\n` +
-      `• All plots in this facility\n` +
+      `• The cemetery and all its data\n` +
+      `• All plots in this cemetery\n` +
       `• All persons associated with those plots\n` +
       `• All images (plot and person images)\n\n` +
       `This action cannot be undone.`,
@@ -844,14 +844,14 @@ const deleteLocation = async (locationId: string) => {
     await locationsStore.deleteLocation(locationId);
 
     // Show success message
-    alert(`✅ Facility has been successfully deleted.`);
+    alert(`Cemetery deleted.`);
 
     // Refresh the data
     await refreshData();
   } catch (error) {
     console.error("Error deleting location:", error);
     alert(
-      `❌ Failed to delete facility: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to delete cemetery: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   } finally {
     deletingLocationId.value = null;

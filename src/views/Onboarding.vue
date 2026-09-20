@@ -3,7 +3,7 @@
     <Card class="w-full max-w-2xl">
       <template #title>
         <h2 class="text-2xl font-semibold">
-          {{ teachMode ? "Teach this cemetery" : "Welcome to Fieldwork!" }}
+          {{ teachMode ? "Help improve reading" : "Welcome to Fieldwork" }}
         </h2>
       </template>
       <template #content>
@@ -17,14 +17,14 @@
 
           <template v-else>
             <p class="text-surface-600">
-              To get started, create a new location or join an existing one.
-              On-device reading starts automatically — you do not need to add
-              teaching photos first.
+              Create a cemetery or join one you already belong to. You can
+              photograph headstones straight away — on-device reading starts in
+              the background.
             </p>
 
             <div class="flex flex-col sm:flex-row gap-4">
               <Button @click="createLocation" class="flex-1" size="large">
-                Create New Location
+                Create a cemetery
               </Button>
               <Button
                 @click="showLocationSelector = true"
@@ -32,18 +32,9 @@
                 class="flex-1"
                 size="large"
               >
-                Join Existing Location
+                Join a cemetery
               </Button>
             </div>
-
-            <Button
-              v-if="existingLocationId"
-              label="Optional: extra teaching photos"
-              class="w-full"
-              severity="secondary"
-              outlined
-              @click="startTeach(existingLocationId)"
-            />
 
             <OnboardingLocationSelector
               v-if="showLocationSelector"

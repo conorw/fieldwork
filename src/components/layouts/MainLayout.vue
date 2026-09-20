@@ -1,106 +1,80 @@
 <template>
-  <div class="h-screen bg-surface-50 flex flex-col overflow-hidden">
-    <!-- Offline Indicator -->
-    <div v-if="!isOnline" class="offline-indicator">
-      <span class="flex items-center">
-        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fill-rule="evenodd"
-            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-            clip-rule="evenodd"
-          />
-        </svg>
-        Offline Mode
-      </span>
-    </div>
-
-    <!-- Navigation -->
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-surface-50">
+    <!-- Top bar -->
     <Toolbar class="border-0 border-b-1 surface-border">
       <template #start>
-        <h1
-          class="text-xl font-semibold text-surface-900 max-w-[200px] sm:max-w-none truncate"
-        >
-          {{ locationName }}
-        </h1>
+        <div class="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            class="flex min-w-0 items-center gap-1 rounded-lg px-1 py-1 text-left transition-colors hover:bg-surface-100"
+            :title="
+              locationName ? `Switch cemetery (${locationName})` : 'Choose a cemetery'
+            "
+            :aria-expanded="showCemeteries"
+            aria-haspopup="dialog"
+            @click="showCemeteries = true"
+          >
+            <h1
+              class="max-w-[45vw] truncate text-lg font-semibold text-surface-900 sm:max-w-none sm:text-xl"
+            >
+              {{ locationName || "Choose a cemetery" }}
+            </h1>
+            <i class="pi pi-angle-down text-xs text-surface-500"></i>
+          </button>
+
+          <!-- Offline is normal for a field app, so this reassures rather
+               than alarms. -->
+          <span
+            v-if="!isOnline"
+            class="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+            role="status"
+          >
+            <i class="pi pi-wifi text-[10px]"></i>
+            <span class="hidden sm:inline">Offline — saved on device</span>
+            <span class="sm:hidden">Offline</span>
+          </span>
+        </div>
       </template>
 
       <template #end>
-        <div class="flex items-center space-x-2">
-          <router-link
-            to="/"
-            class="flex items-center justify-center w-10 h-10 rounded-lg text-surface-600 hover:text-surface-900 hover:bg-surface-100 transition-colors duration-200"
-            active-class="text-primary-600 bg-primary-50"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div class="flex items-center gap-1">
+          <!-- Desktop navigation. Mobile uses the bottom tab bar instead. -->
+          <nav class="hidden items-center gap-1 sm:flex" aria-label="Main">
+            <router-link
+              v-for="item in navItems"
+              :key="item.to"
+              :to="item.to"
+              class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              :class="
+                isActive(item.to)
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900'
+              "
+              :aria-current="isActive(item.to) ? 'page' : undefined"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-              />
-            </svg>
-          </router-link>
-          <router-link
-            to="/plots"
-            class="flex items-center justify-center w-10 h-10 rounded-lg text-surface-600 hover:text-surface-900 hover:bg-surface-100 transition-colors duration-200"
-            active-class="text-primary-600 bg-primary-50"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-              />
-            </svg>
-          </router-link>
-          <router-link
-            to="/settings"
-            class="flex items-center justify-center w-10 h-10 rounded-lg text-surface-600 hover:text-surface-900 hover:bg-surface-100 transition-colors duration-200"
-            active-class="text-primary-600 bg-primary-50"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </router-link>
+              <i :class="['pi', item.icon]"></i>
+              <span>{{ item.label }}</span>
+            </router-link>
+          </nav>
+
           <div
             v-if="authStore.isAuthenticated"
-            class="flex items-center gap-2 ml-2 pl-2 border-l border-surface-200"
+            class="flex items-center gap-2 border-l border-surface-200 pl-2 sm:ml-2"
           >
-            <Avatar :label="userInitials" shape="circle" class="w-8 h-8" />
+            <Avatar
+              :label="userInitials"
+              shape="circle"
+              class="h-8 w-8"
+              :title="authStore.user?.email || ''"
+            />
             <Button
               icon="pi pi-sign-out"
               text
               rounded
+              severity="secondary"
               @click="handleLogout"
-              title="Logout"
-              aria-label="Logout"
+              v-tooltip.bottom="'Sign out'"
+              aria-label="Sign out"
             />
           </div>
         </div>
@@ -108,9 +82,31 @@
     </Toolbar>
 
     <!-- Main Content -->
-    <main class="flex-1 min-h-0 h-full">
+    <main class="min-h-0 flex-1">
       <router-view />
     </main>
+
+    <!-- Mobile bottom navigation: thumb-reachable, labelled, 56px targets -->
+    <nav
+      class="shrink-0 border-t border-surface-200 bg-surface-0 pb-[env(safe-area-inset-bottom)] sm:hidden"
+      aria-label="Main"
+    >
+      <div class="flex">
+        <router-link
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          class="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 transition-colors active:bg-surface-100"
+          :class="isActive(item.to) ? 'text-primary-600' : 'text-surface-500'"
+          :aria-current="isActive(item.to) ? 'page' : undefined"
+        >
+          <i :class="['pi', item.icon, 'text-lg']"></i>
+          <span class="text-[11px] font-medium">{{ item.label }}</span>
+        </router-link>
+      </div>
+    </nav>
+
+    <CemeterySwitcher v-model:visible="showCemeteries" />
 
     <!-- Install Prompt -->
     <InstallPrompt />
@@ -118,23 +114,37 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useLocationsStore } from "../../stores/locations";
 import { useAuthStore } from "../../stores/auth";
 import { useOnline } from "@vueuse/core";
 import Button from "primevue/button";
 import Avatar from "primevue/avatar";
 import InstallPrompt from "../InstallPrompt.vue";
+import CemeterySwitcher from "../CemeterySwitcher.vue";
 
+const route = useRoute();
 const router = useRouter();
 const locationsStore = useLocationsStore();
 const authStore = useAuthStore();
+const showCemeteries = ref(false);
 
 const isOnline = useOnline();
 const locationName = computed(
   () => locationsStore.selectedLocation?.name || "",
 );
+
+const navItems = [
+  { to: "/", label: "Map", icon: "pi-map" },
+  { to: "/plots", label: "Plots", icon: "pi-list" },
+  { to: "/settings", label: "Settings", icon: "pi-cog" },
+];
+
+// "/" is a prefix of every route, so it needs an exact match while the others
+// should stay highlighted on nested routes such as /plots/:id.
+const isActive = (to) =>
+  to === "/" ? route.path === "/" : route.path.startsWith(to);
 
 const userInitials = computed(() => {
   if (!authStore.user) return "?";

@@ -2,7 +2,7 @@
   <Card>
     <template #title>
       <div class="flex items-center justify-between">
-        <span>Join Existing Location</span>
+        <span>Join a cemetery</span>
         <Button icon="pi pi-times" text rounded @click="$emit('close')" />
       </div>
     </template>

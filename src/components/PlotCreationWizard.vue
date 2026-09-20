@@ -22,6 +22,14 @@
         />
       </header>
       <div class="flex-1 min-h-0 overflow-auto flex flex-col">
+    <div
+      v-if="isAnalyzing"
+      class="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900"
+      role="status"
+    >
+      <i class="pi pi-spin pi-spinner"></i>
+      Reading the headstone on this device…
+    </div>
     <!-- Content -->
     <div
       class="flex flex-col flex-1 min-h-0"
@@ -194,7 +202,8 @@
           <div v-else class="space-y-3">
             <div class="flex space-x-2 justify-center">
               <Button
-                class="pi pi-camera flex-1"
+                icon="pi pi-camera"
+                class="flex-1"
                 @click="takePhoto"
                 :disabled="
                   isCapturing ||
@@ -203,29 +212,27 @@
                       (!gpsStability.isStable && !currentLocation)))
                 "
                 size="large"
-              >
-                {{
+                :label="
                   isCapturing
-                    ? "Taking Photo..."
+                    ? 'Taking photo…'
                     : isCheckingGPS &&
                         (!gpsStability ||
                           (!gpsStability.isStable && !currentLocation))
-                      ? "Waiting for GPS..."
-                      : "Take Photo"
-                }}
-              </Button>
+                      ? 'Waiting for GPS…'
+                      : 'Take photo'
+                "
+              />
               <Button
-                class="pi pi-gallery flex-1"
+                icon="pi pi-images"
+                class="flex-1"
                 @click="pickFromGallery"
                 severity="secondary"
                 size="large"
-              >
-                Choose from Gallery
-              </Button>
+                label="Choose photo"
+              />
             </div>
-            <!-- Skip Photo Option -->
             <div class="text-center">
-              <Button @click="skipPhoto" text size="large"> Skip </Button>
+              <Button @click="skipPhoto" text size="large" label="Continue without a photo" />
             </div>
           </div>
         </div>

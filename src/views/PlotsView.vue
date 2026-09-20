@@ -1,55 +1,39 @@
 <template>
-  <div class="h-full overflow-y-auto p-6 space-y-6">
+  <div class="h-full overflow-y-auto p-4 space-y-4 sm:p-6 sm:space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div>
         <h1 class="text-2xl font-bold text-surface-900">Cemetery Plots</h1>
         <p class="text-sm text-surface-600">
-          Manage and search cemetery plot data
+          {{ resultSummary }}
         </p>
       </div>
 
-      <div class="flex items-center space-x-4">
-        <div class="text-sm text-surface-600">
-          {{ filteredPlots.length }} of {{ plots?.length || 0 }} plots
-        </div>
-
-        <Button @click="$router.push('/')" label="New Plot">
-          <template #icon>
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
-            </svg>
-          </template>
-        </Button>
-      </div>
+      <Button
+        @click="$router.push('/')"
+        label="Add plot on map"
+        icon="pi pi-map-marker"
+        class="w-full sm:w-auto"
+      />
     </div>
 
     <!-- Search and Filters -->
     <Card>
-      <template #title>
-        <span>Search and Filters</span>
-      </template>
-
       <template #content>
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
           <!-- Search -->
           <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-surface-700 mb-1"
+            <label
+              for="plot-search"
+              class="block text-sm font-medium text-surface-700 mb-1"
               >Search</label
             >
             <InputText
+              id="plot-search"
               v-model="searchQuery"
-              placeholder="Search by section, row, number, or notes..."
+              placeholder="Section, row, number, or notes"
               class="w-full"
             />
           </div>
@@ -83,29 +67,42 @@
               class="w-full"
             />
           </div>
+
+          <div v-if="hasActiveFilters" class="flex items-end">
+            <Button
+              label="Clear"
+              icon="pi pi-filter-slash"
+              severity="secondary"
+              text
+              class="w-full"
+              @click="clearFilters"
+            />
+          </div>
         </div>
       </template>
     </Card>
 
     <!-- Error State -->
-    <div v-if="error" class="text-center py-8">
-      <svg
-        class="mx-auto h-12 w-12 text-red-400"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-        />
-      </svg>
-      <h3 class="mt-2 text-sm font-medium text-surface-900">
-        Error loading plots
-      </h3>
-      <p class="mt-1 text-sm text-surface-500">{{ error.message }}</p>
+    <Message v-if="error" severity="error" :closable="false">
+      <div>
+        <h3 class="font-medium">Could not load plots</h3>
+        <p class="text-sm mt-1">{{ error.message }}</p>
+      </div>
+    </Message>
+
+    <!-- Loading State: skeletons keep the page from flashing blank -->
+    <div
+      v-else-if="loading && filteredPlots.length === 0"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      aria-busy="true"
+    >
+      <Card v-for="n in 6" :key="n">
+        <template #content>
+          <Skeleton width="60%" height="1.25rem" class="mb-2" />
+          <Skeleton width="35%" height="0.75rem" class="mb-3" />
+          <Skeleton width="100%" height="8rem" />
+        </template>
+      </Card>
     </div>
 
     <!-- Empty State -->
@@ -113,32 +110,31 @@
       v-else-if="!loading && filteredPlots.length === 0"
       class="text-center py-12"
     >
-      <h3 class="mt-2 text-sm font-medium text-surface-900">No plots found</h3>
+      <i class="pi pi-map-marker text-4xl text-surface-400"></i>
+      <h3 class="mt-3 font-medium text-surface-900">
+        {{ hasAnyPlots ? "No matching plots" : "No plots recorded yet" }}
+      </h3>
       <p class="mt-1 text-sm text-surface-500">
         {{
-          (plots?.length || 0) === 0
-            ? "Get started by creating your first plot."
-            : "Try adjusting your search or filters."
+          hasAnyPlots
+            ? "Try a different search term or clear the filters."
+            : "Open the map and photograph a headstone to record your first plot."
         }}
       </p>
       <div class="mt-6">
-        <Button @click="$router.push('/')" label="Create Plot">
-          <template #icon>
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
-            </svg>
-          </template>
-        </Button>
+        <Button
+          v-if="hasAnyPlots"
+          label="Clear filters"
+          icon="pi pi-filter-slash"
+          severity="secondary"
+          @click="clearFilters"
+        />
+        <Button
+          v-else
+          label="Add plot on map"
+          icon="pi pi-map-marker"
+          @click="$router.push('/')"
+        />
       </div>
     </div>
 
@@ -151,29 +147,24 @@
         v-for="plot in filteredPlots"
         :key="plot.id"
         class="hover:shadow-md transition-shadow duration-200 cursor-pointer"
+        role="button"
+        tabindex="0"
+        :aria-label="`Open plot ${plotLabel(plot)}`"
         @click="viewPlot(plot)"
+        @keydown.enter="viewPlot(plot)"
+        @keydown.space.prevent="viewPlot(plot)"
       >
         <template #content>
           <!-- Plot Header -->
-          <div class="flex items-start justify-between mb-3">
-            <div>
-              <h3 class="text-lg font-semibold text-surface-900">
-                {{ plot.section }}-{{ plot.row }}-{{ plot.number }}
-              </h3>
-              <p class="text-sm text-surface-600">{{ plot.type }}</p>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Chip
-                :label="plot.status"
-                :severity="getStatusSeverity(plot.status)"
-                size="small"
-              />
-              <div
-                v-if="getPlotSyncStatus(plot.id) === 'pending'"
-                class="w-2 h-2 bg-yellow-400 rounded-full"
-                title="Pending sync"
-              ></div>
-            </div>
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <h3 class="text-lg font-semibold text-surface-900">
+              {{ plotLabel(plot) }}
+            </h3>
+            <Tag
+              v-if="plot.status"
+              :value="plot.status"
+              :severity="getStatusSeverity(plot.status)"
+            />
           </div>
 
           <!-- Plot Image -->
@@ -213,24 +204,17 @@
             </div>
           </div>
         </template>
-
-        <template #footer>
-          <!-- Action Buttons -->
-          <div class="w-full">
-            <Button
-              @click.stop="viewPlot(plot)"
-              label="View Details"
-              class="w-full"
-              size="small"
-            />
-          </div>
-        </template>
       </Card>
     </div>
 
     <!-- Load More -->
     <div v-if="hasMorePlots" class="text-center">
-      <Button @click="loadMore" severity="secondary" label="Load More Plots" />
+      <Button
+        @click="loadMore"
+        severity="secondary"
+        :loading="loading"
+        :label="`Show ${remainingPlotsCount} more`"
+      />
     </div>
   </div>
 </template>
@@ -328,9 +312,6 @@ const buildSearchQuery = () => {
 
 // Function to load plots with current filters
 const loadPlots = async () => {
-  const loadStart = performance.now();
-  console.log("📋 [PlotsView] Starting loadPlots");
-
   if (!powerSyncStore.powerSync) {
     return;
   }
@@ -339,36 +320,16 @@ const loadPlots = async () => {
   error.value = null;
 
   try {
-    const buildStart = performance.now();
     const { query, params } = buildSearchQuery();
-    console.log(
-      `📋 [PlotsView] Query built in ${(performance.now() - buildStart).toFixed(2)}ms`,
-    );
-
-    const queryStart = performance.now();
     const allPlots = (await powerSyncStore.powerSync.getAll(
       query,
       params,
     )) as PlotRecord[];
-    const queryEnd = performance.now();
-    console.log(
-      `📋 [PlotsView] Query executed in ${(queryEnd - queryStart).toFixed(2)}ms, got ${allPlots.length} plots`,
-    );
 
     // Track total count for hasMorePlots
     totalPlotsCount.value = allPlots.length;
 
-    // Apply pagination
-    const paginationStart = performance.now();
     plots.value = allPlots.slice(0, displayedPlotsCount.value);
-    console.log(
-      `📋 [PlotsView] Pagination applied in ${(performance.now() - paginationStart).toFixed(2)}ms, showing ${plots.value.length} plots`,
-    );
-
-    const totalTime = performance.now() - loadStart;
-    console.log(
-      `📋 [PlotsView] loadPlots completed in ${totalTime.toFixed(2)}ms`,
-    );
   } catch (err) {
     console.error("Error loading plots:", err);
     error.value = err;

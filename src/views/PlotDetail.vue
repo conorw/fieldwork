@@ -4,8 +4,15 @@
       <!-- Header Card -->
       <Card>
         <template #content>
-          <div class="flex items-center justify-between">
-            <div>
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <Button
+                label="Plots"
+                icon="pi pi-arrow-left"
+                text
+                class="mb-1 -ml-2"
+                @click="router.push('/plots')"
+              />
               <h1 class="text-xl font-semibold text-surface-900">
                 Plot {{ effectivePlot?.section }}-{{ effectivePlot?.row }}-{{
                   effectivePlot?.number
@@ -353,7 +360,7 @@
       <!-- Person Modal -->
       <div
         v-if="showAddPersonModal || showEditPersonModal"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        class="fixed inset-0 bg-surface-900/50 overflow-y-auto h-full w-full z-50"
       >
         <div
           class="relative top-20 mx-auto p-8 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white"

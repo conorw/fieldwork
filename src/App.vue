@@ -1,9 +1,11 @@
 <template>
   <div id="app">
-    <!-- Offline model download indicator (only when actively loading) -->
+    <!-- Status banners sit in the flex flow so they can never cover the
+         toolbar and never push content past the bottom of the viewport. -->
     <div
       v-if="llmDownloading"
-      class="fixed top-0 left-0 w-full bg-blue-600 text-white text-xs py-1 px-4 text-center z-50 shadow-md flex items-center justify-center space-x-2"
+      class="shrink-0 bg-blue-600 text-white text-xs py-1 px-4 text-center shadow-md flex items-center justify-center gap-2"
+      role="status"
     >
       <i class="pi pi-spin pi-spinner text-xs"></i>
       <span
@@ -14,23 +16,18 @@
 
     <div
       v-if="aiBanner"
-      class="fixed top-0 left-0 w-full bg-amber-600 text-white text-xs py-1 px-4 text-center z-50"
-      :class="{ 'mt-6': llmDownloading }"
+      class="shrink-0 bg-amber-600 text-white text-xs py-1 px-4 text-center"
+      role="status"
     >
       {{ aiBanner }}
     </div>
 
-    <router-view
-      v-if="isAuthRoute"
-      :class="{ 'mt-6': llmDownloading || !!aiBanner }"
-    />
+    <router-view v-if="isAuthRoute" class="flex-1 min-h-0" />
 
-    <MainLayout
-      v-else
-      :class="{ 'mt-6': llmDownloading || !!aiBanner }"
-    />
+    <MainLayout v-else class="flex-1 min-h-0" />
 
-    <Toast />
+    <Toast position="top-center" />
+    <ConfirmDialog />
   </div>
 </template>
 
@@ -39,6 +36,7 @@ import { computed, onMounted, ref, onUnmounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import Toast from "primevue/toast";
+import ConfirmDialog from "primevue/confirmdialog";
 import MainLayout from "./components/layouts/MainLayout.vue";
 import { toastService } from "./services/toastService";
 import { useLocationsStore } from "./stores/locations";

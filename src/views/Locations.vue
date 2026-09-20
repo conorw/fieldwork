@@ -5,7 +5,7 @@
       <!-- Loading Overlay for Extent Check -->
       <div
         v-if="isCheckingExtent"
-        class="fixed inset-0 bg-surface-50 bg-opacity-90 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-surface-50/90 flex items-center justify-center z-50"
       >
         <div class="text-center">
           <ProgressSpinner />
@@ -17,13 +17,34 @@
 
       <!-- Mobile-First Layout -->
       <div class="space-y-4">
-        <!-- Location Name Input -->
-        <Card>
-          <template #title>Create New Location</template>
+        <Card v-if="existingCemeteries.length">
+          <template #title>Your cemeteries</template>
           <template #content>
+            <div class="space-y-2">
+              <button
+                v-for="loc in existingCemeteries"
+                :key="loc.id"
+                type="button"
+                class="flex w-full items-center justify-between rounded-lg border border-surface-200 px-3 py-3 text-left hover:bg-surface-50"
+                @click="openCemetery(loc.id)"
+              >
+                <span class="font-medium text-surface-900">{{ loc.name }}</span>
+                <span class="text-sm text-primary-700">Open map</span>
+              </button>
+            </div>
+          </template>
+        </Card>
+
+        <!-- Cemetery Name Input -->
+        <Card>
+          <template #title>Create a cemetery</template>
+          <template #content>
+            <label class="mb-1 block text-sm font-medium text-surface-700"
+              >Cemetery name</label
+            >
             <InputText
               v-model="locationName"
-              placeholder="Enter location name"
+              placeholder="e.g. St Mary’s, Ballycastle"
               :class="{ 'p-invalid': locationNameError }"
               class="w-full"
             />
@@ -80,7 +101,7 @@
               <Button
                 @click="handleSetExtent"
                 :disabled="isSaving"
-                :label="isSaving ? 'Saving...' : 'Save Location'"
+                :label="isSaving ? 'Saving…' : 'Save cemetery'"
                 class="w-full"
               />
 
@@ -223,6 +244,13 @@ const isPublic = ref(true);
 const pmtilesStatus = ref(""); // 'generating', 'success', 'error'
 const isSavingLocation = ref(false);
 const selectedLocation = ref(null);
+
+const existingCemeteries = computed(() => locationsStore.locations);
+
+function openCemetery(id) {
+  locationsStore.selectLocation(id);
+  router.push("/");
+}
 
 // Modal state
 const showSaveLocationModal = ref(false);

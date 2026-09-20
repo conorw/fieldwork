@@ -1,24 +1,34 @@
 <template>
-  <div v-if="showInstallPrompt" class="fixed bottom-4 left-4 right-4 z-50">
+  <!-- Offset above the mobile bottom tab bar so it never blocks navigation. -->
+  <div
+    v-if="showInstallPrompt"
+    class="fixed bottom-20 left-4 right-4 z-50 sm:bottom-4"
+  >
     <Card class="shadow-lg">
       <template #content>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <Avatar :image="installIcon" size="large" shape="circle" />
-            <div>
-              <h3 class="font-semibold text-lg">Install FieldWork</h3>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-3">
+            <Avatar
+              :image="installIcon"
+              size="large"
+              shape="circle"
+              class="hidden shrink-0 sm:inline-flex"
+            />
+            <div class="min-w-0">
+              <h3 class="font-semibold">Install FieldWork</h3>
               <p class="text-sm text-surface-600">
-                Get the full app experience with offline access
+                Record plots offline, straight from the home screen
               </p>
             </div>
           </div>
-          <div class="flex space-x-2">
+          <div class="flex shrink-0 gap-2">
             <Button
               @click="dismissInstall"
               severity="secondary"
               size="small"
               text
               icon="pi pi-times"
+              aria-label="Dismiss install prompt"
             />
             <Button
               @click="installApp"

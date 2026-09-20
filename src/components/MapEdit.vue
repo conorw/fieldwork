@@ -67,7 +67,7 @@
         <!-- Loading State -->
         <div
           v-if="isLoading"
-          class="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 z-10"
+          class="absolute inset-0 flex items-center justify-center bg-surface-200/75 z-10"
         >
           <div class="text-center">
             <div
@@ -80,7 +80,7 @@
         <!-- Error State -->
         <div
           v-else-if="error"
-          class="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 z-10"
+          class="absolute inset-0 flex items-center justify-center bg-surface-200/75 z-10"
         >
           <div class="text-center p-4">
             <svg

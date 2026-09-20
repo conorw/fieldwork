@@ -22,9 +22,8 @@
           <strong>other cemeteries</strong> (weights only — never your photos).
         </template>
         <template v-else>
-          Confirm if it looks right, or say it’s wrong and fix the fields.
-          Confirmed stones train offline reading for this place and help the
-          shared model.
+          Confirm names if you can. You can also skip — plot photos still help
+          improve reading in the background.
         </template>
       </p>
     </div>
