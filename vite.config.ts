@@ -185,7 +185,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
+        // The headstone worker and its ONNX runtime are larger than 5 MB.
+        // Leave them out of the precache and an offline photo cannot start the model.
+        maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
         // Explicitly include screenshots in precache manifest
         additionalManifestEntries: [
           { url: "/screenshots/map-view-wide.png", revision: null },

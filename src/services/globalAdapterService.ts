@@ -136,6 +136,9 @@ async function fetchJson(url: string): Promise<any | null> {
  */
 export async function refreshGlobalAdapterMeta(): Promise<GlobalAdapterMeta | null> {
   const previous = getCachedGlobalAdapterMeta();
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return previous;
+  }
 
   // 1) API pointer (survives CDN / multi-client)
   const api = await fetchJson("/api/global-adapter");

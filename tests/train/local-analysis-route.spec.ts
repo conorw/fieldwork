@@ -13,6 +13,7 @@ describe("local analysis routing", () => {
       useLocal: true,
       reason: "shared_loaded",
       startDownload: false,
+      waitForModel: false,
     });
   });
 
@@ -27,6 +28,7 @@ describe("local analysis routing", () => {
       useLocal: false,
       reason: "shared_model_downloading",
       startDownload: true,
+      waitForModel: false,
     });
   });
 
@@ -41,6 +43,39 @@ describe("local analysis routing", () => {
       useLocal: false,
       reason: "shared_model_not_ready",
       startDownload: true,
+      waitForModel: false,
+    });
+  });
+
+  it("waits for the cached model when the device is offline", () => {
+    expect(
+      resolveLocalAnalysisRoute({
+        canRunOfflineAi: true,
+        modelReady: false,
+        modelLoading: true,
+        offline: true,
+      }),
+    ).toEqual({
+      useLocal: false,
+      reason: "offline_wait_for_cache",
+      startDownload: true,
+      waitForModel: true,
+    });
+  });
+
+  it("reads on-device immediately when the model is already loaded offline", () => {
+    expect(
+      resolveLocalAnalysisRoute({
+        canRunOfflineAi: true,
+        modelReady: true,
+        modelLoading: false,
+        offline: true,
+      }),
+    ).toEqual({
+      useLocal: true,
+      reason: "offline_cached_model",
+      startDownload: false,
+      waitForModel: false,
     });
   });
 
@@ -50,11 +85,13 @@ describe("local analysis routing", () => {
         canRunOfflineAi: false,
         modelReady: false,
         modelLoading: false,
+        offline: true,
       }),
     ).toEqual({
       useLocal: false,
       reason: "device_unsupported",
       startDownload: false,
+      waitForModel: false,
     });
   });
 });

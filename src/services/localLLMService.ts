@@ -323,10 +323,7 @@ class LocalLLMService {
 
   /** Stop a general-model download and record why the shared model is not in use. */
   reportUnavailable(message: string): void {
-    const url = this.modelState.modelUrl;
-    if (url && url !== DEFAULT_ONNX_MODEL_ID && this.modelState.isLoaded) {
-      return;
-    }
+    if (this.modelState.isLoaded) return;
     this.worker?.terminate();
     this.worker = null;
     this.readyResolve = null;

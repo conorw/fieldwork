@@ -5,6 +5,7 @@ import { localLLMService } from "../services/localLLMService";
 import type { PersonData } from "../stores/persons";
 import { useLocationsStore } from "../stores/locations";
 import {
+  ensureLocalModelForLocation,
   ensureSharedLocalModel,
   resolveOnnxModelUrl,
 } from "../services/adapterInstallService";
@@ -69,18 +70,19 @@ export class HeadstoneAnalysisService {
   }
 
   /**
-   * Use the on-device model if it is already loaded. Never block a photo on
-   * the Hub download — OpenAI covers the gap while that runs in the background.
-   * Cemetery ai_status does not gate this: new cemeteries use the shared headstone model.
+   * Use the on-device model if it is already loaded. While online, a missing
+   * model stays in the background and OpenAI covers that photo. While offline,
+   * wait for the cached model and do not call the network.
    */
   private async shouldUseLocalModel(): Promise<{
     useLocal: boolean;
     reason: string;
   }> {
     const caps = await detectDeviceAiCapabilities();
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
     const loc = this.locationsStore.selectedLocation;
 
-    if (loc?.aiStatus === "local" && loc.adapterUrl) {
+    if (!offline && loc?.aiStatus === "local" && loc.adapterUrl) {
       try {
         const modelUrl = await resolveOnnxModelUrl(loc.adapterUrl);
         if (localLLMService.isReadyFor(modelUrl)) {
@@ -95,7 +97,18 @@ export class HeadstoneAnalysisService {
       canRunOfflineAi: caps.canRunOfflineAi,
       modelReady: localLLMService.isReady(),
       modelLoading: localLLMService.isLoading(),
+      offline,
     });
+
+    if (route.waitForModel) {
+      const ready = loc
+        ? await ensureLocalModelForLocation(loc)
+        : await ensureSharedLocalModel();
+      if (ready && localLLMService.isReady()) {
+        return { useLocal: true, reason: "offline_cached_model" };
+      }
+      return { useLocal: false, reason: "offline_model_unavailable" };
+    }
 
     if (route.startDownload) {
       void ensureSharedLocalModel();
@@ -200,9 +213,9 @@ export class HeadstoneAnalysisService {
   }
   /**
    * Analyze a headstone image and create person records.
-   * Uses the on-device model as soon as it is ready (shared FastVLM, or a
-   * cemetery adapter). Falls back to online reading only while the model
-   * is still downloading.
+   * Uses the on-device model when it is already loaded. While online, a photo
+   * taken during the download uses the API. While offline, this waits for the
+   * cached model and does not call the API.
    */
   async analyzeHeadstoneImage(
     imageFile: File,
@@ -213,6 +226,12 @@ export class HeadstoneAnalysisService {
 
       const { useLocal, reason } = await this.shouldUseLocalModel();
       console.log("HeadstoneAnalysisService: routing", { useLocal, reason });
+
+      if (reason === "offline_model_unavailable") {
+        throw new Error(
+          "The on-device headstone model is not on this device yet. Connect once while the app is open so it can finish downloading, then try again.",
+        );
+      }
 
       const base64Data = await this.fileToBase64(imageFile, true);
 
