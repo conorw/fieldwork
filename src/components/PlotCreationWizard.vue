@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 flex flex-col bg-white"
+      class="fixed inset-0 flex flex-col bg-surface-50 text-surface-900"
       style="z-index: 99999"
       data-testid="plot-creation-wizard"
       role="dialog"
