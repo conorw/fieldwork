@@ -4,6 +4,7 @@
 
 import "../utils/insecureContext.js";
 import {
+  isHtmlBody,
   isRemoteModelRequest,
   modelFileName,
 } from "../utils/modelFileCache";
@@ -23,6 +24,8 @@ env.allowRemoteModels = true;
 env.useBrowserCache = typeof caches !== "undefined";
 
 const MODEL_CACHE = "transformers-cache";
+/** Written by an older service worker that stored Hub redirects as HTML. */
+const BROKEN_RUNTIME_CACHE = "fieldwork-model-runtime";
 
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
@@ -30,21 +33,37 @@ function requestUrl(input: RequestInfo | URL): string {
   return input.url;
 }
 
-/** A file saved under another revision or host still counts as the same model file. */
+const droppedBrokenCache =
+  typeof caches === "undefined"
+    ? Promise.resolve(false)
+    : caches.delete(BROKEN_RUNTIME_CACHE);
+
+async function usableCachedResponse(
+  cache: Cache,
+  request: RequestInfo,
+): Promise<Response | undefined> {
+  const hit = await cache.match(request);
+  if (!hit?.ok) return undefined;
+  if (await isHtmlBody(hit)) {
+    await cache.delete(request);
+    return undefined;
+  }
+  return hit.clone();
+}
+
+/** A file saved under another revision still counts as the same model file. */
 async function cachedModelResponse(url: string): Promise<Response | undefined> {
   if (typeof caches === "undefined" || !isRemoteModelRequest(url)) return undefined;
+  await droppedBrokenCache;
+  const cache = await caches.open(MODEL_CACHE);
+  const exact = await usableCachedResponse(cache, url);
+  if (exact) return exact;
   const wanted = modelFileName(url);
-  const names = await caches.keys();
-  for (const name of names) {
-    const cache = await caches.open(name);
-    const exact = await cache.match(url);
-    if (exact?.ok) return exact.clone();
-    if (!wanted) continue;
-    for (const key of await cache.keys()) {
-      if (modelFileName(key.url) !== wanted) continue;
-      const hit = await cache.match(key);
-      if (hit?.ok) return hit.clone();
-    }
+  if (!wanted) return undefined;
+  for (const key of await cache.keys()) {
+    if (modelFileName(key.url) !== wanted) continue;
+    const hit = await usableCachedResponse(cache, key);
+    if (hit) return hit;
   }
   return undefined;
 }
@@ -63,6 +82,11 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   }
 
   const response = await nativeFetch(input, init);
+  if (isRemoteModelRequest(url) && (await isHtmlBody(response))) {
+    throw new Error(
+      `Model file ${modelFileName(url)} came back as a web page. Reload after the latest app version installs, then let the download finish.`,
+    );
+  }
   if (
     response.ok &&
     isRemoteModelRequest(url) &&
@@ -85,6 +109,7 @@ if (typeof caches !== "undefined") {
       return cachedModelResponse(request);
     },
     async put(request: string, response: Response) {
+      if (await isHtmlBody(response)) return;
       const cache = await caches.open(MODEL_CACHE);
       await cache.put(request, response);
     },

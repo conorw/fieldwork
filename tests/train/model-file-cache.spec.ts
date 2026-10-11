@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isRemoteModelRequest, modelFileName } from "../../src/utils/modelFileCache";
+import {
+  isHtmlBody,
+  isRemoteModelRequest,
+  modelFileName,
+} from "../../src/utils/modelFileCache";
 
 describe("model file cache keys", () => {
   it("treats the same file under two Hub revisions as one file", () => {
@@ -23,5 +27,24 @@ describe("model file cache keys", () => {
     expect(isRemoteModelRequest("https://fieldwork.conorw.workers.dev/api/analyze-headstone")).toBe(
       false,
     );
+  });
+
+  it("recognises an HTML app shell returned in place of model JSON", async () => {
+    const page = new Response("<!DOCTYPE html><html><body>fieldwork</body></html>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+    const plainBody = "<!DOCTYPE html><html></html>";
+    const plain = new Response(plainBody, {
+      headers: {
+        "content-type": "text/plain",
+        "content-length": String(plainBody.length),
+      },
+    });
+    const config = new Response('{"model_type":"fastvlm"}', {
+      headers: { "content-type": "text/plain" },
+    });
+    expect(await isHtmlBody(page)).toBe(true);
+    expect(await isHtmlBody(plain)).toBe(true);
+    expect(await isHtmlBody(config)).toBe(false);
   });
 });

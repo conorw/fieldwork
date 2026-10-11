@@ -206,21 +206,9 @@ export default defineConfig({
               },
             },
           },
-          {
-            urlPattern:
-              /^https:\/\/([^/]*\.)?(huggingface\.co|hf\.co|jsdelivr\.net|xethub\.hf\.co)\//i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "fieldwork-model-runtime",
-              expiration: {
-                maxEntries: 80,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
+          // Model hosts stay out of the service worker. Hugging Face answers
+          // config.json with a relative redirect; a worker route resolves that
+          // against this site and the loader parses the HTML app shell.
         ],
       },
       devOptions: {
