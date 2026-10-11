@@ -19,6 +19,18 @@ import {
 // hits the app page on the dev server and the loader tries to parse HTML.
 env.allowLocalModels = false;
 env.allowRemoteModels = true;
+// Same-origin mirror. A direct Hub fetch is intercepted by the service worker,
+// which breaks Hugging Face's relative redirect and the download fails.
+const appOrigin = self.location?.origin;
+if (appOrigin && appOrigin !== "null") {
+  env.remoteHost = `${appOrigin}/api/hf`;
+  const onnxWasm = (
+    env.backends.onnx as { wasm?: { wasmPaths?: string } } | undefined
+  )?.wasm;
+  if (onnxWasm) {
+    onnxWasm.wasmPaths = `${appOrigin}/api/onnx-runtime/${env.version}/`;
+  }
+}
 // Secure pages use the browser cache. LAN http pages use the IndexedDB stand-in
 // installed above; if that is missing, download without caching.
 env.useBrowserCache = typeof caches !== "undefined";

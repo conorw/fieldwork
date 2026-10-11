@@ -1,4 +1,5 @@
 import { handleAnalyzeHeadstone } from "./analyze";
+import { proxyHubFile, proxyOnnxRuntime } from "./hubProxy";
 import { proxyBasemap } from "./basemap";
 import { handleClip } from "./clip";
 import { bindProcessEnv, json, text, authorizeStorage, type Env } from "./env";
@@ -45,6 +46,12 @@ export default {
     }
     if (pathname === "/api/global-adapter") {
       return handleGlobalAdapter(env);
+    }
+    if (pathname.startsWith("/api/hf/")) {
+      return proxyHubFile(request);
+    }
+    if (pathname.startsWith("/api/onnx-runtime/")) {
+      return proxyOnnxRuntime(request);
     }
     if (pathname === "/api/admin/import-blob") {
       if (!authorizeStorage(request, env)) {

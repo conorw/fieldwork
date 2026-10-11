@@ -24,6 +24,11 @@ describe("model file cache keys", () => {
     expect(isRemoteModelRequest("https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort-wasm.wasm")).toBe(
       true,
     );
+    expect(
+      isRemoteModelRequest(
+        "https://fieldwork.conorw.workers.dev/api/hf/conorwoods/fieldwork-fastvlm-0.5b-onnx/resolve/main/config.json",
+      ),
+    ).toBe(true);
     expect(isRemoteModelRequest("https://fieldwork.conorw.workers.dev/api/analyze-headstone")).toBe(
       false,
     );

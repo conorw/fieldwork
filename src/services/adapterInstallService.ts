@@ -14,6 +14,14 @@ import { DEFAULT_ONNX_MODEL_ID } from "../types/headstoneTraining";
 const SHARED_MODEL_MISSING =
   "The shared headstone model is not published yet.";
 
+function modelLoadError(error: unknown): string {
+  const message = error instanceof Error ? error.message : SHARED_MODEL_MISSING;
+  if (message === "Failed to fetch") {
+    return "The headstone model could not be downloaded. Stay online and try Download model again.";
+  }
+  return message;
+}
+
 /** Transformers.js treats a root path as a Hub id. Same-origin weights need an absolute URL. */
 function asRemoteModelUrl(url: string): string {
   if (url.includes("://") || !url.startsWith("/")) return url;
@@ -74,9 +82,7 @@ async function loadSharedHeadstoneModel(): Promise<boolean> {
     console.warn("ensureSharedLocalModel:", e);
     const loaded = localLLMService.getLoadedModelUrl();
     if (!loaded || loaded === DEFAULT_ONNX_MODEL_ID) {
-      localLLMService.reportUnavailable(
-        e instanceof Error ? e.message : SHARED_MODEL_MISSING,
-      );
+      localLLMService.reportUnavailable(modelLoadError(e));
     }
     return false;
   }

@@ -11,7 +11,9 @@ export function modelFileName(url: string): string {
 
 /** Hugging Face weights and the ONNX runtime are loaded from these hosts. */
 export function isRemoteModelRequest(url: string): boolean {
-  return /huggingface\.co|hf\.co|jsdelivr\.net|xethub|cdn-lfs/i.test(url);
+  return /huggingface\.co|hf\.co|jsdelivr\.net|xethub|cdn-lfs|\/api\/hf\/|\/api\/onnx-runtime\//i.test(
+    url,
+  );
 }
 
 /**
