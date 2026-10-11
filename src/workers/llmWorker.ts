@@ -4,6 +4,10 @@
 
 import "../utils/insecureContext.js";
 import {
+  isRemoteModelRequest,
+  modelFileName,
+} from "../utils/modelFileCache";
+import {
   env,
   AutoProcessor,
   AutoModelForImageTextToText,
@@ -17,6 +21,75 @@ env.allowRemoteModels = true;
 // Secure pages use the browser cache. LAN http pages use the IndexedDB stand-in
 // installed above; if that is missing, download without caching.
 env.useBrowserCache = typeof caches !== "undefined";
+
+const MODEL_CACHE = "transformers-cache";
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+/** A file saved under another revision or host still counts as the same model file. */
+async function cachedModelResponse(url: string): Promise<Response | undefined> {
+  if (typeof caches === "undefined" || !isRemoteModelRequest(url)) return undefined;
+  const wanted = modelFileName(url);
+  const names = await caches.keys();
+  for (const name of names) {
+    const cache = await caches.open(name);
+    const exact = await cache.match(url);
+    if (exact?.ok) return exact.clone();
+    if (!wanted) continue;
+    for (const key of await cache.keys()) {
+      if (modelFileName(key.url) !== wanted) continue;
+      const hit = await cache.match(key);
+      if (hit?.ok) return hit.clone();
+    }
+  }
+  return undefined;
+}
+
+const nativeFetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = requestUrl(input);
+  const cached = await cachedModelResponse(url);
+  if (cached) return cached;
+
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  if (offline && isRemoteModelRequest(url)) {
+    throw new Error(
+      `Offline model file is not on this device yet (${modelFileName(url)}). Connect once and let the headstone model finish downloading.`,
+    );
+  }
+
+  const response = await nativeFetch(input, init);
+  if (
+    response.ok &&
+    isRemoteModelRequest(url) &&
+    typeof caches !== "undefined"
+  ) {
+    try {
+      const cache = await caches.open(MODEL_CACHE);
+      await cache.put(url, response.clone());
+    } catch {
+      /* Quota or an opaque body. The response is still usable online. */
+    }
+  }
+  return response;
+};
+
+if (typeof caches !== "undefined") {
+  env.useCustomCache = true;
+  env.customCache = {
+    async match(request: string) {
+      return cachedModelResponse(request);
+    },
+    async put(request: string, response: Response) {
+      const cache = await caches.open(MODEL_CACHE);
+      await cache.put(request, response);
+    },
+  };
+}
 
 const DEFAULT_MODEL_ID = "onnx-community/FastVLM-0.5B-ONNX";
 

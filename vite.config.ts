@@ -206,6 +206,21 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern:
+              /^https:\/\/([^/]*\.)?(huggingface\.co|hf\.co|jsdelivr\.net|xethub\.hf\.co)\//i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "fieldwork-model-runtime",
+              expiration: {
+                maxEntries: 80,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
         ],
       },
       devOptions: {
