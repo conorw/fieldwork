@@ -13,12 +13,27 @@ export interface ImageProcessingResult {
   };
 }
 
+export interface ImageTeachOptions {
+  locationId?: string;
+  /** Ask the server to read this headstone and fold it into training. */
+  teach?: boolean;
+}
+
 export interface ImageMetadata {
   originalSize: number;
   thumbnailSize: number;
   dimensions: { width: number; height: number };
   format: string;
   fileName: string;
+}
+
+async function currentAccessToken(): Promise<string | undefined> {
+  try {
+    const { useAuthStore } = await import("../stores/auth");
+    return useAuthStore().session?.access_token || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 class ImageProcessingService {
@@ -32,7 +47,10 @@ class ImageProcessingService {
   /**
    * Process an image file and create thumbnail
    */
-  async processImage(file: File): Promise<ImageProcessingResult> {
+  async processImage(
+    file: File,
+    options?: ImageTeachOptions,
+  ): Promise<ImageProcessingResult> {
     console.log(
       "ImageProcessingService: Processing image:",
       file.name,
@@ -79,7 +97,7 @@ class ImageProcessingService {
       console.log("ImageProcessingService: Uploading to cloud storage...");
       let cloudUrl: string = "";
       try {
-        cloudUrl = await this.uploadToCloudStorage(processedFile);
+        cloudUrl = await this.uploadToCloudStorage(processedFile, options);
       } catch (uploadError) {
         console.warn(
           "ImageProcessingService: Cloud upload failed:",
@@ -240,7 +258,10 @@ class ImageProcessingService {
   /**
    * Upload file to Vercel storage
    */
-  private async uploadToCloudStorage(file: File): Promise<string> {
+  private async uploadToCloudStorage(
+    file: File,
+    options?: ImageTeachOptions,
+  ): Promise<string> {
     try {
       // Validate file object
       if (!file) {
@@ -288,15 +309,24 @@ class ImageProcessingService {
         fileData.length,
       );
 
-      // Upload to Cloudflare R2 via Worker
+      // Upload to Cloudflare R2 via Worker. A signed-in headstone photo
+      // is labeled on the server after this response returns.
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (options?.teach && options.locationId) {
+        const token = await currentAccessToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+      }
       const response = await fetch("/api/upload-image", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           fileName,
           fileData,
+          mimeType: file.type || undefined,
+          locationId: options?.locationId,
+          teach: !!(options?.teach && options.locationId),
         }),
       });
 
@@ -325,8 +355,11 @@ class ImageProcessingService {
   /**
    * Public upload helper (teaching / confirm flow).
    */
-  async uploadImage(file: File): Promise<{ url: string; fileName: string }> {
-    const url = await this.uploadToCloudStorage(file);
+  async uploadImage(
+    file: File,
+    options?: ImageTeachOptions,
+  ): Promise<{ url: string; fileName: string }> {
+    const url = await this.uploadToCloudStorage(file, options);
     return { url, fileName: file.name };
   }
 

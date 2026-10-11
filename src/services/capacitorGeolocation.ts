@@ -1,4 +1,27 @@
+import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
+
+function positionErrorCode(error: unknown): number | null {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code: unknown }).code;
+    return typeof code === "number" ? code : null;
+  }
+  return null;
+}
+
+function canRetryWithNetworkFix(error: unknown): boolean {
+  const code = positionErrorCode(error);
+  return code === 2 || code === 3;
+}
+
+function positionErrorMessage(error: unknown): string {
+  const code = positionErrorCode(error);
+  if (code === 1) return "permission denied";
+  if (code === 2) return "position unavailable";
+  if (code === 3) return "timed out";
+  if (error instanceof Error && error.message) return error.message;
+  return "unknown error";
+}
 
 export interface CapacitorLocation {
   latitude: number;
@@ -59,56 +82,84 @@ export class CapacitorGeolocationService {
     }
   }
 
+  private async readPosition(options: {
+    enableHighAccuracy: boolean;
+    timeout: number;
+    maximumAge: number;
+  }): Promise<CapacitorLocation> {
+    const startTime = Date.now();
+    const position = await Geolocation.getCurrentPosition(options);
+    const fixTime = Date.now() - startTime;
+    this.recordFixTime(fixTime);
+    const location: CapacitorLocation = {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy || 0,
+      timestamp: position.timestamp,
+      altitude: position.coords.altitude || undefined,
+      altitudeAccuracy: position.coords.altitudeAccuracy || undefined,
+      heading: position.coords.heading || undefined,
+      speed: position.coords.speed || undefined,
+    };
+    console.log("CapacitorGeolocation: Position obtained:", {
+      lat: location.latitude,
+      lng: location.longitude,
+      accuracy: location.accuracy,
+      highAccuracy: options.enableHighAccuracy,
+      fixTime: `${fixTime}ms`,
+    });
+    return location;
+  }
+
   /**
-   * Get current position with high accuracy and adaptive timeout
+   * Get current position. Native devices try a GPS fix first, then a network
+   * fix. Browsers skip the GPS wait and use a network or cached location.
    */
   async getCurrentPosition(): Promise<CapacitorLocation> {
-    const startTime = Date.now();
+    // A desktop browser has no GPS chip. Waiting on a high-accuracy fix
+    // just times out, so use a network or cached location immediately.
+    if (!Capacitor.isNativePlatform()) {
+      try {
+        return await this.readPosition({
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 300000,
+        });
+      } catch (error) {
+        const message = positionErrorMessage(error);
+        console.warn("CapacitorGeolocation: Location unavailable:", message);
+        throw new Error(`Failed to get GPS position: ${message}`);
+      }
+    }
+
     const timeout = this.getAdaptiveTimeout();
+    try {
+      return await this.readPosition({
+        enableHighAccuracy: true,
+        timeout,
+        maximumAge: 0,
+      });
+    } catch (error) {
+      if (!canRetryWithNetworkFix(error)) {
+        const message = positionErrorMessage(error);
+        console.error("CapacitorGeolocation: Error getting position:", message);
+        throw new Error(`Failed to get GPS position: ${message}`);
+      }
+      console.warn(
+        "CapacitorGeolocation: High accuracy unavailable, trying a network fix",
+      );
+    }
 
     try {
-      console.log(
-        "CapacitorGeolocation: Requesting high accuracy position...",
-        {
-          timeout: `${timeout}ms`,
-          averageFixTime: this.averageFixTime
-            ? `${this.averageFixTime}ms`
-            : "N/A",
-        },
-      );
-
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: timeout,
-        maximumAge: 0, // Don't use cached position
+      return await this.readPosition({
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 300000,
       });
-
-      const fixTime = Date.now() - startTime;
-      this.recordFixTime(fixTime);
-
-      const location: CapacitorLocation = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy || 0,
-        timestamp: position.timestamp,
-        altitude: position.coords.altitude || undefined,
-        altitudeAccuracy: position.coords.altitudeAccuracy || undefined,
-        heading: position.coords.heading || undefined,
-        speed: position.coords.speed || undefined,
-      };
-
-      console.log("CapacitorGeolocation: High accuracy position obtained:", {
-        lat: location.latitude,
-        lng: location.longitude,
-        accuracy: location.accuracy,
-        altitude: location.altitude,
-        fixTime: `${fixTime}ms`,
-      });
-
-      return location;
     } catch (error) {
-      console.error("CapacitorGeolocation: Error getting position:", error);
-      throw new Error(`Failed to get GPS position: ${error}`);
+      const message = positionErrorMessage(error);
+      console.warn("CapacitorGeolocation: Location unavailable:", message);
+      throw new Error(`Failed to get GPS position: ${message}`);
     }
   }
 

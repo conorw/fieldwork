@@ -6,7 +6,7 @@ import {
   startHuggingFaceJob,
   updateLocationAiState,
   validateExamples,
-} from "../../api/lib/trainHelpers";
+} from "../../workers/lib/trainHelpers";
 import {
   JOB_ID,
   LOCATION_ID,
@@ -252,7 +252,39 @@ describe("trainHelpers — HF Jobs kickoff", () => {
     expect(body.environment.TRAIN_PAYLOAD_JSON).toContain(LOCATION_ID);
     expect(body.secrets.TRAIN_WEBHOOK_SECRET).toBe("whsec");
     expect(body.command[0]).toBe("bash");
-    expect(body.command[2]).toContain("python -m training.run_job");
+    expect(body.command[2]).toContain("python3 -m training.run_job");
+    expect(body.timeoutSeconds).toBe(3600);
+    expect(body.command[2]).not.toContain("BROWSER_ONNX_AFTER");
+  });
+
+  it("publishes the browser model after training when an overlay is staged", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ id: JOB_ID }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const payload = buildTrainJobPayload({
+      locationId: LOCATION_ID,
+      examples: makeExampleBatch(),
+      webhookBaseUrl: "https://fieldwork.conorw.workers.dev",
+    });
+    await startHuggingFaceJob(payload, {
+      overlayBaseUrl: "https://fieldwork.conorw.workers.dev/files/training-data/job-overlay/v1/",
+      overlayFiles: "training/run_job.py,scripts/export_browser_onnx.py",
+      minExamples: 6,
+      onnxVersion: "onnx-v1",
+      onnxRepoId: "conorwoods/fieldwork-fastvlm-0.5b-onnx",
+      globalAdapterPublicUrl:
+        "https://fieldwork.conorw.workers.dev/files/adapters/global/latest/",
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(body.timeoutSeconds).toBe(7200);
+    expect(body.command[2]).toContain("BROWSER_ONNX_AFTER=1");
+    expect(body.command[2]).toContain("export_browser_onnx.py");
+    expect(body.environment.MIN_EXAMPLES).toBe("6");
+    expect(body.environment.ONNX_REPO_ID).toBe(
+      "conorwoods/fieldwork-fastvlm-0.5b-onnx",
+    );
+    expect(body.environment.TRAIN_WEBHOOK_URL).toBe(payload.webhookUrl);
   });
 
   it("throws when HF API fails", async () => {

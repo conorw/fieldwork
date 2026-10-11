@@ -20,7 +20,8 @@ export type ReviewSource =
   | "confirm"
   | "correction"
   | "soft_skip"
-  | "field_sample";
+  | "field_sample"
+  | "teacher";
 
 /** Physical material of the monument (separate from occupancy stoneType) */
 export type StoneMaterial =
@@ -183,13 +184,13 @@ export const REASONING_PROMPT =
  * small, then normalize it through reasoningMapper.
  */
 export const STOCK_REASONING_PROMPT =
-  "Read the headstone inscription. For every deceased person, copy the name " +
-  "AND the two dates carved with that name (birth then death). Convert each date " +
-  "to yyyy-mm-dd (example: 25th June 1933 → 1933-06-25). Return ONLY JSON: " +
-  '{"people":[{"full_name":"","birth":"yyyy-mm-dd","death":"yyyy-mm-dd"}],' +
-  '"transcription":""}. ' +
-  "transcription is the full readable inscription including every date. " +
-  "Never leave birth or death blank if a date is visible under that name.";
+  "Read only the words and numbers carved on this headstone. " +
+  "Do not invent a name or a date, and do not reuse any date from these instructions. " +
+  "For each deceased person, full_name is the complete carved name, forenames and surname. " +
+  "birth is the earlier date beside that name and death is the later date, both as yyyy-mm-dd. " +
+  "Return ONLY JSON: " +
+  '{"people":[{"full_name":"","birth":"","death":""}],"transcription":""}. ' +
+  "transcription is the inscription copied line by line, including every date.";
 
 export const STONE_TYPES: StoneType[] = [
   "single",

@@ -98,7 +98,7 @@
         <p class="text-xs mb-2">• Use rotation handle to rotate</p>
         <button
           @click="finishEditing"
-          class="mt-2 text-xs bg-white text-orange-600 px-2 py-1 rounded hover:bg-gray-100"
+          class="mt-2 text-xs bg-surface-0 text-orange-600 px-2 py-1 rounded hover:bg-surface-100"
         >
           Finish Editing
         </button>
@@ -110,7 +110,7 @@
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       >
         <div
-          class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+          class="bg-surface-0 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
         >
           <MapEdit
             :is-visible="true"

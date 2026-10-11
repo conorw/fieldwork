@@ -6,6 +6,7 @@ import {
   personDataToConfirmInputs,
   personsToReasoningTarget,
   reasoningTargetToPersons,
+  reasoningToTranscription,
   staffKindToStoneType,
 } from "../../src/utils/reasoningMapper";
 import { evaluateTrainingCoverage } from "../../src/utils/trainingCoverage";
@@ -47,6 +48,14 @@ describe("reasoningMapper", () => {
     expect(persons[0].full_name).toBe("Ada Lovelace");
     expect(persons[0].plot_id).toBe("plot-1");
     expect(persons[0].date_of_death).toBe("1852-01-01");
+  });
+
+  it("does not keep token noise as the inscription", () => {
+    const target = parseReasoningJson(
+      "Ethernetapanelage othernam centsABr grit electricityitude",
+    );
+    expect(target.notes).toBe("");
+    expect(reasoningToTranscription(target)).toBe("");
   });
 
   it("parses legacy persons JSON", () => {
@@ -124,6 +133,42 @@ describe("reasoningMapper", () => {
     );
     expect(target.people).toHaveLength(1);
     expect(target.people[0].full_name).toBe("Dennis William Fone");
+  });
+
+  it("does not show the raw model JSON as the inscription", () => {
+    const raw = JSON.stringify(
+      {
+        people: [
+          {
+            full_name: "Dennis William Fone",
+            birth: "1933-06-25",
+            death: "2020-10-01",
+          },
+        ],
+      },
+      null,
+      2,
+    );
+    const target = parseReasoningJson(raw);
+    const transcription = reasoningToTranscription(target);
+    expect(transcription).toContain("Dennis William Fone");
+    expect(transcription).not.toContain('"full_name"');
+  });
+
+  it("reads dates when the model returns the transcription as a list", () => {
+    const target = parseReasoningJson(
+      JSON.stringify({
+        people: [{ full_name: "Dennis William Fone", birth: "", death: "" }],
+        transcription: [
+          "DENNIS WILLIAM FONE",
+          "25th June 1933",
+          "1st October 2020",
+        ],
+      }),
+    );
+    expect(target.people[0].dates.birth).toBe("1933-06-25");
+    expect(target.people[0].dates.death).toBe("2020-10-01");
+    expect(target.notes).toContain("25th June 1933");
   });
 
   it("fills missing birth and death from the inscription transcription", () => {

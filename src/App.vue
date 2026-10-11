@@ -39,11 +39,13 @@ import Toast from "primevue/toast";
 import ConfirmDialog from "primevue/confirmdialog";
 import MainLayout from "./components/layouts/MainLayout.vue";
 import { toastService } from "./services/toastService";
+import { useAuthStore } from "./stores/auth";
 import { useLocationsStore } from "./stores/locations";
+import { syncFieldAgentTools } from "./services/agentTools/install";
 import { ensureLocalModelForLocation, ensureSharedLocalModel } from "./services/adapterInstallService";
 import { onLocationBecameLocal } from "./services/autoTrainService";
 import {
-  setCachedGlobalAdapterMeta,
+  onGlobalAdapterUpdated,
   startGlobalAdapterPolling,
 } from "./services/globalAdapterService";
 import {
@@ -53,7 +55,24 @@ import {
 
 const route = useRoute();
 const toast = useToast();
+const authStore = useAuthStore();
 const locationsStore = useLocationsStore();
+
+watch(
+  () => authStore.isAuthenticated && !!locationsStore.selectedLocation,
+  (active) => {
+    syncFieldAgentTools(active).catch((err) =>
+      console.warn("WebMCP tool registration:", err),
+    );
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  syncFieldAgentTools(false).catch((err) =>
+    console.warn("WebMCP tool registration:", err),
+  );
+});
 
 const isAuthRoute = computed(() => {
   return route.meta.hideNavbar === true;
@@ -113,8 +132,7 @@ onMounted(() => {
   window.addEventListener("llm-download-complete", handleComplete);
   window.addEventListener("llm-load-error", handleError);
 
-  // Load the shared on-device model immediately so new cemeteries can read
-  // stones without a teaching step. Cemetery adapters override when ready.
+  // New cemeteries read with the shared headstone model, not the general Hub model.
   ensureSharedLocalModel().catch((err) =>
     console.warn("Shared model download deferred:", err),
   );
@@ -138,19 +156,17 @@ onMounted(() => {
     { immediate: true },
   );
 
-  // Self-learning: poll shared global weights; retrain selected cemetery on bump
+  // Self-learning: poll shared global weights; retrain selected cemetery on bump.
+  // A new publish also becomes the reader for cemeteries without their own model.
   const stopGlobalPoll = startGlobalAdapterPolling();
   const stopGlobalLearn = startGlobalLearningSync();
-
-  // Shared adapter URL so field sampling can start training before the first poll
-  const globalUrl = import.meta.env.VITE_GLOBAL_ADAPTER_URL;
-  if (globalUrl) {
-    setCachedGlobalAdapterMeta({
-      adapterUrl: globalUrl,
-      version: "env",
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  const stopSharedReload = onGlobalAdapterUpdated(() => {
+    const loc = locationsStore.selectedLocation;
+    if (loc?.aiStatus === "local" && loc.adapterUrl) return;
+    ensureSharedLocalModel().catch((err) =>
+      console.warn("Shared model download deferred:", err),
+    );
+  });
 
   onUnmounted(() => {
     window.removeEventListener("llm-download-progress", handleProgress);
@@ -158,6 +174,7 @@ onMounted(() => {
     window.removeEventListener("llm-load-error", handleError);
     stopGlobalPoll();
     stopGlobalLearn();
+    stopSharedReload();
   });
 });
 </script>

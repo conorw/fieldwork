@@ -1,4 +1,5 @@
 import { handleAnalyzeHeadstone } from "./analyze";
+import { proxyBasemap } from "./basemap";
 import { handleClip } from "./clip";
 import { bindProcessEnv, json, text, authorizeStorage, type Env } from "./env";
 import { handleFileOptions, serveFile } from "./r2";
@@ -17,6 +18,7 @@ export default {
   async fetch(
     request: Request,
     env: Env,
+    ctx: ExecutionContext,
   ): Promise<Response> {
     bindProcessEnv(env);
     const url = new URL(request.url);
@@ -30,7 +32,7 @@ export default {
       return handleClip(request, env);
     }
     if (pathname === "/api/upload-image") {
-      return handleUploadImage(request, env);
+      return handleUploadImage(request, env, ctx);
     }
     if (pathname === "/api/analyze-headstone") {
       return handleAnalyzeHeadstone(request);
@@ -42,7 +44,7 @@ export default {
       return handleTrainWebhook(request);
     }
     if (pathname === "/api/global-adapter") {
-      return handleGlobalAdapter();
+      return handleGlobalAdapter(env);
     }
     if (pathname === "/api/admin/import-blob") {
       if (!authorizeStorage(request, env)) {
@@ -65,7 +67,12 @@ export default {
       if (!key || key.includes("..")) {
         return text("Not found", 404);
       }
-      return serveFile(request, env, key);
+      const response = await serveFile(request, env, key);
+      const sourceKey = env.SOURCE_PMTILES_KEY || "pmtiles/OUTPUT.pmtiles";
+      if (response.status === 404 && key === sourceKey) {
+        return proxyBasemap(request, env, ctx);
+      }
+      return response;
     }
 
     if (env.ASSETS) {

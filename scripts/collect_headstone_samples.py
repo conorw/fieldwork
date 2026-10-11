@@ -30,10 +30,32 @@ CATEGORIES = [
     "Category:Gravestones_in_the_United_States",
 ]
 
+BULK_CATEGORIES = [
+    "Category:English-language_gravestones",
+    "Category:Gravestones_in_England",
+    "Category:Gravestones_in_Scotland",
+    "Category:Gravestones_in_Wales",
+    "Category:Gravestones_in_Ireland",
+    "Category:Gravestones_in_the_United_States",
+    "Category:Gravestones_in_Canada",
+    "Category:Gravestones_in_Australia",
+]
+
 DEFAULT_SEARCHES = [
     "gravestone inscription born died",
     "headstone in loving memory",
     "english language gravestone",
+]
+
+BULK_SEARCHES = [
+    'incategory:"English-language_gravestones" filetype:bitmap',
+    'incategory:"Gravestones_in_England" filetype:bitmap',
+    'incategory:"Gravestones_in_Scotland" filetype:bitmap',
+    'incategory:"Gravestones_in_Wales" filetype:bitmap',
+    'incategory:"Gravestones_in_Ireland" filetype:bitmap',
+    "gravestone inscription filetype:bitmap",
+    'headstone "in loving memory" filetype:bitmap',
+    "cemetery headstone born died filetype:bitmap",
 ]
 
 # Well-known readable monuments (license still checked via API).
@@ -82,9 +104,30 @@ ALLOWED_LICENSE_HINTS = (
 )
 
 
-def api_get(params: dict, retries: int = 7, sleep: float = 1.5) -> dict:
-    q = urllib.parse.urlencode({**params, "format": "json"})
-    delay = sleep
+def license_ok(name: str) -> bool:
+    """PD, CC0, CC BY, and CC BY-SA only. No non-commercial or no-derivatives."""
+    n = (name or "").lower()
+    if not n:
+        return False
+    if any(
+        bad in n
+        for bad in (
+            "noncommercial",
+            "non-commercial",
+            "-nc",
+            " nc",
+            "noderiv",
+            "no derivatives",
+            "-nd",
+        )
+    ):
+        return False
+    return any(hint in n for hint in ALLOWED_LICENSE_HINTS)
+
+
+def api_get(params: dict, retries: int = 10, sleep: float = 1.5) -> dict:
+    q = urllib.parse.urlencode({**params, "format": "json", "maxlag": "5"})
+    delay = max(sleep, 5)
     last_err: Exception | None = None
     for attempt in range(retries):
         req = urllib.request.Request(
@@ -93,19 +136,33 @@ def api_get(params: dict, retries: int = 7, sleep: float = 1.5) -> dict:
         )
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                body = json.loads(resp.read().decode("utf-8"))
+            err = body.get("error") or {}
+            if err.get("code") in ("maxlag", "ratelimited"):
+                raise urllib.error.HTTPError(req.full_url, 429, err.get("code", "retry"), hdrs=None, fp=None)
+            if err:
+                raise RuntimeError(err.get("info") or str(err))
+            return body
         except urllib.error.HTTPError as e:
             last_err = e
             if e.code not in (429, 500, 502, 503, 504):
                 raise
-            wait = delay + random.uniform(0, 0.8)
-            print(f"[collect] HTTP {e.code}, retry {attempt + 1}/{retries} in {wait:.1f}s")
+            retry_after = 0.0
+            if e.headers:
+                raw = e.headers.get("Retry-After") or ""
+                if raw.isdigit():
+                    retry_after = float(raw)
+            wait = max(delay, retry_after, 8) + random.uniform(0, 1.5)
+            print(
+                f"[collect] HTTP {e.code}, retry {attempt + 1}/{retries} in {wait:.1f}s",
+                flush=True,
+            )
             time.sleep(wait)
-            delay = min(delay * 2, 90)
+            delay = min(delay * 1.6, 120)
         except urllib.error.URLError as e:
             last_err = e
             time.sleep(delay)
-            delay = min(delay * 2, 90)
+            delay = min(delay * 1.6, 120)
     raise last_err or RuntimeError("api_get failed")
 
 
@@ -163,6 +220,42 @@ def search_files(query: str, limit: int, sleep: float) -> list[str]:
     return titles[:limit]
 
 
+def info_from_page(page: dict) -> dict | None:
+    if "imageinfo" not in page:
+        return None
+    info = page["imageinfo"][0]
+    title = page.get("title") or ""
+    mime = (info.get("mime") or "").lower()
+    if mime and not mime.startswith("image/"):
+        return None
+    if not title.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff")):
+        return None
+    meta = info.get("extmetadata", {})
+    license_name = (
+        meta.get("LicenseShortName", {}).get("value")
+        or meta.get("License", {}).get("value")
+        or ""
+    ).lower()
+    if not license_ok(license_name):
+        return None
+    thumb = info.get("thumburl") or info.get("url")
+    full = info.get("url")
+    if not thumb or not full:
+        return None
+    desc = meta.get("ImageDescription", {}).get("value") or ""
+    desc = re.sub(r"<[^>]+>", " ", desc)
+    desc = re.sub(r"\s+", " ", desc).strip()
+    return {
+        "title": title,
+        "url": thumb,
+        "full_url": full,
+        "license": license_name,
+        "description": desc[:500],
+        "width": info.get("thumbwidth") or info.get("width"),
+        "height": info.get("thumbheight") or info.get("height"),
+    }
+
+
 def file_info(titles: list[str], sleep: float) -> list[dict]:
     out: list[dict] = []
     for i in range(0, len(titles), 20):
@@ -179,33 +272,56 @@ def file_info(titles: list[str], sleep: float) -> list[dict]:
         )
         pages = data.get("query", {}).get("pages", {})
         for page in pages.values():
-            if "imageinfo" not in page:
-                continue
-            info = page["imageinfo"][0]
-            meta = info.get("extmetadata", {})
-            license_name = (
-                meta.get("LicenseShortName", {}).get("value")
-                or meta.get("License", {}).get("value")
-                or ""
-            ).lower()
-            if not any(h in license_name for h in ALLOWED_LICENSE_HINTS):
-                if "public domain" not in license_name and "cc" not in license_name:
-                    continue
-            desc = meta.get("ImageDescription", {}).get("value") or ""
-            desc = re.sub(r"<[^>]+>", " ", desc)
-            desc = re.sub(r"\s+", " ", desc).strip()
-            out.append(
-                {
-                    "title": page.get("title"),
-                    "url": info.get("thumburl") or info.get("url"),
-                    "full_url": info.get("url"),
-                    "license": license_name,
-                    "description": desc[:500],
-                    "width": info.get("thumbwidth") or info.get("width"),
-                    "height": info.get("thumbheight") or info.get("height"),
-                }
-            )
+            row = info_from_page(page)
+            if row:
+                out.append(row)
         time.sleep(sleep)
+    return out
+
+
+def licensed_from_categories(
+    categories: list[str], limit: int, sleep: float, seen: set[str]
+) -> list[dict]:
+    """Page category members with license metadata until `limit` photos qualify."""
+    out: list[dict] = []
+    for category in categories:
+        if len(out) >= limit:
+            break
+        print(f"[collect] listing {category}", flush=True)
+        cont = None
+        while len(out) < limit:
+            params = {
+                "action": "query",
+                "generator": "categorymembers",
+                "gcmtitle": category,
+                "gcmtype": "file",
+                "gcmlimit": "50",
+                "prop": "imageinfo",
+                "iiprop": "url|size|extmetadata|mime",
+                "iiurlwidth": "1024",
+            }
+            if cont:
+                params["gcmcontinue"] = cont
+            data = api_get(params, sleep=sleep)
+            pages = data.get("query", {}).get("pages", {})
+            for page in pages.values():
+                row = info_from_page(page)
+                if not row:
+                    continue
+                key = (row.get("title") or "").lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(row)
+                if len(out) % 50 == 0:
+                    print(f"[collect] {len(out)} licensed photos", flush=True)
+                if len(out) >= limit:
+                    break
+            cont = (data.get("continue") or {}).get("gcmcontinue")
+            if not cont:
+                break
+            time.sleep(max(sleep, 1.2))
+        time.sleep(max(sleep, 1.2))
     return out
 
 
@@ -262,6 +378,11 @@ def main() -> int:
         help="Include well-known monument titles (default on)",
     )
     parser.add_argument("--no-known", action="store_false", dest="known")
+    parser.add_argument(
+        "--metadata-only",
+        action="store_true",
+        help="Write licensed image URLs without downloading files",
+    )
     args = parser.parse_args()
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -271,31 +392,37 @@ def main() -> int:
     if args.append and man_path.exists():
         manifest = json.loads(man_path.read_text(encoding="utf-8"))
 
-    titles: list[str] = []
-    titles.extend(args.titles)
-    if args.known:
-        titles.extend(KNOWN_TITLES)
-    searches = args.search
-    if not searches and not args.titles and not args.known:
-        searches = DEFAULT_SEARCHES
-    for q in searches:
-        print(f"[collect] search {q}")
-        titles.extend(search_files(q, max(12, args.limit), args.sleep))
-        time.sleep(args.sleep)
-    if args.categories:
-        per_cat = max(8, args.limit // max(1, len(CATEGORIES)))
-        for cat in CATEGORIES:
-            print(f"[collect] listing {cat}")
-            titles.extend(list_category_files(cat, per_cat, args.sleep))
-            time.sleep(args.sleep)
-
     seen_titles = existing_titles(manifest)
-    titles = [t for t in dict.fromkeys(titles) if t.lower() not in seen_titles]
-    titles = titles[: max(args.limit * 3, args.limit)]
-    print(f"[collect] {len(titles)} new candidate files, fetching metadata…")
-    infos = file_info(titles, args.sleep)
-    infos = [i for i in infos if (i.get("title") or "").lower() not in seen_titles]
-    print(f"[collect] {len(infos)} with allowed licenses")
+    use_categories = args.metadata_only and not args.search and not args.titles
+    if use_categories:
+        infos = licensed_from_categories(
+            BULK_CATEGORIES, args.limit, args.sleep, seen_titles
+        )
+    else:
+        titles: list[str] = []
+        titles.extend(args.titles)
+        if args.known:
+            titles.extend(KNOWN_TITLES)
+        searches = list(args.search)
+        if not searches and not args.titles and not args.known:
+            searches = DEFAULT_SEARCHES
+        for q in searches:
+            print(f"[collect] search {q}", flush=True)
+            titles.extend(search_files(q, max(12, args.limit), args.sleep))
+            time.sleep(args.sleep)
+        if args.categories:
+            per_cat = max(8, args.limit // max(1, len(CATEGORIES)))
+            for cat in CATEGORIES:
+                print(f"[collect] listing {cat}", flush=True)
+                titles.extend(list_category_files(cat, per_cat, args.sleep))
+                time.sleep(args.sleep)
+
+        titles = [t for t in dict.fromkeys(titles) if t.lower() not in seen_titles]
+        titles = titles[: max(args.limit * 4, args.limit)]
+        print(f"[collect] {len(titles)} new candidate files, fetching metadata…", flush=True)
+        infos = file_info(titles, args.sleep)
+        infos = [i for i in infos if (i.get("title") or "").lower() not in seen_titles]
+    print(f"[collect] {len(infos)} with allowed licenses", flush=True)
 
     idx = next_index(manifest)
     added = 0
@@ -307,28 +434,35 @@ def main() -> int:
         url = info.get("url") or ""
         if url.lower().endswith(".png"):
             ext = ".png"
-        dest = out_dir / f"{idx:03d}_{safe}{ext}"
+        dest = out_dir / f"{idx:04d}_{safe}{ext}"
         try:
-            print(f"[collect] download {info['title']}")
-            download(url, dest, sleep=args.sleep)
-            manifest.append(
-                {
-                    "id": f"commons-{idx:03d}",
-                    "path": str(dest.as_posix()),
-                    "source": "wikimedia_commons",
-                    "title": info["title"],
-                    "license": info["license"],
-                    "description": info["description"],
-                    "source_url": info["full_url"],
-                }
-            )
+            record = {
+                "id": f"commons-{idx:04d}",
+                "source": "wikimedia_commons",
+                "title": info["title"],
+                "license": info["license"],
+                "description": info["description"],
+                "source_url": info["full_url"],
+                "thumb_url": info.get("url") or info["full_url"],
+            }
+            if args.metadata_only:
+                record["path"] = ""
+            else:
+                print(f"[collect] download {info['title']}", flush=True)
+                download(url, dest, sleep=args.sleep)
+                record["path"] = str(dest.as_posix())
+            manifest.append(record)
             added += 1
             idx += 1
+            if added % 100 == 0:
+                man_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+                print(f"[collect] saved {added}", flush=True)
         except Exception as e:
-            print(f"[collect] skip {info['title']}: {e}")
+            print(f"[collect] skip {info['title']}: {e}", flush=True)
             if dest.exists():
                 dest.unlink()
-        time.sleep(args.sleep)
+        if not args.metadata_only:
+            time.sleep(args.sleep)
 
     man_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"[collect] wrote {len(manifest)} images ({added} new) -> {man_path}")

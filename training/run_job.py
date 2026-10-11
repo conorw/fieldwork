@@ -103,10 +103,15 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"[run_job] prior global unavailable at {prior_url}")
 
+        epochs = float(os.environ.get("TRAIN_NUM_EPOCHS") or "5")
+        max_steps_raw = os.environ.get("TRAIN_MAX_STEPS") or ""
+        max_steps = int(max_steps_raw) if max_steps_raw.strip() else None
         adapter_dir = train_lora(
             data_dir,
             work / "out",
             base_adapter_dir=prior_dir,
+            num_epochs=epochs,
+            max_steps=max_steps,
         )
         merged_dir = merge_lora(adapter_dir, work / "out")
         skip_onnx = args.skip_onnx and args.skip_upload
@@ -167,23 +172,44 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[run_job] skip upload; bundle at {prepared['bundle_dir']}")
             return 0
 
-        uploaded = upload_bundle(
-            prepared["bundle_dir"],
-            payload.locationId,
-            payload.version,
-        )
-        # Versioned global + stable latest pointer for all clients
+        # Shared weights first. The merged checkpoint can exceed the Worker
+        # upload limit, and that must not block adapters/global/latest/.
         global_uploaded = upload_bundle(
             prepared["bundle_dir"] / "global_adapter",
             "global",
             payload.version,
             path_prefix="adapters/global",
         )
+        # The browser model is published next from this versioned LoRA.
+        # Leave adapters/global/latest/manifest.json alone until that publish,
+        # or a reload mid-job would drop the on-device model.
+        browser_after = os.environ.get("BROWSER_ONNX_AFTER", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if browser_after:
+            adapter_url = (global_uploaded.get("adapterUrl") or "").rstrip("/") + "/"
+            marker = Path("/tmp/fw/adapter_base_url.txt")
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(adapter_url, encoding="utf-8")
+            print(f"[run_job] adapter for browser export: {adapter_url}")
+            return 0
+
         latest = upload_latest_pointer(
             prepared["bundle_dir"] / "global_adapter",
             version=payload.version,
             versioned_url=global_uploaded.get("adapterUrl"),
         )
+        try:
+            uploaded = upload_bundle(
+                prepared["bundle_dir"],
+                payload.locationId,
+                payload.version,
+            )
+        except Exception as upload_err:
+            print(f"[run_job] cemetery bundle upload failed: {upload_err}")
+            uploaded = {"adapterUrl": latest.get("adapterUrl") or ""}
 
         notify_success(
             payload.webhookUrl,

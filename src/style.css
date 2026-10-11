@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Follow the .app-dark class (set from the OS color scheme) instead of
+   the media query, so Tailwind and PrimeVue switch together. */
+@custom-variant dark (&:where(.app-dark, .app-dark *));
+
 @theme {
   --color-primary-50: #f0f9ff;
   --color-primary-100: #e0f2fe;
@@ -39,6 +43,33 @@
   --color-surface-950: #020617;
 
   --font-family-sans: Inter, system-ui, sans-serif;
+}
+
+/* Same surface roles as light mode: 0 is cards, 50 is the page, 900 is text. */
+.app-dark {
+  color-scheme: dark;
+  --color-surface-0: #1e293b;
+  --color-surface-50: #0f172a;
+  --color-surface-100: #1e293b;
+  --color-surface-200: #334155;
+  --color-surface-300: #475569;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #94a3b8;
+  --color-surface-600: #cbd5e1;
+  --color-surface-700: #e2e8f0;
+  --color-surface-800: #f1f5f9;
+  --color-surface-900: #f8fafc;
+  --color-surface-950: #ffffff;
+  --color-cemetery-50: #0f172a;
+  --color-cemetery-100: #1e293b;
+  --color-cemetery-200: #334155;
+  --color-cemetery-300: #475569;
+  --color-cemetery-400: #94a3b8;
+  --color-cemetery-500: #cbd5e1;
+  --color-cemetery-600: #e2e8f0;
+  --color-cemetery-700: #f1f5f9;
+  --color-cemetery-800: #f8fafc;
+  --color-cemetery-900: #ffffff;
 }
 
 /* OpenLayers CSS */

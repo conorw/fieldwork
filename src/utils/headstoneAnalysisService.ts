@@ -71,7 +71,7 @@ export class HeadstoneAnalysisService {
   /**
    * Use the on-device model if it is already loaded. Never block a photo on
    * the Hub download — OpenAI covers the gap while that runs in the background.
-   * Cemetery ai_status does not gate this: new cemeteries use the shared FastVLM.
+   * Cemetery ai_status does not gate this: new cemeteries use the shared headstone model.
    */
   private async shouldUseLocalModel(): Promise<{
     useLocal: boolean;

@@ -29,6 +29,7 @@ def _put_blob(pathname: str, data: bytes, content_type: str, token: str) -> str:
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": content_type,
+            "User-Agent": "fieldwork-train/1.0",
         },
     )
     with urlopen(req, timeout=300) as resp:
@@ -63,11 +64,16 @@ def upload_bundle(
     if not bundle_dir.exists():
         raise RuntimeError(f"bundle_dir missing: {bundle_dir}")
 
+    max_bytes = int(os.environ.get("TRAIN_MAX_UPLOAD_BYTES", "0") or "0")
     files = [p for p in bundle_dir.rglob("*") if p.is_file()]
     print(f"[upload] uploading {len(files)} files to {prefix}/")
 
     for path in files:
         rel = path.relative_to(bundle_dir).as_posix()
+        size = path.stat().st_size
+        if max_bytes and size > max_bytes:
+            print(f"[upload] skip {rel} ({size} bytes, over {max_bytes})")
+            continue
         pathname = f"{prefix}/{rel}"
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         url = _put_blob(pathname, path.read_bytes(), content_type, token)

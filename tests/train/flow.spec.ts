@@ -35,10 +35,10 @@ const mocks = vi.hoisted(() => ({
   updateLocationAiState: vi.fn(),
 }));
 
-vi.mock("../../api/lib/trainHelpers", async () => {
+vi.mock("../../workers/lib/trainHelpers", async () => {
   const actual = await vi.importActual<
-    typeof import("../../api/lib/trainHelpers")
-  >("../../api/lib/trainHelpers");
+    typeof import("../../workers/lib/trainHelpers")
+  >("../../workers/lib/trainHelpers");
   return {
     ...actual,
     getSupabaseAuthed: mocks.getSupabaseAuthed,
@@ -50,8 +50,13 @@ vi.mock("../../api/lib/trainHelpers", async () => {
   };
 });
 
-import trainHandler from "../../api/train-headstone";
-import webhookHandler from "../../api/train-headstone-webhook";
+import {
+  handleTrainHeadstone,
+  handleTrainWebhook as webhookHandler,
+} from "../../workers/train";
+
+const trainHandler = (request: Request) =>
+  handleTrainHeadstone(request, {} as never);
 
 describe("cemetery train process — full integration", () => {
   const examples = makeExampleBatch();

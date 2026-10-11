@@ -161,11 +161,40 @@ export function normalizeDateToIso(value: unknown): string {
 export const INSCRIPTION_DATE_PATTERN =
   /\b(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\.?\s+\d{4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}|\d{4}-\d{2}-\d{2})\b/gi;
 
-export function extractInscriptionDates(text: string): string[] {
-  if (!text) return [];
+/** Model JSON often puts the inscription in a list or a nested object. */
+export function asInscriptionText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null || typeof value === "number" || typeof value === "boolean") {
+    return value == null ? "" : String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => asInscriptionText(item)).filter(Boolean).join("\n");
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["text", "transcription", "notes", "content", "inscription"]) {
+      if (key in record) return asInscriptionText(record[key]);
+    }
+    return Object.values(record)
+      .map((item) => asInscriptionText(item))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(value);
+}
+
+export function extractInscriptionDates(text: unknown): string[] {
+  const source = asInscriptionText(text);
+  if (!source) return [];
   const seen = new Set<string>();
   const dates: string[] = [];
-  for (const match of text.matchAll(INSCRIPTION_DATE_PATTERN)) {
+  const matches =
+    typeof source.matchAll === "function"
+      ? source.matchAll(INSCRIPTION_DATE_PATTERN)
+      : (source.match(new RegExp(INSCRIPTION_DATE_PATTERN.source, "gi")) ?? []).map(
+          (item) => [item],
+        );
+  for (const match of matches) {
     const iso = normalizeDateToIso(match[0]);
     if (!iso || seen.has(iso)) continue;
     seen.add(iso);

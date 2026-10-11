@@ -13,6 +13,16 @@
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>FieldWork</title>
+    <script>
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        document.documentElement.classList.add("app-dark");
+      }
+      if ("serviceWorker" in navigator && location.hostname !== "fieldwork.conorw.workers.dev") {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          for (const reg of regs) reg.unregister();
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

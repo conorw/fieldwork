@@ -106,11 +106,61 @@ export function buildTrainJobPayload(input: {
   };
 }
 
+export interface BrowserTrainJobOptions {
+  overlayBaseUrl: string;
+  overlayFiles: string;
+  minExamples: number;
+  onnxVersion: string;
+  onnxRepoId: string;
+  globalAdapterPublicUrl: string;
+}
+
+/**
+ * Train, then publish the browser ONNX from the new LoRA without
+ * replacing adapters/global/latest/manifest.json until the publish finishes.
+ */
+export function browserTrainCommand(): string {
+  return `set -e
+git clone --depth 1 --branch "$TRAIN_REPO_REF" "$TRAIN_REPO_URL" /tmp/fieldwork || git clone --depth 1 "$TRAIN_REPO_URL" /tmp/fieldwork
+cd /tmp/fieldwork
+mkdir -p /tmp/fw
+python3 << 'PY'
+import os, urllib.request
+from pathlib import Path
+base = os.environ["OVERLAY_BASE_URL"].rstrip("/") + "/"
+root = Path("/tmp/fieldwork")
+for rel in os.environ["OVERLAY_FILES"].split(","):
+    rel = rel.strip()
+    if not rel:
+        continue
+    dest = root / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(base + rel, headers={"User-Agent": "fieldwork-train/1.0"})
+    dest.write_bytes(urllib.request.urlopen(req, timeout=120).read())
+    print("[overlay]", rel, dest.stat().st_size)
+PY
+pip install -q -r training/requirements.txt
+export BROWSER_ONNX_AFTER=1
+export TRAIN_REQUIRE_ONNX=0
+python3 -m training.run_job --min-examples "$MIN_EXAMPLES"
+cp scripts/export_browser_onnx.py /tmp/fw/export_browser_onnx.py
+cp scripts/finish_onnx_webhook.py /tmp/fw/finish_onnx_webhook.py
+export ADAPTER_BASE_URL="$(python3 -c 'print(open("/tmp/fw/adapter_base_url.txt", encoding="utf-8").read().strip())')"
+(python3 -m pip uninstall -y onnxruntime-gpu || true)
+python3 -m pip install -q 'peft==0.21.2' 'transformers==4.48.3' optimum onnx 'onnxruntime==1.21.0' onnxscript safetensors huggingface_hub timm onnx-graphsurgeon tqdm 'onnxconverter-common>=1.14.0'
+python3 /tmp/fw/export_browser_onnx.py || { python3 /tmp/fw/finish_onnx_webhook.py fail; exit 1; }
+python3 /tmp/fw/finish_onnx_webhook.py
+`;
+}
+
 /**
  * Start a Hugging Face Job that runs training/run_job.py
  * Docs: POST https://huggingface.co/api/jobs/{namespace}
  */
-export async function startHuggingFaceJob(payload: TrainJobPayload): Promise<{
+export async function startHuggingFaceJob(
+  payload: TrainJobPayload,
+  browser?: BrowserTrainJobOptions,
+): Promise<{
   jobId: string;
 }> {
   const token = process.env.HF_TOKEN;
@@ -122,20 +172,24 @@ export async function startHuggingFaceJob(payload: TrainJobPayload): Promise<{
   const dockerImage =
     process.env.HF_TRAIN_DOCKER_IMAGE ||
     "huggingface/transformers-pytorch-gpu:latest";
-  const timeoutSeconds = Number(process.env.HF_JOB_TIMEOUT_SECONDS || 3600);
+  const timeoutSeconds = browser
+    ? 7200
+    : Number(process.env.HF_JOB_TIMEOUT_SECONDS || 3600);
   const repoUrl =
     process.env.TRAIN_REPO_URL || "https://github.com/conorw/fieldwork.git";
   const repoRef = process.env.TRAIN_REPO_REF || "feature/cemetery-train-orchestrator";
 
   // Clone the repo (training/ package), install deps, run the job.
   // Payload is JSON in TRAIN_PAYLOAD_JSON (image URLs + labels only).
-  const bootstrap = [
-    "set -e",
-    "git clone --depth 1 --branch \"$TRAIN_REPO_REF\" \"$TRAIN_REPO_URL\" /tmp/fieldwork || git clone --depth 1 \"$TRAIN_REPO_URL\" /tmp/fieldwork",
-    "cd /tmp/fieldwork",
-    "pip install -q -r training/requirements.txt",
-    "python -m training.run_job",
-  ].join(" && ");
+  const bootstrap = browser
+    ? browserTrainCommand()
+    : [
+        "set -e",
+        "git clone --depth 1 --branch \"$TRAIN_REPO_REF\" \"$TRAIN_REPO_URL\" /tmp/fieldwork || git clone --depth 1 \"$TRAIN_REPO_URL\" /tmp/fieldwork",
+        "cd /tmp/fieldwork",
+        "pip install -q -r training/requirements.txt",
+        "python3 -m training.run_job",
+      ].join(" && ");
 
   const jobBody = {
     dockerImage,
@@ -149,6 +203,20 @@ export async function startHuggingFaceJob(payload: TrainJobPayload): Promise<{
       HF_HOME: "/tmp/hf",
       STORAGE_UPLOAD_URL: process.env.STORAGE_UPLOAD_URL || "",
       STORAGE_PUBLIC_BASE: process.env.STORAGE_PUBLIC_BASE || "",
+      ...(browser
+        ? {
+            OVERLAY_BASE_URL: browser.overlayBaseUrl,
+            OVERLAY_FILES: browser.overlayFiles,
+            MIN_EXAMPLES: String(browser.minExamples),
+            BROWSER_ONNX_AFTER: "1",
+            TRAIN_REQUIRE_ONNX: "0",
+            ONNX_VERSION: browser.onnxVersion,
+            ONNX_REPO_ID: browser.onnxRepoId,
+            GLOBAL_ADAPTER_PUBLIC_URL: browser.globalAdapterPublicUrl,
+            TRAIN_WEBHOOK_URL: payload.webhookUrl,
+            TEACHER_LOCATION_ID: payload.locationId,
+          }
+        : {}),
     },
     secrets: {
       STORAGE_SECRET:

@@ -205,7 +205,10 @@ async function uploadTeachImage(file: File): Promise<string | null> {
     const { imageProcessingService } = await import(
       "@/utils/imageProcessingService"
     );
-    const res = await imageProcessingService.uploadImage(file);
+    const res = await imageProcessingService.uploadImage(file, {
+      locationId: props.locationId,
+      teach: true,
+    });
     return res?.url || null;
   } catch (e) {
     console.warn("Teach upload failed, using data URL fallback", e);

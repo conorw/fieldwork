@@ -1,6 +1,12 @@
 <template>
   <div class="map-component relative w-full h-full">
     <div ref="mapElement" class="w-full h-full"></div>
+    <div
+      v-if="error"
+      class="absolute inset-0 z-10 flex items-center justify-center bg-surface-50 p-6 text-center"
+    >
+      <p class="max-w-sm text-sm text-surface-700">{{ error }}</p>
+    </div>
 
     <!-- Location Indicator -->
     <LocationIndicator
@@ -157,6 +163,12 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  // Create-cemetery (and similar) must use the world/UK source, not the
+  // already-selected cemetery clip — otherwise the picker only shows one site.
+  forceOnlineBasemap: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits([
@@ -175,6 +187,12 @@ const mapElement = ref(null);
 const map = ref(null);
 const isLoading = ref(false);
 const error = ref(null);
+let createGeneration = 0;
+
+function mapTarget() {
+  const el = mapElement.value;
+  return el && typeof el.addEventListener === "function" ? el : null;
+}
 
 // Locations store for PMTiles support
 const locationsStore = useLocationsStore();
@@ -214,19 +232,16 @@ const contextMenuLocation = ref(null);
 
 // Create map instance
 const createMap = async () => {
+  const generation = ++createGeneration;
+  const stale = () => generation !== createGeneration;
   isLoading.value = true;
   error.value = null;
 
   try {
-    if (!mapElement.value) {
+    const initialTarget = mapTarget();
+    if (!initialTarget) {
       mapComponentLogger.error("Map element not found");
       throw new Error("Map element not found");
-    }
-
-    // Additional validation to ensure the element is properly mounted
-    if (!mapElement.value.addEventListener) {
-      console.error("MapComponent: Map element is not a proper DOM element");
-      throw new Error("Map element is not a proper DOM element");
     }
 
     // Find available PMTiles location function
@@ -312,7 +327,12 @@ const createMap = async () => {
       isLoading: locationsStore.isLoading,
     });
 
-    if (selectedLocation) {
+    if (props.forceOnlineBasemap) {
+      console.log(
+        "🗺️ [MapComponent] Using world/UK basemap for cemetery picker",
+      );
+      tileSource = await createBestTileSource(null, props.viewName);
+    } else if (selectedLocation) {
       const locationForTileSource = {
         id: selectedLocation.id,
         name: selectedLocation.name,
@@ -476,9 +496,19 @@ const createMap = async () => {
 
     controls.push(new ZoomToExtentControl());
 
-    // Create map instance
-    map.value = new Map({
-      target: mapElement.value,
+    if (stale()) return;
+
+    // The element can be replaced while tiles and locations load.
+    const target = mapTarget();
+    if (!target) {
+      throw new Error("Map element was removed before the map could start");
+    }
+
+    // Keep the OpenLayers instance local until listeners are attached.
+    // Assigning map.value re-renders this component and can clear the
+    // template ref before those listeners run.
+    const olMap = new Map({
+      target,
       layers: [tileSource],
       view: view,
       controls: controls,
@@ -551,7 +581,7 @@ const createMap = async () => {
 
     // Add right-click event listener directly to the map
     // Add click event listener to close context menu when clicking elsewhere
-    map.value.on("click", async (event) => {
+    olMap.on("click", async (event) => {
       // Only close context menu if clicking on the map itself, not on the context menu
       if (contextMenuVisible.value) {
         // Check if this is a touch event that triggered a long press
@@ -574,7 +604,7 @@ const createMap = async () => {
     let longPressTriggered = false;
     let touchMoved = false;
 
-    mapElement.value.addEventListener(
+    target.addEventListener(
       "touchstart",
       (event) => {
         if (!props.showContextMenu || props.disableEventHandlers) return;
@@ -594,12 +624,12 @@ const createMap = async () => {
             if (!touchMoved) {
               longPressTriggered = true;
 
-              const rect = mapElement.value.getBoundingClientRect();
+              const rect = target.getBoundingClientRect();
               const pixel = [
                 touchStartPosition.x - rect.left,
                 touchStartPosition.y - rect.top,
               ];
-              const coordinate = map.value.getCoordinateFromPixel(pixel);
+              const coordinate = olMap.getCoordinateFromPixel(pixel);
               const [longitude, latitude] = toLonLat(coordinate);
               const location = { longitude, latitude, accuracy: 5 };
 
@@ -620,7 +650,7 @@ const createMap = async () => {
       { passive: true },
     );
 
-    mapElement.value.addEventListener(
+    target.addEventListener(
       "touchend",
       (event) => {
         // Only clear timer if long press hasn't been triggered yet
@@ -638,7 +668,7 @@ const createMap = async () => {
       { passive: false },
     );
 
-    mapElement.value.addEventListener(
+    target.addEventListener(
       "touchmove",
       (event) => {
         // Check if touch has moved significantly (more than 10px)
@@ -661,7 +691,7 @@ const createMap = async () => {
     );
 
     // Add right-click event listener for desktop
-    map.value.on("contextmenu", async (event) => {
+    olMap.on("contextmenu", async (event) => {
       // Prevent default browser context menu
       event.preventDefault();
 
@@ -684,9 +714,18 @@ const createMap = async () => {
       }
     });
 
+    map.value = olMap;
+
+    await nextTick();
+    if (stale()) return;
+    const live = mapTarget();
+    if (live && live !== target) {
+      olMap.setTarget(live);
+    }
+
     // Emit map created event
-    emit("map-created", map.value);
-    emit("map-ready", map.value);
+    emit("map-created", olMap);
+    emit("map-ready", olMap);
 
     // Set loading to false first so map renders
     isLoading.value = false;
@@ -697,6 +736,7 @@ const createMap = async () => {
       await autoCenterOnUserLocation();
     }, 0);
   } catch (err) {
+    if (stale()) return;
     console.error(`${props.viewName}: Error creating map:`, err);
     error.value = err.message || "Failed to create map";
     isLoading.value = false;
@@ -728,14 +768,25 @@ const initializeLocationTracking = async () => {
         showInfo("Location not available. Showing configured map area.");
       }
     }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/permission denied/i.test(message)) {
+      console.error("MapComponent: Location permission denied:", message);
+      showError(
+        "Location permission is blocked. Allow it to center the map on you.",
+      );
+      return;
+    }
+    console.warn("MapComponent: Location not available:", message);
+    if (props.extent && props.restrictExtent) {
+      showInfo("Location not available. Showing configured map area.");
+    }
+  }
 
-    // Set up device orientation tracking using Capacitor Motion
+  try {
     await setupDeviceOrientationTracking();
   } catch (error) {
-    console.error("MapComponent: Error initializing location tracking:", error);
-    showError(
-      "Failed to initialize location tracking. Please check your location permissions.",
-    );
+    console.warn("MapComponent: Device orientation unavailable:", error);
   }
 };
 
@@ -941,6 +992,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  createGeneration += 1;
   if (map.value) {
     map.value.setTarget(undefined);
     map.value = null;

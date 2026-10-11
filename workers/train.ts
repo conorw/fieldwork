@@ -9,7 +9,7 @@ import {
   updateLocationAiState,
   upsertGlobalAdapter,
   validateExamples,
-} from "../api/lib/trainHelpers";
+} from "./lib/trainHelpers";
 import { json, type Env } from "./env";
 
 function bearer(request: Request): string | null {
@@ -245,7 +245,22 @@ export async function handleTrainWebhook(request: Request): Promise<Response> {
   return json({ ok: true, ai_status: "error" });
 }
 
-export async function handleGlobalAdapter(): Promise<Response> {
+async function isPublishedInBucket(env: Env, adapterUrl: string): Promise<boolean> {
+  const path = adapterUrl.startsWith("/")
+    ? adapterUrl
+    : (() => {
+        try {
+          return new URL(adapterUrl).pathname;
+        } catch {
+          return "";
+        }
+      })();
+  if (!path.startsWith("/files/")) return true;
+  const key = `${path.slice("/files/".length)}manifest.json`;
+  return !!(await env.BUCKET.head(key));
+}
+
+export async function handleGlobalAdapter(env: Env): Promise<Response> {
   const envUrl =
     process.env.VITE_GLOBAL_ADAPTER_URL ||
     process.env.GLOBAL_ADAPTER_URL ||
@@ -260,7 +275,11 @@ export async function handleGlobalAdapter(): Promise<Response> {
     /\/?$/,
     "/",
   );
-  if (!adapterUrl || adapterUrl === "/") {
+  if (
+    !adapterUrl ||
+    adapterUrl === "/" ||
+    !(await isPublishedInBucket(env, adapterUrl))
+  ) {
     return json({
       error: "No global adapter published yet",
       adapterUrl: null,

@@ -16,10 +16,10 @@ const mocks = vi.hoisted(() => ({
   updateLocationAiState: vi.fn(),
 }));
 
-vi.mock("../../api/lib/trainHelpers", async () => {
+vi.mock("../../workers/lib/trainHelpers", async () => {
   const actual = await vi.importActual<
-    typeof import("../../api/lib/trainHelpers")
-  >("../../api/lib/trainHelpers");
+    typeof import("../../workers/lib/trainHelpers")
+  >("../../workers/lib/trainHelpers");
   return {
     ...actual,
     getSupabaseAuthed: mocks.getSupabaseAuthed,
@@ -31,7 +31,10 @@ vi.mock("../../api/lib/trainHelpers", async () => {
   };
 });
 
-import trainHandler from "../../api/train-headstone";
+import { handleTrainHeadstone } from "../../workers/train";
+
+const trainHandler = (request: Request) =>
+  handleTrainHeadstone(request, {} as never);
 
 describe("POST /api/train-headstone — orchestrator integration", () => {
   const examples = makeExampleBatch();

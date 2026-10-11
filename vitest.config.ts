@@ -5,7 +5,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.spec.ts"],
-    exclude: ["tests/clip.spec.ts"], // needs live vercel dev
+    // clip.spec.ts hits a live Worker; it only runs when named explicitly (`npm run test:clip`).
+    exclude: process.argv.some((arg) => arg.includes("clip.spec"))
+      ? []
+      : ["tests/clip.spec.ts"],
     globals: false,
     clearMocks: true,
     restoreMocks: true,

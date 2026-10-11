@@ -14,6 +14,10 @@ export interface GlobalAdapterMeta {
   version: string;
   updatedAt: string;
   onnx?: boolean;
+  /** Hub commit so a replaced ONNX file is not served from the browser cache. */
+  onnxRevision?: string;
+  /** Hub repo id when the manifest points at Hugging Face. */
+  onnxModelId?: string;
 }
 
 export type GlobalAdapterListener = (
@@ -47,18 +51,23 @@ export function setCachedGlobalAdapterMeta(meta: GlobalAdapterMeta): void {
   }
 }
 
+function clearCachedGlobalAdapterMeta(): void {
+  try {
+    localStorage.removeItem(GLOBAL_META_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Only a pointer whose manifest was fetched counts; the env URL alone may
+// point at an empty bucket path and would lower the training gate wrongly.
 export async function hasGlobalAdapterCached(): Promise<boolean> {
-  if (getGlobalAdapterUrlFromEnv()) return true;
-  const meta = getCachedGlobalAdapterMeta();
-  return !!meta?.adapterUrl;
+  return !!getCachedGlobalAdapterMeta()?.adapterUrl;
 }
 
 export async function resolveGlobalBaseAdapterUrl(): Promise<string | null> {
   const meta = getCachedGlobalAdapterMeta();
-  if (meta?.adapterUrl) return meta.adapterUrl.replace(/\/?$/, "/");
-  const fromEnv = getGlobalAdapterUrlFromEnv();
-  if (fromEnv) return fromEnv.replace(/\/?$/, "/");
-  return null;
+  return meta?.adapterUrl ? meta.adapterUrl.replace(/\/?$/, "/") : null;
 }
 
 export function onGlobalAdapterUpdated(fn: GlobalAdapterListener): () => void {
@@ -81,6 +90,32 @@ function emitUpdated(meta: GlobalAdapterMeta, previous: GlobalAdapterMeta | null
   } catch {
     /* SSR / tests */
   }
+}
+
+/**
+ * A LAN dev worker keeps its own copy of the manifest. The GPU job publishes
+ * the new pointer on the public host. Prefer that pointer when its revision
+ * differs so a reload downloads the new model.
+ */
+export function publishedManifestChoice(
+  local: Record<string, unknown> | null,
+  remote: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  const remoteRevision =
+    typeof remote?.onnx_revision === "string" ? remote.onnx_revision : "";
+  if (!remote || !remoteRevision) return local;
+  if (!local) return remote;
+  const localRevision =
+    typeof local.onnx_revision === "string" ? local.onnx_revision : "";
+  if (remoteRevision === localRevision) return local;
+  return { ...local, ...remote };
+}
+
+function remotePublishBase(): string {
+  const fromEnv = (
+    import.meta.env.VITE_STORAGE_PUBLIC_BASE as string | undefined
+  )?.replace(/\/$/, "");
+  return fromEnv || "https://fieldwork.conorw.workers.dev";
 }
 
 async function fetchJson(url: string): Promise<any | null> {
@@ -115,7 +150,13 @@ export async function refreshGlobalAdapterMeta(): Promise<GlobalAdapterMeta | nu
     candidateVersion = api.version || null;
   }
 
-  // 2) Env / cached URL + remote manifest
+  // The API answered and nothing is published: drop any stale pointer.
+  if (!candidateUrl && api) {
+    if (previous) clearCachedGlobalAdapterMeta();
+    return null;
+  }
+
+  // 2) API unreachable: env / cached URL + remote manifest
   if (!candidateUrl) {
     candidateUrl =
       getGlobalAdapterUrlFromEnv()?.replace(/\/?$/, "/") ||
@@ -125,11 +166,44 @@ export async function refreshGlobalAdapterMeta(): Promise<GlobalAdapterMeta | nu
 
   if (!candidateUrl) return previous;
 
-  const manifest = await fetchJson(`${candidateUrl}manifest.json`);
+  let manifestRes: Response;
+  try {
+    manifestRes = await fetch(`${candidateUrl}manifest.json`, {
+      cache: "no-cache",
+    });
+  } catch {
+    return previous;
+  }
+  if (manifestRes.status === 404) {
+    if (previous) clearCachedGlobalAdapterMeta();
+    return null;
+  }
+  const localManifest = manifestRes.ok
+    ? await manifestRes.json().catch(() => null)
+    : null;
+  if (!localManifest) return previous;
+
+  let manifest: any = localManifest;
+  const remoteBase = remotePublishBase();
+  if (
+    typeof window !== "undefined" &&
+    window.location.origin !== new URL(remoteBase).origin
+  ) {
+    const remote = await fetchJson(
+      `${remoteBase}/files/adapters/global/latest/manifest.json`,
+    );
+    manifest =
+      publishedManifestChoice(
+        localManifest as Record<string, unknown>,
+        remote as Record<string, unknown> | null,
+      ) || localManifest;
+  }
+  // The file in the bucket is the weights the browser will load. The API
+  // version can lag behind a publish, so the manifest wins when it has one.
   const version =
-    candidateVersion ||
     manifest?.version ||
     manifest?.adapter_version ||
+    candidateVersion ||
     previous?.version ||
     "unknown";
 
@@ -137,13 +211,24 @@ export async function refreshGlobalAdapterMeta(): Promise<GlobalAdapterMeta | nu
     adapterUrl: candidateUrl,
     version: String(version),
     updatedAt: api?.updatedAt || new Date().toISOString(),
-    onnx: !!(manifest?.onnx || manifest?.export_mode?.includes("onnx")),
+    onnx: !!(
+      manifest?.onnx ||
+      manifest?.onnx_model_id ||
+      String(manifest?.export_mode || "").includes("onnx")
+    ),
+    onnxRevision: manifest?.onnx_revision
+      ? String(manifest.onnx_revision)
+      : undefined,
+    onnxModelId: manifest?.onnx_model_id
+      ? String(manifest.onnx_model_id)
+      : undefined,
   };
 
   const bumped =
     !previous ||
     previous.version !== meta.version ||
-    previous.adapterUrl !== meta.adapterUrl;
+    previous.adapterUrl !== meta.adapterUrl ||
+    previous.onnxRevision !== meta.onnxRevision;
 
   setCachedGlobalAdapterMeta(meta);
 

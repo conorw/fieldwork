@@ -59,8 +59,18 @@
 
           <div
             v-if="authStore.isAuthenticated"
-            class="flex items-center gap-2 border-l border-surface-200 pl-2 sm:ml-2"
+            class="relative z-30 flex items-center gap-2 border-l border-surface-200 pl-2 sm:ml-2"
           >
+            <button
+              type="button"
+              class="flex h-10 w-10 items-center justify-center rounded-full text-surface-700 hover:bg-surface-100"
+              title="Cemetery assistant"
+              aria-label="Cemetery assistant"
+              :aria-expanded="showAssistant"
+              @click.stop="openAssistant"
+            >
+              <i class="pi pi-comments" aria-hidden="true"></i>
+            </button>
             <Avatar
               :label="userInitials"
               shape="circle"
@@ -73,7 +83,7 @@
               rounded
               severity="secondary"
               @click="handleLogout"
-              v-tooltip.bottom="'Sign out'"
+              title="Sign out"
               aria-label="Sign out"
             />
           </div>
@@ -107,6 +117,10 @@
     </nav>
 
     <CemeterySwitcher v-model:visible="showCemeteries" />
+    <CemeteryChat
+      :visible="showAssistant"
+      @update:visible="showAssistant = $event"
+    />
 
     <!-- Install Prompt -->
     <InstallPrompt />
@@ -123,12 +137,14 @@ import Button from "primevue/button";
 import Avatar from "primevue/avatar";
 import InstallPrompt from "../InstallPrompt.vue";
 import CemeterySwitcher from "../CemeterySwitcher.vue";
+import CemeteryChat from "../CemeteryChat.vue";
 
 const route = useRoute();
 const router = useRouter();
 const locationsStore = useLocationsStore();
 const authStore = useAuthStore();
 const showCemeteries = ref(false);
+const showAssistant = ref(false);
 
 const isOnline = useOnline();
 const locationName = computed(
@@ -155,5 +171,9 @@ const userInitials = computed(() => {
 const handleLogout = async () => {
   await authStore.logout();
   router.push("/auth");
+};
+
+const openAssistant = () => {
+  showAssistant.value = !showAssistant.value;
 };
 </script>

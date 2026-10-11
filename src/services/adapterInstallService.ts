@@ -1,13 +1,25 @@
 /**
- * Load the shared FastVLM on boot, and a per-cemetery merged ONNX when available.
+ * Load the shared headstone model on boot, and a per-cemetery merged ONNX
+ * when that cemetery has published its own.
  */
 import { localLLMService } from "./localLLMService";
 import {
   isModelCached,
   prefetchAdapterManifest,
 } from "./modelCacheService";
+import { refreshGlobalAdapterMeta } from "./globalAdapterService";
 import type { LocationData } from "../stores/locations";
 import { DEFAULT_ONNX_MODEL_ID } from "../types/headstoneTraining";
+
+const SHARED_MODEL_MISSING =
+  "The shared headstone model is not published yet.";
+
+/** Transformers.js treats a root path as a Hub id. Same-origin weights need an absolute URL. */
+function asRemoteModelUrl(url: string): string {
+  if (url.includes("://") || !url.startsWith("/")) return url;
+  if (typeof window === "undefined") return url;
+  return new URL(url, window.location.origin).href;
+}
 
 export async function resolveOnnxModelUrl(
   adapterUrl: string,
@@ -17,27 +29,62 @@ export async function resolveOnnxModelUrl(
     return adapterUrl;
   }
   const { onnxUrl } = await prefetchAdapterManifest(adapterUrl);
-  return onnxUrl;
+  return asRemoteModelUrl(onnxUrl);
 }
 
+let sharedLoad: Promise<boolean> | null = null;
+
 /**
- * Ensure the shared Hub FastVLM is loaded so new cemeteries can read
- * on-device without a teaching onboarding step.
+ * Load the published shared headstone model. New cemeteries use this
+ * immediately. The general Hub model is not a substitute.
  */
-export async function ensureSharedLocalModel(): Promise<boolean> {
-  if (localLLMService.isReady()) return true;
+export function ensureSharedLocalModel(): Promise<boolean> {
+  if (sharedLoad) return sharedLoad;
+  sharedLoad = loadSharedHeadstoneModel().finally(() => {
+    sharedLoad = null;
+  });
+  return sharedLoad;
+}
+
+async function loadSharedHeadstoneModel(): Promise<boolean> {
   try {
-    await localLLMService.initialize({ modelUrl: DEFAULT_ONNX_MODEL_ID });
-    return localLLMService.isReady();
+    const meta = await refreshGlobalAdapterMeta();
+    if (!meta?.adapterUrl) {
+      const loaded = localLLMService.getLoadedModelUrl();
+      if (!loaded || loaded === DEFAULT_ONNX_MODEL_ID) {
+        localLLMService.reportUnavailable(SHARED_MODEL_MISSING);
+      }
+      console.warn("ensureSharedLocalModel:", SHARED_MODEL_MISSING);
+      return false;
+    }
+
+    const modelUrl = meta.onnxModelId
+      ? meta.onnxModelId
+      : await resolveOnnxModelUrl(meta.adapterUrl);
+    if (localLLMService.isReadyFor(modelUrl, meta.onnxRevision)) return true;
+
+    console.log("Loading shared headstone model", modelUrl);
+    await localLLMService.initialize({
+      modelUrl,
+      adapterVersion: meta.version,
+      revision: meta.onnxRevision,
+    });
+    return localLLMService.isReadyFor(modelUrl);
   } catch (e) {
     console.warn("ensureSharedLocalModel:", e);
+    const loaded = localLLMService.getLoadedModelUrl();
+    if (!loaded || loaded === DEFAULT_ONNX_MODEL_ID) {
+      localLLMService.reportUnavailable(
+        e instanceof Error ? e.message : SHARED_MODEL_MISSING,
+      );
+    }
     return false;
   }
 }
 
 /**
  * Ensure the worker has the location's ONNX loaded when this cemetery
- * has a published adapter. Falls back to the shared stock model.
+ * has a published adapter. Otherwise load the shared headstone model.
  */
 export async function ensureLocalModelForLocation(
   location: Pick<
@@ -70,8 +117,9 @@ export async function ensureLocalModelForLocation(
   return ensureSharedLocalModel();
 }
 
+/** Dev harness only. Cemetery reading does not use this model. */
 export async function ensureStockModelForEval(): Promise<void> {
-  await ensureSharedLocalModel();
+  await localLLMService.initialize({ modelUrl: DEFAULT_ONNX_MODEL_ID });
 }
 
 export async function locationModelIsCached(

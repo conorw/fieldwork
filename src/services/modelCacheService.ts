@@ -85,12 +85,25 @@ export async function prefetchAdapterManifest(
     throw new Error(`Could not load model manifest (${res.status})`);
   }
   const manifest = await res.json();
-  if (manifest.export_mode && manifest.export_mode !== "onnx") {
+  const onnxUrl = onnxLocationFromManifest(base, manifest);
+  if (!onnxUrl) {
     throw new Error(
-      "This cemetery model is not ready for offline use (ONNX export missing).",
+      "This model is published, but the on-device file is missing.",
     );
   }
-  const onnxUrl = `${base}onnx/`;
   onProgress?.(100);
   return { onnxUrl, manifest };
+}
+
+/** Hub id or same-origin onnx/ directory. Empty when the manifest has no ONNX. */
+export function onnxLocationFromManifest(
+  adapterBaseUrl: string,
+  manifest: { export_mode?: string; onnx_model_id?: string },
+): string | null {
+  const mode = String(manifest?.export_mode || "");
+  const hubId = manifest?.onnx_model_id?.trim();
+  if (hubId && (mode.includes("onnx") || !mode)) return hubId;
+  if (mode && !mode.includes("onnx")) return null;
+  const base = adapterBaseUrl.replace(/\/?$/, "/");
+  return `${base}onnx/`;
 }

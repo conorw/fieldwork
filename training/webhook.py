@@ -25,6 +25,7 @@ def post_webhook(
             "Content-Type": "application/json",
             "x-train-webhook-secret": secret,
             "Authorization": f"Bearer {secret}",
+            "User-Agent": "fieldwork-train/1.0",
         },
     )
     try:

@@ -1,3 +1,11 @@
+import "./utils/insecureContext.js";
+
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) void reg.unregister();
+  });
+}
+
 // Polyfill Buffer for PowerSync (Node.js compatibility)
 import { Buffer } from "buffer";
 window.Buffer = Buffer;
@@ -77,8 +85,6 @@ app.use(PrimeVue, {
     preset: Aura,
     options: {
       prefix: "p",
-      // The app's own surfaces are light-only, so following the OS dark mode
-      // left dark PrimeVue components sitting on light backgrounds.
       darkModeSelector: ".app-dark",
       cssLayer: false,
     },
@@ -161,6 +167,13 @@ const authStore = useAuthStore();
   settingsStore.initializeWithGPS().catch((error: Error) => {
     console.error("Failed to initialize settings with GPS:", error);
   });
+
+  const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const applyColorScheme = () => {
+    document.documentElement.classList.toggle("app-dark", colorScheme.matches);
+  };
+  applyColorScheme();
+  colorScheme.addEventListener("change", applyColorScheme);
 
   // Mount app after auth is initialized
   app.mount("#app");

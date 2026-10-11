@@ -1,5 +1,4 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 type ResCapture = {
   statusCode: number;
@@ -8,59 +7,49 @@ type ResCapture = {
 };
 
 /**
- * Invoke a Vercel-style default export handler with a fake req/res.
+ * Invoke a Worker-style fetch handler with a synthetic Request.
  */
 export async function invokeHandler(
-  handler: (req: VercelRequest, res: VercelResponse) => unknown,
+  handler: (request: Request) => Promise<Response>,
   options: {
     method?: string;
     url?: string;
-    headers?: Record<string, string | string[] | undefined>;
+    headers?: Record<string, string | undefined>;
     body?: unknown;
-    query?: Record<string, string | string[]>;
+    query?: Record<string, string>;
   } = {},
 ): Promise<ResCapture> {
-  const capture: ResCapture = { statusCode: 200, body: undefined, headers: {} };
-
-  const req = {
-    method: options.method || "GET",
-    url: options.url || "/",
-    headers: options.headers || {},
-    body: options.body,
-    query: options.query || {},
-  } as unknown as VercelRequest;
-
-  let resolved = false;
-  const res = {
-    status(code: number) {
-      capture.statusCode = code;
-      return this;
-    },
-    json(payload: unknown) {
-      capture.body = payload;
-      resolved = true;
-      return this;
-    },
-    setHeader(name: string, value: string) {
-      capture.headers[name.toLowerCase()] = value;
-      return this;
-    },
-    end(payload?: string) {
-      if (payload !== undefined) capture.body = payload;
-      resolved = true;
-      return this;
-    },
-  } as unknown as VercelResponse;
-
-  await handler(req, res);
-
-  // Handlers may return a promise that already called json()
-  if (!resolved && capture.body === undefined) {
-    // allow microtask flush
-    await Promise.resolve();
+  const method = options.method || "GET";
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(options.headers || {})) {
+    if (value !== undefined) headers.set(name, value);
+  }
+  const proto = headers.get("x-forwarded-proto") || "http";
+  const host = headers.get("host") || "localhost";
+  const url = new URL(options.url || "/", `${proto}://${host}`);
+  for (const [key, value] of Object.entries(options.query || {})) {
+    url.searchParams.set(key, value);
   }
 
-  return capture;
+  let body: string | undefined;
+  if (options.body !== undefined && method !== "GET" && method !== "HEAD") {
+    body = JSON.stringify(options.body);
+    headers.set("content-type", "application/json");
+  }
+
+  const response = await handler(new Request(url, { method, headers, body }));
+  const raw = await response.text();
+  let parsed: unknown = raw;
+  try {
+    parsed = raw ? JSON.parse(raw) : undefined;
+  } catch {
+    // non-JSON body
+  }
+  return {
+    statusCode: response.status,
+    body: parsed,
+    headers: Object.fromEntries(response.headers.entries()),
+  };
 }
 
 /** Tiny local HTTP server for webhook round-trip tests */

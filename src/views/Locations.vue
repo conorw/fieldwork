@@ -1,7 +1,7 @@
 <template>
-  <div class="h-full bg-surface-50">
+  <div class="flex h-full min-h-0 flex-col bg-surface-50">
     <!-- Content -->
-    <div class="p-4">
+    <div class="min-h-0 flex-1 overflow-y-auto p-4">
       <!-- Loading Overlay for Extent Check -->
       <div
         v-if="isCheckingExtent"
@@ -60,15 +60,20 @@
 
         <!-- Map Container -->
         <Card>
+          <template #title>Cemetery area</template>
           <template #content>
-            <div class="overflow-hidden" style="height: 50vh">
+            <p class="mb-3 text-sm text-surface-600">
+              Drag the box over the cemetery (1 km × 1 km at most), then choose
+              Save cemetery.
+            </p>
+            <div class="h-64 overflow-hidden sm:h-80">
               <MapComponent
                 ref="mapComponent"
                 :center="mapCenter"
-                :zoom="12"
-                :max-zoom="20"
-                :min-zoom="12"
-                :location="selectedLocationData"
+                :zoom="10"
+                :max-zoom="11"
+                :min-zoom="6"
+                :force-online-basemap="true"
                 view-name="ExtentConfiguration"
                 tile-source-name="ExtentConfiguration"
                 :show-full-screen="false"
@@ -86,35 +91,44 @@
           </template>
         </Card>
 
-        <!-- Simple Controls -->
-        <Card>
-          <template #content>
-            <div class="space-y-3">
-              <Button
-                @click="resetRectangleToDefault"
-                :disabled="isLoading || isSaving"
-                label="Reset Area Size"
-                severity="secondary"
-                class="w-full"
-              />
+      </div>
+    </div>
 
-              <Button
-                @click="handleSetExtent"
-                :disabled="isSaving"
-                :label="isSaving ? 'Saving…' : 'Save cemetery'"
-                class="w-full"
-              />
+    <div
+      class="shrink-0 space-y-2 border-t border-surface-200 bg-surface-0 p-3"
+    >
+      <InlineMessage v-if="saveError" severity="error" :closable="false">
+        {{ saveError }}
+      </InlineMessage>
+      <InlineMessage
+        v-else-if="savePhase === 'clipping'"
+        severity="info"
+        :closable="false"
+      >
+        Clipping map tiles for this cemetery… about 10 seconds.
+      </InlineMessage>
+      <InlineMessage
+        v-else-if="savePhase === 'saving'"
+        severity="info"
+        :closable="false"
+      >
+        Saving cemetery…
+      </InlineMessage>
 
-              <Button
-                v-if="isExtentConfigured"
-                @click="handleGoToMap"
-                label="Go to Map"
-                severity="success"
-                class="w-full"
-              />
-            </div>
-          </template>
-        </Card>
+      <div class="flex gap-2">
+        <Button
+          @click="resetRectangleToDefault"
+          :disabled="isLoading || isSaving"
+          label="Reset area"
+          severity="secondary"
+          outlined
+        />
+        <Button
+          @click="handleSetExtent"
+          :disabled="isSaving"
+          :label="saveButtonLabel"
+          class="flex-1"
+        />
       </div>
     </div>
 
@@ -192,7 +206,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useMapStore } from "../stores/map";
 import { useSettingsStore } from "../stores/settings";
@@ -234,6 +248,8 @@ const mapComponent = ref(null);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isCheckingExtent = ref(true);
+const saveError = ref("");
+const savePhase = ref(""); // '', 'clipping', 'saving'
 
 // Location management
 const locationName = ref("");
@@ -246,6 +262,11 @@ const isSavingLocation = ref(false);
 const selectedLocation = ref(null);
 
 const existingCemeteries = computed(() => locationsStore.locations);
+const saveButtonLabel = computed(() => {
+  if (savePhase.value === "clipping") return "Clipping map…";
+  if (savePhase.value === "saving") return "Saving…";
+  return "Save cemetery";
+});
 
 function openCemetery(id) {
   locationsStore.selectLocation(id);
@@ -298,14 +319,6 @@ const pmtilesStatusMessage = computed(() => {
     default:
       return "";
   }
-});
-
-// Selected location data for PMTiles support
-const selectedLocationData = computed(() => {
-  if (selectedLocation.value && selectedLocation.value.pmtilesUrl) {
-    return selectedLocation.value;
-  }
-  return null;
 });
 
 // Create default 2km x 2km rectangle
@@ -1110,30 +1123,31 @@ const handleMapError = (error) => {
 
 // Handle setting the current extent
 const handleSetExtent = async () => {
+  saveError.value = "";
   if (!mapComponent.value || !mapComponent.value.map) {
-    alert("Map not available");
+    saveError.value = "Map is still loading. Try again in a moment.";
     return;
   }
 
   if (!isPolygonValid.value) {
-    alert(
-      "Please draw a valid rectangle (max 1km x 1km) before setting the extent",
-    );
+    saveError.value =
+      "Draw a rectangle no larger than 1 km × 1 km before saving.";
     return;
   }
 
   if (!locationName.value.trim()) {
-    locationNameError.value = "Location name is required";
+    locationNameError.value = "Cemetery name is required";
     return;
   }
 
   try {
     isSaving.value = true;
+    savePhase.value = "clipping";
 
     // Get extent from the current rectangle in the vector source
     const features = vectorSource.value.getFeatures();
     if (features.length === 0) {
-      alert("No rectangle found on the map");
+      saveError.value = "No cemetery area found on the map.";
       return;
     }
 
@@ -1146,11 +1160,10 @@ const handleSetExtent = async () => {
     const ne = toLonLat([extent[2], extent[3]]);
     const bbox = [sw[0], sw[1], ne[0], ne[1]]; // [minLon, minLat, maxLon, maxLat]
 
-    // Generate PMTiles file
     const pmtiles_url = await generatepmtilesUrl(bbox);
 
-    // Save location to database
-    const locationId = await powerSyncStore.addNewLocation({
+    savePhase.value = "saving";
+    await powerSyncStore.addNewLocation({
       name: locationName.value.trim(),
       bbox,
       min_zoom: selectedMinZoom.value.toString(),
@@ -1159,16 +1172,16 @@ const handleSetExtent = async () => {
       is_public: isPublic.value,
     });
 
-    // Save the extent configuration
     await mapStore.finishExtentConfiguration(bbox);
 
-    // Navigate to map view
     router.push("/");
   } catch (error) {
     console.error("Error saving location:", error);
-    alert("Failed to save location: " + (error.message || "Unknown error"));
+    saveError.value =
+      "Failed to save cemetery: " + (error.message || "Unknown error");
   } finally {
     isSaving.value = false;
+    savePhase.value = "";
   }
 };
 
@@ -1258,17 +1271,13 @@ const generatepmtilesUrl = async (bbox) => {
       throw new Error(`PMTiles generation failed: ${errorText}`);
     }
 
-    // API returns an absolute Worker /files/ URL
-    const url = await response.text();
+    const raw = (await response.text()).trim();
+    const filesIdx = raw.indexOf("/files/");
+    const url = filesIdx >= 0 ? raw.slice(filesIdx) : raw;
 
-    if (
-      !url ||
-      (!url.startsWith("http://") &&
-        !url.startsWith("https://") &&
-        !url.startsWith("/files/"))
-    ) {
+    if (!url || !url.startsWith("/files/")) {
       throw new Error(
-        `Invalid PMTiles URL returned: ${url}. Expected a Cloudflare /files/ URL.`,
+        `Invalid PMTiles URL returned: ${raw}. Expected a Cloudflare /files/ URL.`,
       );
     }
 
@@ -1311,14 +1320,7 @@ onMounted(async () => {
     // Load locations for PMTiles support
     await locationsStore.loadLocations();
 
-    // Check if extent is already configured, then redirect to map
-    if (isExtentConfigured.value) {
-      clearTimeout(timeoutId);
-      router.push("/");
-      return;
-    }
-
-    // Extent not configured, show the configuration interface
+    // Always stay on this page so a second cemetery can be created.
     clearTimeout(timeoutId);
     isCheckingExtent.value = false;
   } catch (error) {
@@ -1326,14 +1328,6 @@ onMounted(async () => {
     // Show the configuration interface even if there's an error
     clearTimeout(timeoutId);
     isCheckingExtent.value = false;
-  }
-});
-
-// Watch for extent configuration completion
-watch(isExtentConfigured, (extentConfigured) => {
-  if (extentConfigured) {
-    isCheckingExtent.value = true; // Show loading state during redirect
-    router.push("/");
   }
 });
 

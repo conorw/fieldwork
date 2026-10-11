@@ -1,5 +1,5 @@
 import { json } from "./env";
-import { analyzeHeadstoneWithOpenAI } from "../api/lib/analyzeHeadstone";
+import { analyzeHeadstoneWithOpenAI } from "./lib/analyzeHeadstone";
 
 export async function handleAnalyzeHeadstone(
   request: Request,

@@ -18,6 +18,7 @@ export interface Env {
   TRAIN_REPO_REF?: string;
   STORAGE_SECRET?: string;
   STORAGE_PUBLIC_BASE?: string;
+  STORAGE_UPLOAD_URL?: string;
   BLOB_READ_WRITE_TOKEN?: string;
   SOURCE_PMTILES_KEY?: string;
   SOURCE_PMTILES_URL?: string;

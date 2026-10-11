@@ -47,7 +47,11 @@ def build_dataset_dir(
             ext = ".png"
         local = images_dir / f"{i:04d}{ext}"
         print(f"[dataset] downloading {i + 1}/{len(examples)}: {url[:80]}...")
-        download_image(url, local)
+        try:
+            download_image(url, local)
+        except Exception as exc:
+            print(f"[dataset] skip {url[:80]}: {exc}")
+            continue
 
         response = target_to_json(ex["target"])
         rows.append(
@@ -64,6 +68,8 @@ def build_dataset_dir(
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
+    if not rows:
+        raise RuntimeError("No training images could be downloaded")
     print(f"[dataset] wrote {len(rows)} rows to {jsonl_path}")
     return root
 

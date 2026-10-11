@@ -12,6 +12,7 @@ export interface StorageItem {
 
 export interface StorageSummary {
   totalSize: number;
+  quota: number;
   totalItems: number;
   breakdown: {
     cache: { size: number; items: number };
@@ -19,9 +20,138 @@ export interface StorageSummary {
     assets: { size: number; items: number };
     tiles: { size: number; items: number };
     images: { size: number; items: number };
+    models: { size: number; items: number; copies: number };
     other: { size: number; items: number };
   };
   items: StorageItem[];
+}
+
+export type CacheBucket = "models" | "tiles" | "cache";
+
+/** Which on-device bucket a Cache Storage entry belongs to. */
+export function classifyCacheEntry(cacheName: string, url: string): CacheBucket {
+  const name = cacheName.toLowerCase();
+  const href = url.toLowerCase();
+  if (
+    name.includes("transformer") ||
+    name.includes("vlm") ||
+    href.includes("huggingface.co") ||
+    href.includes(".onnx") ||
+    href.includes("fastvlm")
+  ) {
+    return "models";
+  }
+  if (
+    name.includes("pmtiles") ||
+    name.includes("tile") ||
+    href.includes(".pmtiles") ||
+    href.includes("/tiles/")
+  ) {
+    return "tiles";
+  }
+  return "cache";
+}
+
+/** Hub revision in a transformers.js cache key, when the URL has one. */
+export function modelRevisionFromUrl(url: string): string | null {
+  const match = url.match(/\/resolve\/([^/?#]+)\//i);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export async function cachedResponseSize(response: Response): Promise<number> {
+  const header = Number(response.headers.get("content-length"));
+  if (Number.isFinite(header) && header > 0) return header;
+  try {
+    return (await response.clone().blob()).size;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Rows that add up to site usage. Cache bytes are measured. App data is the
+ * rest of navigator.storage usage, with photo bytes pulled out of that rest.
+ */
+export function summarizeMeasuredStorage(input: {
+  usage: number;
+  quota: number;
+  models: { size: number; items: number; copies: number };
+  tiles: { size: number; items: number };
+  otherCache: { size: number; items: number };
+  images: { size: number; items: number };
+}): StorageSummary {
+  const cacheAccounted =
+    input.models.size + input.tiles.size + input.otherCache.size;
+  const originRemainder =
+    input.usage > 0 ? Math.max(0, input.usage - cacheAccounted) : 0;
+  const photoSize =
+    input.usage > 0
+      ? Math.min(input.images.size, originRemainder)
+      : input.images.size;
+  const database = input.usage > 0 ? originRemainder - photoSize : 0;
+  const totalSize =
+    input.usage > 0
+      ? input.usage
+      : cacheAccounted + input.images.size;
+
+  const items: StorageItem[] = [
+    {
+      name: "AI model",
+      size: input.models.size,
+      type: "assets",
+      description:
+        input.models.copies > 1
+          ? `${input.models.copies} downloaded versions`
+          : "On-device reader",
+      canClear: false,
+    },
+    {
+      name: "Map tiles",
+      size: input.tiles.size,
+      type: "tiles",
+      description: "Offline map",
+      canClear: true,
+    },
+    {
+      name: "Photos",
+      size: photoSize,
+      type: "images",
+      description: "Plot photos on this device",
+      canClear: false,
+    },
+    {
+      name: "App data",
+      size: database,
+      type: "database",
+      description: "Cemeteries, plots, and names",
+      canClear: false,
+    },
+  ];
+  if (input.otherCache.size > 0) {
+    items.push({
+      name: "Other cache",
+      size: input.otherCache.size,
+      type: "cache",
+      description: "Saved pages and files",
+      canClear: true,
+    });
+  }
+
+  return {
+    totalSize,
+    quota: input.quota,
+    totalItems: items.length,
+    breakdown: {
+      cache: input.otherCache,
+      database: { size: database, items: 1 },
+      assets: { size: 0, items: 0 },
+      tiles: input.tiles,
+      images: { size: photoSize, items: input.images.items },
+      models: input.models,
+      other: { size: 0, items: 0 },
+    },
+    items,
+  };
 }
 
 class StorageAnalyticsService {
@@ -274,48 +404,84 @@ class StorageAnalyticsService {
 
   // Get comprehensive storage summary
   async getStorageSummary(): Promise<StorageSummary> {
-    const allItems: StorageItem[] = [];
+    const estimate = await this.readStorageEstimate();
+    const caches = await this.measureCacheStorage();
+    const images = await this.measureImageBytes();
+    return summarizeMeasuredStorage({
+      usage: estimate.usage,
+      quota: estimate.quota,
+      models: caches.models,
+      tiles: caches.tiles,
+      otherCache: caches.cache,
+      images,
+    });
+  }
 
-    // Collect all storage data
-    const localStorageItems = await this.getLocalStorageUsage();
-    const indexedDBItems = await this.getIndexedDBUsage();
-    const powerSyncItems = await this.getPowerSyncUsage();
-    const cachedAssetsItems = await this.getCachedAssetsUsage();
-    const imageItems = await this.getImageStorageUsage();
+  private async readStorageEstimate(): Promise<{ usage: number; quota: number }> {
+    try {
+      if ("storage" in navigator && "estimate" in navigator.storage) {
+        const estimate = await navigator.storage.estimate();
+        return { usage: estimate.usage || 0, quota: estimate.quota || 0 };
+      }
+    } catch (error) {
+      console.warn("Could not read storage estimate:", error);
+    }
+    return { usage: 0, quota: 0 };
+  }
 
-    allItems.push(
-      ...localStorageItems,
-      ...indexedDBItems,
-      ...powerSyncItems,
-      ...cachedAssetsItems,
-      ...imageItems,
-    );
-
-    // Calculate totals
-    const totalSize = allItems.reduce((sum, item) => sum + item.size, 0);
-    const totalItems = allItems.length;
-
-    // Calculate breakdown by type
-    const breakdown = {
-      cache: { size: 0, items: 0 },
-      database: { size: 0, items: 0 },
-      assets: { size: 0, items: 0 },
-      tiles: { size: 0, items: 0 },
-      images: { size: 0, items: 0 },
-      other: { size: 0, items: 0 },
+  private async measureImageBytes(): Promise<{ size: number; items: number }> {
+    const items = await this.getImageStorageUsage();
+    return {
+      size: items.reduce((sum, item) => sum + item.size, 0),
+      items: items.length,
     };
+  }
 
-    for (const item of allItems) {
-      breakdown[item.type].size += item.size;
-      breakdown[item.type].items += 1;
+  private async measureCacheStorage(): Promise<{
+    models: { size: number; items: number; copies: number };
+    tiles: { size: number; items: number };
+    cache: { size: number; items: number };
+  }> {
+    const models = { size: 0, items: 0, copies: 0 };
+    const tiles = { size: 0, items: 0 };
+    const cache = { size: 0, items: 0 };
+    const revisions = new Set<string>();
+
+    if (!("caches" in window)) {
+      return { models, tiles, cache };
     }
 
-    return {
-      totalSize,
-      totalItems,
-      breakdown,
-      items: allItems.sort((a, b) => b.size - a.size), // Sort by size descending
-    };
+    try {
+      const names = await caches.keys();
+      for (const name of names) {
+        const bucket = await caches.open(name);
+        const requests = await bucket.keys();
+        for (const request of requests) {
+          const response = await bucket.match(request);
+          if (!response) continue;
+          const size = await cachedResponseSize(response);
+          const kind = classifyCacheEntry(name, request.url);
+          if (kind === "models") {
+            models.size += size;
+            models.items += 1;
+            const revision = modelRevisionFromUrl(request.url);
+            if (revision && size > 1_000_000) revisions.add(revision);
+          } else if (kind === "tiles") {
+            tiles.size += size;
+            tiles.items += 1;
+          } else {
+            cache.size += size;
+            cache.items += 1;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Could not measure cache storage:", error);
+    }
+
+    models.copies =
+      revisions.size > 0 ? revisions.size : models.size > 0 ? 1 : 0;
+    return { models, tiles, cache };
   }
 
   // Helper methods

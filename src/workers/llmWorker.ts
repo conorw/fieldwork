@@ -2,6 +2,7 @@
 // Using a Web Worker bypasses Vite's import analysis issues with transformers.web.js
 // and prevents blocking the UI during heavy model loading/inference
 
+import "../utils/insecureContext.js";
 import {
   env,
   AutoProcessor,
@@ -9,10 +10,13 @@ import {
   RawImage,
 } from "@huggingface/transformers";
 
-// Prefer browser cache so a second load works offline after Hub/adapter download
-env.allowLocalModels = true;
+// Weights come from Hugging Face or an adapter URL. Looking under /models
+// hits the app page on the dev server and the loader tries to parse HTML.
+env.allowLocalModels = false;
 env.allowRemoteModels = true;
-env.useBrowserCache = true;
+// Secure pages use the browser cache. LAN http pages use the IndexedDB stand-in
+// installed above; if that is missing, download without caching.
+env.useBrowserCache = typeof caches !== "undefined";
 
 const DEFAULT_MODEL_ID = "onnx-community/FastVLM-0.5B-ONNX";
 
@@ -23,7 +27,12 @@ let isLoading = false;
 let loadedModelUrl: string | null = null;
 
 type WorkerMessage =
-  | { type: "initialize"; modelUrl?: string; device?: "webgpu" | "wasm" }
+  | {
+      type: "initialize";
+      modelUrl?: string;
+      device?: "webgpu" | "wasm";
+      revision?: string;
+    }
   | {
       type: "analyze";
       prompt: string;
@@ -33,10 +42,13 @@ type WorkerMessage =
     }
   | { type: "status" };
 
-/** Vision encoder is expensive; shrink photos before generate. */
-const MAX_IMAGE_SIDE = 768;
-/** Headstone JSON is small; 1024 tokens routinely exceeds a minute on WASM. */
-const MAX_NEW_TOKENS = 512;
+/**
+ * The vision model is MobileCLIP at 1024px. A smaller photo is scaled back up,
+ * so this only avoids decoding a multi-megapixel camera image first.
+ */
+const MAX_IMAGE_SIDE = 1024;
+/** Worst case if the model never closes its JSON. A normal stone stops sooner. */
+const MAX_NEW_TOKENS = 192;
 /** First WebGPU compile + WASM decode can take well over 60s. */
 const INFERENCE_TIMEOUT_MS = 180_000;
 
@@ -51,6 +63,7 @@ function postError(error: string) {
 async function initialize(
   modelUrl: string = DEFAULT_MODEL_ID,
   device: "webgpu" | "wasm" = "webgpu",
+  revision?: string,
 ) {
   if (isLoaded && loadedModelUrl === modelUrl) {
     self.postMessage({ type: "ready", modelUrl });
@@ -69,13 +82,17 @@ async function initialize(
 
     self.postMessage({ type: "loading", modelUrl });
 
+    // The published repo only has these three graphs. A q4 vision or decoder
+    // file is not uploaded, so WASM uses the same set as WebGPU.
     const dtype = {
       embed_tokens: "fp16" as const,
-      vision_encoder: "q4" as const,
-      decoder_model_merged: "q4" as const,
+      vision_encoder: "fp16" as const,
+      decoder_model_merged: "q4f16" as const,
     };
 
+    const revisionOpts = revision ? { revision } : {};
     processor = await AutoProcessor.from_pretrained(modelUrl, {
+      ...revisionOpts,
       progress_callback: (p: any) => {
         if (p.progress !== undefined) {
           postProgress(Math.min(50, Number(p.progress) / 2));
@@ -84,6 +101,7 @@ async function initialize(
     });
 
     const loadOpts: Record<string, unknown> = {
+      ...revisionOpts,
       dtype,
       progress_callback: (p: any) => {
         if (p.progress !== undefined) {
@@ -107,9 +125,15 @@ async function initialize(
         "[llmWorker] WebGPU load failed, retrying without device hint:",
         webgpuErr,
       );
-      const { device: _d, ...rest } = loadOpts;
-      model = await AutoModelForImageTextToText.from_pretrained(modelUrl, rest);
+      const { device: _device, ...rest } = loadOpts;
+      model = await AutoModelForImageTextToText.from_pretrained(modelUrl, {
+        ...rest,
+        dtype,
+      });
     }
+    const decoder =
+      model.sessions?.decoder_model_merged ?? model.sessions?.model;
+    if (decoder?.config) decoder.config.kv_cache_dtype = "float16";
 
     isLoaded = true;
     isLoading = false;
@@ -149,6 +173,48 @@ async function resizeForInference(image: any): Promise<any> {
     Math.max(1, Math.round(width * scale)),
     Math.max(1, Math.round(height * scale)),
   );
+}
+
+/** True once the model has emitted one complete JSON object. */
+function jsonObjectClosed(text: string): boolean {
+  let depth = 0;
+  let started = false;
+  let inString = false;
+  let escape = false;
+  for (const ch of text) {
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") {
+      started = true;
+      depth += 1;
+    } else if (ch === "}") {
+      depth -= 1;
+      if (started && depth <= 0) return true;
+    }
+  }
+  return false;
+}
+
+function decodeGeneratedIds(ids: number[]): string {
+  const tokenizer = processor.tokenizer ?? processor;
+  if (typeof tokenizer.decode === "function") {
+    return tokenizer.decode(ids, { skip_special_tokens: true });
+  }
+  return processor.batch_decode([ids], { skip_special_tokens: true })[0] ?? "";
 }
 
 async function analyze(data: Extract<WorkerMessage, { type: "analyze" }>) {
@@ -192,12 +258,31 @@ async function analyze(data: Extract<WorkerMessage, { type: "analyze" }>) {
     });
 
     const isCompactStockPrompt = data.prompt.includes('"transcription":""');
+    const promptLength = Number(inputs.input_ids.dims.at(-1) || 0);
+    const preparedAt = Date.now();
+    let generatedText = "";
+    let decodeWarned = false;
+    const stopWhenJsonCloses = (inputIds: Array<Array<bigint | number>>) =>
+      inputIds.map((ids) => {
+        const generated = ids.slice(promptLength);
+        if (generated.length < 8 || generated.length % 8 !== 0) return false;
+        try {
+          generatedText = decodeGeneratedIds(generated.map((id) => Number(id)));
+        } catch (err) {
+          if (!decodeWarned) {
+            decodeWarned = true;
+            console.warn("[llmWorker] could not read tokens while generating", err);
+          }
+          return false;
+        }
+        return jsonObjectClosed(generatedText);
+      });
     const outputs = await Promise.race([
       model.generate({
         ...inputs,
-        max_new_tokens: isCompactStockPrompt ? 320 : MAX_NEW_TOKENS,
+        max_new_tokens: isCompactStockPrompt ? 160 : MAX_NEW_TOKENS,
         do_sample: false,
-        repetition_penalty: 1.08,
+        stopping_criteria: [stopWhenJsonCloses],
       }),
       new Promise((_, reject) =>
         setTimeout(
@@ -212,12 +297,28 @@ async function analyze(data: Extract<WorkerMessage, { type: "analyze" }>) {
       ),
     ]);
 
+    console.log(
+      `[llmWorker] photo ready in ${preparedAt - started}ms, generated in ${Date.now() - preparedAt}ms, closed=${jsonObjectClosed(generatedText)}, preview=${JSON.stringify(generatedText.slice(0, 160))}`,
+    );
+
     const decoded = processor.batch_decode(
       outputs.slice(null, [inputs.input_ids.dims.at(-1), null]),
       { skip_special_tokens: true },
     );
 
-    self.postMessage({ type: "result", text: decoded[0] });
+    const piece = Array.isArray(decoded) ? decoded[0] : decoded;
+    const text = Array.isArray(piece)
+      ? piece.map((part) => String(part ?? "")).join("")
+      : typeof piece === "string"
+        ? piece
+        : piece == null
+          ? ""
+          : String(piece);
+    if (!text.includes("{")) {
+      postError("The on-device reader did not return a reading.");
+      return;
+    }
+    self.postMessage({ type: "result", text });
   } catch (err) {
     console.error("[llmWorker] Error during analysis:", err);
     postError(err instanceof Error ? err.message : String(err));
@@ -229,7 +330,7 @@ async function analyze(data: Extract<WorkerMessage, { type: "analyze" }>) {
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   const data = event.data;
   if (data.type === "initialize") {
-    await initialize(data.modelUrl, data.device);
+    await initialize(data.modelUrl, data.device, data.revision);
   } else if (data.type === "analyze") {
     await analyze(data);
   } else if (data.type === "status") {

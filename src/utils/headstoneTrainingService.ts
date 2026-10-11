@@ -208,7 +208,7 @@ export function toTrainPayloadExamples(
 }
 
 /**
- * Kick off a cemetery train job via the Vercel orchestrator.
+ * Kick off a cemetery train job via the Worker orchestrator.
  * Sends reviewed examples from local PowerSync (source of truth until synced).
  */
 export async function startLocationTraining(

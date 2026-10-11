@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SAMPLES = ROOT / "training" / "samples"
 
 LOCATION_ID = "global-bootstrap"
-WEBHOOK_URL = "https://example.invalid/api/train-headstone-webhook"
+WEBHOOK_URL = "https://fieldwork.conorw.workers.dev/api/train-headstone-webhook"
 DOCKER_IMAGE = "huggingface/transformers-pytorch-gpu:latest"
 DEFAULT_FLAVOR = "l4x1"
 TIMEOUT_SECONDS = 5400
@@ -62,6 +62,7 @@ def put_blob(pathname: str, data: bytes, content_type: str, token: str, upload_b
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": content_type,
+            "User-Agent": "fieldwork-train/1.0",
         },
     )
     with urllib.request.urlopen(req, timeout=300) as resp:
@@ -211,7 +212,10 @@ def main() -> int:
     # transformers-pytorch-gpu image has python3 only, and no curl.
     fetch = (
         "python3 -c \"import urllib.request,os,sys;"
-        "urllib.request.urlretrieve(os.environ[sys.argv[1]], sys.argv[2])\""
+        "req=urllib.request.Request(os.environ[sys.argv[1]],"
+        "headers={'User-Agent':'fieldwork-train/1.0'});"
+        "data=urllib.request.urlopen(req, timeout=300).read();"
+        "open(sys.argv[2],'wb').write(data)\""
     )
     bootstrap = " && ".join(
         [
@@ -235,6 +239,8 @@ def main() -> int:
             "TRAIN_CODE_URL": code_url,
             "TRAIN_PAYLOAD_URL": payload_url,
             "TRAIN_REQUIRE_ONNX": "0",
+            # Worker request bodies cannot carry the merged checkpoint.
+            "TRAIN_MAX_UPLOAD_BYTES": "90000000",
             "HF_HOME": "/tmp/hf",
             "STORAGE_UPLOAD_URL": upload_base,
             "STORAGE_PUBLIC_BASE": public_base,

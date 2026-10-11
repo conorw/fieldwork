@@ -47,7 +47,7 @@ export function evaluateTrainingCoverage(input: CoverageInput): CoverageStatus {
   if (ready) {
     message = "Enough confirmed stones to learn this cemetery offline.";
   } else if (input.total < requiredTotal) {
-    message = `Confirm ${remaining} more stone${remaining === 1 ? "" : "s"} (${input.total} of ${requiredTotal}).`;
+    message = `Add ${remaining} more headstone photo${remaining === 1 ? "" : "s"} (${input.total} of ${requiredTotal}).`;
   } else {
     message = `Add more variety — need at least ${requiredDistinct} different kinds of stones (have ${distinctTypes}).`;
   }

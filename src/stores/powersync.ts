@@ -820,8 +820,23 @@ export const usePowerSyncStore = defineStore("powersync", () => {
         type: file.type,
       });
 
-      // Process the image (create thumbnails and upload to cloud)
-      const processedImage = await imageProcessingService.processImage(file);
+      let locationId: string | undefined;
+      try {
+        const plot = (await powerSync.value.get(
+          "SELECT location_id FROM plots WHERE id = ?",
+          [plotId],
+        )) as { location_id?: string } | null;
+        locationId = plot?.location_id || undefined;
+      } catch (lookupError) {
+        console.warn("Plot location lookup failed:", lookupError);
+      }
+
+      // Process the image (create thumbnails and upload to cloud).
+      // The server reads the headstone and queues training.
+      const processedImage = await imageProcessingService.processImage(file, {
+        locationId,
+        teach: !!locationId,
+      });
 
       const authStore = useAuthStore();
       const userId = authStore.user?.id || "anonymous";

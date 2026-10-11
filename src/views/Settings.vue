@@ -1,324 +1,138 @@
 <template>
-  <div class="h-full overflow-y-auto p-4 space-y-4">
-    <!-- Header Card -->
-    <Card>
-      <template #content>
-        <div class="space-y-3">
-          <div>
-            <h1 class="text-xl font-semibold text-surface-900">Settings</h1>
-            <p class="text-sm text-surface-600">
-              Manage cemeteries, storage, and on-device reading
-            </p>
-          </div>
+  <div class="settings-page h-full overflow-y-auto px-3 py-3 sm:px-4">
+    <div class="mb-2 flex items-center justify-between gap-3">
+      <h1 class="text-xl font-semibold text-surface-900">Settings</h1>
+      <Chip
+        v-if="connectionStatus !== 'Connected'"
+        :label="connectionStatus"
+        :severity="connectionStatusSeverity"
+        size="small"
+      />
+    </div>
 
-          <div class="flex items-center justify-between">
-            <div class="text-sm">
-              <span class="font-medium">Status:</span>
-              <Chip
-                :label="connectionStatus"
-                :severity="connectionStatusSeverity"
-                size="small"
-              />
-            </div>
-          </div>
-        </div>
-      </template>
-    </Card>
-
-    <!-- Mobile-Friendly Accordion Layout -->
-    <Accordion :multiple="true">
+    <Accordion>
       <!-- Facility Selection -->
       <AccordionTab>
         <template #header>
           <div class="flex items-center justify-between w-full">
-            <span>Cemeteries</span>
-            <div class="text-sm text-surface-500">
-              {{ locations.length }} cemeteries
+            <span class="text-base">Cemeteries</span>
+            <div class="text-sm text-surface-500 mr-2">
+              {{ locations.length }}
             </div>
           </div>
         </template>
 
-        <!-- Current Selection -->
-        <Message
-          v-if="selectedLocation"
-          severity="info"
-          :closable="false"
-          class="mb-4"
-        >
-          <template #icon>
-            <i class="pi pi-building"></i>
-          </template>
-          <div class="space-y-2">
-            <h3 class="font-medium text-sm">Current cemetery</h3>
-            <p class="text-sm">{{ selectedLocation.name }}</p>
-            <div class="flex items-center justify-between text-xs">
-              <span
-                >Created: {{ formatDate(selectedLocation.dateCreated) }}</span
-              >
-              <Chip
-                v-if="selectedLocation.isPublic"
-                label="Public"
-                severity="success"
-                size="small"
-              />
-              <Chip v-else label="Private" severity="secondary" size="small" />
-            </div>
-            <div class="text-xs">
-              Zoom: {{ selectedLocation.minZoom }} -
-              {{ selectedLocation.maxZoom }}
-            </div>
-          </div>
-        </Message>
-
-        <!-- Facility List -->
-        <div v-if="loading" class="text-center py-6">
+        <div v-if="loading" class="py-6 text-center">
           <ProgressSpinner />
-          <p class="text-sm mt-2">Loading cemeteries...</p>
         </div>
 
-        <Message
-          v-else-if="locations.length === 0"
-          severity="warn"
-          :closable="false"
-        >
-          <template #icon>
-            <i class="pi pi-exclamation-triangle"></i>
-          </template>
-          No cemeteries available
-        </Message>
+        <p v-else-if="locations.length === 0" class="py-4 text-base text-surface-600">
+          No cemeteries yet
+        </p>
 
-        <div v-else class="space-y-3">
-          <!-- Search -->
+        <div v-else>
           <InputText
+            v-if="locations.length > 5"
             v-model="searchQuery"
-            placeholder="Search cemeteries..."
-            class="w-full"
+            placeholder="Search"
+            class="mb-2 w-full"
           />
 
-          <!-- Facility Cards -->
-          <div class="space-y-2">
-            <Card
+          <ul class="divide-y divide-surface-200">
+            <li
               v-for="location in filteredLocations"
               :key="location.id"
-              @click="selectLocation(location.id)"
-              :class="[
-                'cursor-pointer',
-                selectedLocationId === location.id ? 'p-highlight' : '',
-              ]"
+              class="flex items-center gap-1"
             >
-              <template #content>
-                <div class="space-y-2">
-                  <div class="flex items-start justify-between">
-                    <h3 class="font-medium text-sm">{{ location.name }}</h3>
-                    <Chip
-                      v-if="location.isPublic"
-                      label="Public"
-                      severity="success"
-                      size="small"
-                    />
-                    <Chip
-                      v-else
-                      label="Private"
-                      severity="secondary"
-                      size="small"
-                    />
-                  </div>
-
-                  <div class="text-xs space-y-1">
-                    <div class="flex items-center">
-                      <i class="pi pi-search mr-2 text-xs"></i>
-                      <span
-                        >Zoom: {{ location.minZoom }} -
-                        {{ location.maxZoom }}</span
-                      >
-                    </div>
-
-                    <div class="flex items-center">
-                      <i class="pi pi-calendar mr-2 text-xs"></i>
-                      <span>{{ formatDate(location.dateCreated) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-              <template #footer>
-                <div class="flex items-center justify-between">
-                  <Chip
-                    v-if="selectedLocationId === location.id"
-                    label="Selected"
-                    severity="success"
-                    size="small"
-                  />
-                  <div v-else></div>
-
-                  <div class="flex gap-2">
-                    <Button
-                      v-if="
-                        location.userRole === 'owner' ||
-                        location.userRole === 'admin'
-                      "
-                      @click.stop="goToLocationSettings(location.id)"
-                      severity="secondary"
-                      size="small"
-                      icon="pi pi-cog"
-                      title="Location settings, members, invites, and join requests"
-                      aria-label="Location settings, members, invites, and join requests"
-                    />
-                    <Button
-                      @click.stop="confirmDeleteLocation(location)"
-                      :disabled="deletingLocationId === location.id"
-                      severity="danger"
-                      size="small"
-                      icon="pi pi-trash"
-                      :loading="deletingLocationId === location.id"
-                      :title="
-                        deletingLocationId === location.id
-                          ? 'Deleting...'
-                          : 'Delete cemetery'
-                      "
-                      :aria-label="
-                        deletingLocationId === location.id
-                          ? 'Deleting...'
-                          : 'Delete cemetery'
-                      "
-                    />
-                  </div>
-                </div>
-              </template>
-            </Card>
-          </div>
+              <button
+                type="button"
+                class="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-left"
+                @click="selectLocation(location.id)"
+              >
+                <i
+                  class="pi pi-check w-4 shrink-0 text-primary-600"
+                  :class="selectedLocationId === location.id ? 'visible' : 'invisible'"
+                  aria-hidden="true"
+                ></i>
+                <span class="truncate text-base text-surface-900">{{
+                  location.name
+                }}</span>
+              </button>
+              <Button
+                v-if="
+                  location.userRole === 'owner' || location.userRole === 'admin'
+                "
+                icon="pi pi-cog"
+                text
+                rounded
+                severity="secondary"
+                class="icon-hit"
+                title="Cemetery settings"
+                aria-label="Cemetery settings"
+                @click="goToLocationSettings(location.id)"
+              />
+              <Button
+                icon="pi pi-trash"
+                text
+                rounded
+                severity="danger"
+                class="icon-hit"
+                :loading="deletingLocationId === location.id"
+                :disabled="deletingLocationId === location.id"
+                title="Delete cemetery"
+                aria-label="Delete cemetery"
+                @click="confirmDeleteLocation(location)"
+              />
+            </li>
+          </ul>
         </div>
       </AccordionTab>
 
       <!-- Storage Information -->
       <AccordionTab>
         <template #header>
-          <div class="flex items-center justify-between w-full">
-            <span>Storage Information</span>
-            <Button
-              @click="refreshStorageInfo"
-              :disabled="storageLoading"
-              severity="secondary"
-              size="small"
-              text
-            >
-              <template #icon>
-                <svg
-                  class="w-4 h-4"
-                  :class="{ 'animate-spin': storageLoading }"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              </template>
-            </Button>
-          </div>
+          <span class="text-base">Storage</span>
         </template>
 
-        <div class="space-y-3">
-          <!-- Total Storage -->
-          <Card>
-            <template #content>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-medium">Total Storage</p>
-                  <p class="text-lg font-bold">
-                    {{ formatBytes(storageSummary.totalSize) }}
-                  </p>
-                </div>
-                <Avatar
-                  icon="pi pi-database"
-                  size="large"
-                  style="
-                    background-color: var(--primary-color);
-                    color: var(--primary-color-text);
-                  "
-                />
-              </div>
-            </template>
-          </Card>
-
-          <!-- Storage Breakdown -->
-          <div class="grid grid-cols-2 gap-3">
-            <Card>
-              <template #content>
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-xs font-medium">Database</p>
-                    <p class="text-sm font-bold">
-                      {{ formatBytes(storageSummary.breakdown.database.size) }}
-                    </p>
-                  </div>
-                  <Avatar
-                    icon="pi pi-database"
-                    size="normal"
-                    style="background-color: var(--green-500); color: white"
-                  />
-                </div>
-              </template>
-            </Card>
-
-            <Card>
-              <template #content>
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-xs font-medium">Images</p>
-                    <p class="text-sm font-bold">
-                      {{ formatBytes(storageSummary.breakdown.images.size) }}
-                    </p>
-                  </div>
-                  <Avatar
-                    icon="pi pi-image"
-                    size="normal"
-                    style="background-color: var(--purple-500); color: white"
-                  />
-                </div>
-              </template>
-            </Card>
-
-            <Card v-if="storageSummary.breakdown.tiles.size > 0">
-              <template #content>
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-xs font-medium">Map Tiles</p>
-                    <p class="text-sm font-bold">
-                      {{ formatBytes(storageSummary.breakdown.tiles.size) }}
-                    </p>
-                  </div>
-                  <Avatar
-                    icon="pi pi-map"
-                    size="normal"
-                    style="background-color: var(--blue-500); color: white"
-                  />
-                </div>
-              </template>
-            </Card>
-
-            <Card v-if="storageSummary.breakdown.cache.size > 0">
-              <template #content>
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-xs font-medium">Cache</p>
-                    <p class="text-sm font-bold">
-                      {{ formatBytes(storageSummary.breakdown.cache.size) }}
-                    </p>
-                  </div>
-                  <Avatar
-                    icon="pi pi-clock"
-                    size="normal"
-                    style="background-color: var(--orange-500); color: white"
-                  />
-                </div>
-              </template>
-            </Card>
+        <div>
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-2xl font-semibold tabular-nums text-surface-900">
+                {{ formatBytes(storageSummary.totalSize) }}
+              </p>
+              <p v-if="storageQuotaLabel" class="text-sm text-surface-500">
+                {{ storageQuotaLabel }}
+              </p>
+            </div>
+            <Button
+              icon="pi pi-refresh"
+              text
+              rounded
+              severity="secondary"
+              class="icon-hit"
+              :loading="storageLoading"
+              aria-label="Refresh storage"
+              @click="refreshStorageInfo"
+            />
           </div>
+
+          <ul class="mt-2 divide-y divide-surface-200">
+            <li
+              v-for="row in storageRows"
+              :key="row.label"
+              class="flex items-center justify-between gap-3 py-3"
+            >
+              <div class="min-w-0">
+                <p class="text-base text-surface-900">{{ row.label }}</p>
+                <p v-if="row.detail" class="text-sm text-surface-500">
+                  {{ row.detail }}
+                </p>
+              </div>
+              <p class="shrink-0 text-base tabular-nums text-surface-900">
+                {{ formatBytes(row.size) }}
+              </p>
+            </li>
+          </ul>
         </div>
       </AccordionTab>
 
@@ -326,7 +140,7 @@
       <AccordionTab>
         <template #header>
           <div class="flex items-center justify-between w-full">
-            <span>Headstone reading</span>
+            <span class="text-base">Headstone reading</span>
             <Chip
               :label="cemeteryAiLabel"
               :severity="cemeteryAiSeverity"
@@ -335,80 +149,44 @@
           </div>
         </template>
 
-        <div class="space-y-4">
-          <Message
-            :severity="selectedLocation?.aiStatus === 'error' ? 'warn' : 'info'"
-            :closable="false"
+        <div class="space-y-3">
+          <p class="text-base text-surface-900">{{ cemeteryAiHeadline }}</p>
+          <p
+            v-if="localModelState.error"
+            class="text-sm text-red-700 dark:text-red-300"
           >
-            <div class="space-y-2">
-              <p class="text-sm font-medium">{{ cemeteryAiHeadline }}</p>
-              <p class="text-xs">{{ cemeteryAiBody }}</p>
-              <p class="text-xs text-surface-500">
-                Some plot photos are sampled in the background to improve the
-                shared model. Other cemeteries only receive model weights —
-                never your photos or names.
-              </p>
-            </div>
-          </Message>
+            {{ localModelState.error }}
+          </p>
+          <p v-else-if="deviceMessage" class="text-sm text-surface-500">
+            {{ deviceMessage }}
+          </p>
 
-          <Card v-if="coverageMessage">
-            <template #content>
-              <p class="text-sm mb-2">{{ coverageMessage }}</p>
-              <Button
-                label="Help improve reading"
-                size="small"
-                outlined
-                @click="goTeach"
-              />
-            </template>
-          </Card>
+          <Button
+            v-if="!localModelState.isLoaded"
+            label="Download model"
+            class="w-full"
+            :loading="installingModel || localModelState.isLoading"
+            @click="installAdapter"
+          />
 
-          <Card>
-            <template #content>
-              <div class="space-y-3">
-                <div
-                  v-if="localModelState.isLoading"
-                  class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800"
-                >
-                  Preparing on-device reading…
-                  {{ localModelState.loadProgress.toFixed(0) }}%
-                </div>
-                <div
-                  v-else-if="localModelState.isLoaded"
-                  class="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-800"
-                >
-                  On-device reading is ready.
-                </div>
-                <div
-                  v-else-if="localModelState.error"
-                  class="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800"
-                >
-                  {{ localModelState.error }}
-                </div>
+          <div v-if="coverageMessage" class="space-y-2">
+            <p class="text-sm text-surface-600">{{ coverageMessage }}</p>
+            <Button
+              label="Help improve reading"
+              text
+              class="link-btn"
+              @click="goTeach"
+            />
+          </div>
 
-                <div class="flex flex-wrap gap-2">
-                  <Button
-                    v-if="!localModelState.isLoaded"
-                    label="Download on-device model"
-                    size="small"
-                    :loading="installingModel"
-                    @click="installAdapter"
-                  />
-                  <Button
-                    label="Vision eval (dev)"
-                    size="small"
-                    severity="secondary"
-                    outlined
-                    @click="router.push('/dev/vision-eval')"
-                  />
-                </div>
-
-                <p v-if="deviceMessage" class="text-xs text-surface-500">
-                  {{ deviceMessage }}
-                </p>
-              </div>
-            </template>
-          </Card>
+          <Button
+            v-if="showDevTools"
+            label="Vision eval"
+            text
+            severity="secondary"
+            class="link-btn"
+            @click="router.push('/dev/vision-eval')"
+          />
         </div>
       </AccordionTab>
 
@@ -416,7 +194,7 @@
       <AccordionTab>
         <template #header>
           <div class="flex items-center justify-between w-full">
-            <span>Console Logs</span>
+            <span class="text-base">Console logs</span>
             <div class="text-sm text-surface-500">
               {{ filteredLogs.length }} logs
             </div>
@@ -424,37 +202,34 @@
         </template>
 
         <div class="space-y-3">
-          <!-- Controls -->
-          <div class="flex flex-wrap gap-2">
-            <Button
-              @click="clearLogs"
-              severity="secondary"
-              size="small"
-              label="Clear Logs"
-              icon="pi pi-trash"
-            />
-            <Button
-              @click="exportLogs"
-              severity="secondary"
-              size="small"
-              label="Export"
-              icon="pi pi-download"
-            />
-            <div class="flex-1"></div>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div class="flex gap-2">
+              <Button
+                label="Clear"
+                icon="pi pi-trash"
+                severity="secondary"
+                outlined
+                @click="clearLogs"
+              />
+              <Button
+                label="Export"
+                icon="pi pi-download"
+                severity="secondary"
+                outlined
+                @click="exportLogs"
+              />
+            </div>
             <Dropdown
               v-model="logLevelFilter"
               :options="logLevelOptions"
-              placeholder="Filter by level"
-              class="w-40"
-              size="small"
+              placeholder="All levels"
+              class="w-full sm:ml-auto sm:w-40"
             />
           </div>
 
-          <!-- Logs Display -->
           <div
             ref="logsContainer"
-            class="bg-surface-900 text-surface-100 rounded-lg p-3 font-mono text-xs overflow-auto"
-            style="max-height: 500px; min-height: 200px"
+            class="max-h-[40vh] overflow-auto rounded-lg bg-surface-900 p-3 font-mono text-xs text-surface-100"
           >
             <div
               v-if="filteredLogs.length === 0"
@@ -608,32 +383,22 @@ const cemeteryAiSeverity = computed(() => {
   return "secondary";
 });
 
+const showDevTools = import.meta.env.DEV;
+
 const cemeteryAiHeadline = computed(() => {
   if (localModelState.value.isLoaded) return "On-device reading is ready";
   if (localModelState.value.isLoading) {
-    return "Downloading the on-device model…";
+    return `Downloading… ${localModelState.value.loadProgress.toFixed(0)}%`;
   }
   const s = selectedLocation.value?.aiStatus || "teacher";
-  if (s === "training") return "Improving the shared model in the background…";
-  if (s === "error") return "Shared-model training needs attention";
-  return "On-device reading starts automatically";
-});
-
-const cemeteryAiBody = computed(() => {
-  const s = selectedLocation.value?.aiStatus || "teacher";
-  if (localModelState.value.isLoaded) {
-    return "New photos are read on this device. Checking names is optional and helps improve reading for everyone.";
-  }
-  if (s === "training") {
-    return "You can keep working. Plot photos are sampled in the background to improve the shared model.";
-  }
+  if (s === "training") return "Improving the shared model";
   if (s === "error") {
     return (
       selectedLocation.value?.aiTrainError ||
-      "On-device reading still works. Shared-model training can retry from sampled plot photos."
+      "Shared-model training needs attention"
     );
   }
-  return "Add plots as usual. The on-device model downloads in the background. Some photos are sampled to improve reading for everyone.";
+  return "On-device reading downloads in the background";
 });
 
 async function refreshCoverage() {
@@ -650,9 +415,7 @@ async function refreshCoverage() {
       byStoneType: counts.byStoneType,
       hasGlobalAdapter: hasGlobal,
     });
-    coverageMessage.value = status.ready
-      ? "Enough sampled stones — shared-model training can run automatically."
-      : `${status.message} Optional — reading already works on-device.`;
+    coverageMessage.value = status.ready ? "" : status.message;
   } catch {
     coverageMessage.value = "";
   }
@@ -708,6 +471,7 @@ const mapSettings = ref({ ...settingsStore.mapSettings });
 // Storage analytics state
 const storageSummary = ref<StorageSummary>({
   totalSize: 0,
+  quota: 0,
   totalItems: 0,
   breakdown: {
     cache: { size: 0, items: 0 },
@@ -715,9 +479,56 @@ const storageSummary = ref<StorageSummary>({
     assets: { size: 0, items: 0 },
     tiles: { size: 0, items: 0 },
     images: { size: 0, items: 0 },
+    models: { size: 0, items: 0, copies: 0 },
     other: { size: 0, items: 0 },
   },
   items: [],
+});
+
+const storageQuotaLabel = computed(() => {
+  const quota = storageSummary.value.quota;
+  if (!quota) return "";
+  return `of ${formatBytes(quota)}`;
+});
+
+const storageRows = computed(() => {
+  const breakdown = storageSummary.value.breakdown;
+  const modelCopies = breakdown.models.copies;
+  const rows = [
+    {
+      label: "AI model",
+      size: breakdown.models.size,
+      detail:
+        breakdown.models.size === 0
+          ? "Not downloaded"
+          : modelCopies > 1
+            ? `${modelCopies} versions`
+            : "",
+    },
+    {
+      label: "Map tiles",
+      size: breakdown.tiles.size,
+      detail: "",
+    },
+    {
+      label: "Photos",
+      size: breakdown.images.size,
+      detail: "",
+    },
+    {
+      label: "App data",
+      size: breakdown.database.size,
+      detail: "",
+    },
+  ];
+  if (breakdown.cache.size > 0) {
+    rows.push({
+      label: "Other files",
+      size: breakdown.cache.size,
+      detail: "",
+    });
+  }
+  return rows;
 });
 
 // Computed properties
@@ -813,11 +624,6 @@ const formatBytes = (bytes: number): string => {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-const formatDate = (dateString: string): string => {
-  if (!dateString) return "Unknown";
-  return new Date(dateString).toLocaleDateString();
 };
 
 const confirmDeleteLocation = async (location: any) => {
@@ -961,3 +767,34 @@ onMounted(async () => {
   });
 });
 </script>
+
+<style scoped>
+.settings-page :deep(.p-accordionheader) {
+  min-height: 3.25rem;
+  font-size: 1rem;
+}
+
+.settings-page :deep(.p-accordioncontent-content) {
+  padding-top: 0.25rem;
+  padding-right: 0.25rem;
+  padding-bottom: 0.75rem;
+  padding-left: 0.25rem;
+}
+
+.settings-page :deep(.icon-hit.p-button) {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+}
+
+.settings-page :deep(.link-btn.p-button) {
+  justify-content: flex-start;
+  min-height: 2.75rem;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.settings-page :deep(.p-button.w-full) {
+  min-height: 2.75rem;
+}
+</style>

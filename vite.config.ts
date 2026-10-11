@@ -1,13 +1,53 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
-// import vercel from "vite-plugin-vercel"; // Temporarily disabled - doesn't support Vite 7 yet
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import basicSsl from "@vitejs/plugin-basic-ssl";
+
+const insecureContextSource = readFileSync(
+  new URL("./src/utils/insecureContext.js", import.meta.url),
+  "utf8",
+);
+
+/** PowerSync's database worker also calls these secure-context APIs. */
+function insecureContextPlugin() {
+  const resolved = "\0fieldwork-insecure-context";
+  return {
+    name: "fieldwork-insecure-context",
+    enforce: "pre",
+    resolveId(source) {
+      if (source === "fieldwork-insecure-context") return resolved;
+    },
+    load(id) {
+      if (id === resolved) return insecureContextSource;
+    },
+    transform(code, id) {
+      const normalized = id.split("?")[0].replaceAll("\\", "/");
+      if (
+        !normalized.endsWith("/WASQLiteDB.worker.js") &&
+        !normalized.endsWith("/SharedSyncImplementation.worker.js")
+      ) {
+        return null;
+      }
+      if (code.includes("fieldwork-insecure-context")) return null;
+      return {
+        code: `import "fieldwork-insecure-context";\n${code}`,
+        map: null,
+      };
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
+    basicSsl({
+      name: "fieldwork",
+      domains: ["localhost", "127.0.0.1", "192.168.18.12"],
+    }),
+    insecureContextPlugin(),
     vue({
       features: {
         vapor: true, // Vue 3.6+: compile SFCs as Vapor unless they already have a vapor marker
@@ -15,7 +55,6 @@ export default defineConfig({
     }),
     tailwindcss(),
     wasm(),
-    // vercel(), // Temporarily disabled - vite-plugin-vercel@9.1.1 doesn't support Vite 7
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icons/**/*", "fonts/**/*", "screenshots/**/*"],
@@ -168,8 +207,9 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true,
-        type: "module",
+        // A dev service worker caches Vue modules and kept serving the
+        // broken Sign out tooltip after the source was fixed.
+        enabled: false,
       },
     }),
   ],
@@ -212,7 +252,7 @@ export default defineConfig({
   },
   worker: {
     format: "es",
-    plugins: () => [wasm(), topLevelAwait()],
+    plugins: () => [insecureContextPlugin(), wasm(), topLevelAwait()],
   },
   esbuild: {
     target: "esnext",

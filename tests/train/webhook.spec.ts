@@ -8,10 +8,10 @@ const mocks = vi.hoisted(() => ({
   upsertGlobalAdapter: vi.fn(),
 }));
 
-vi.mock("../../api/lib/trainHelpers", async () => {
+vi.mock("../../workers/lib/trainHelpers", async () => {
   const actual = await vi.importActual<
-    typeof import("../../api/lib/trainHelpers")
-  >("../../api/lib/trainHelpers");
+    typeof import("../../workers/lib/trainHelpers")
+  >("../../workers/lib/trainHelpers");
   return {
     ...actual,
     getSupabaseAdmin: mocks.getSupabaseAdmin,
@@ -20,7 +20,7 @@ vi.mock("../../api/lib/trainHelpers", async () => {
   };
 });
 
-import webhookHandler from "../../api/train-headstone-webhook";
+import { handleTrainWebhook as webhookHandler } from "../../workers/train";
 
 describe("POST /api/train-headstone-webhook", () => {
   beforeEach(() => {

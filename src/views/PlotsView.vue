@@ -348,6 +348,43 @@ const hasMorePlots = computed(() => {
   return displayedPlotsCount.value < totalPlotsCount.value;
 });
 
+const remainingPlotsCount = computed(() =>
+  Math.min(pageSize.value, totalPlotsCount.value - displayedPlotsCount.value),
+);
+
+const hasActiveFilters = computed(
+  () => !!(searchQuery.value || sectionFilter.value || statusFilter.value),
+);
+
+// With filters on, an empty result means "no match" rather than "no plots".
+const hasAnyPlots = computed(
+  () => totalPlotsCount.value > 0 || hasActiveFilters.value,
+);
+
+const resultSummary = computed(() => {
+  if (loading.value && !hasLoadedOnce.value) return "Loading plots…";
+  const total = totalPlotsCount.value;
+  const noun = total === 1 ? "plot" : "plots";
+  if (total === 0) return hasActiveFilters.value ? "No matching plots" : "No plots yet";
+  if (plots.value.length < total) {
+    return `Showing ${plots.value.length} of ${total} ${noun}`;
+  }
+  return `${total} ${noun}`;
+});
+
+const clearFilters = () => {
+  searchQuery.value = "";
+  sectionFilter.value = "";
+  statusFilter.value = "";
+};
+
+const plotLabel = (plot: any) => {
+  const parts = [plot.section, plot.row, plot.number].filter(
+    (part) => part !== null && part !== undefined && `${part}`.trim() !== "",
+  );
+  return parts.length > 0 ? parts.join("-") : "Unnamed plot";
+};
+
 // Methods
 const viewPlot = (plot: any) => {
   router.push(`/plots/${plot.id}`);
@@ -508,12 +545,6 @@ const loadPlotImagesBatch = async (plotIds: string[]) => {
   } catch (error) {
     console.error("Error loading plot images batch:", error);
   }
-};
-
-const getPlotSyncStatus = (_plotId: string) => {
-  // This would check the sync status for a specific plot
-  // For now, return a placeholder
-  return "synced";
 };
 
 const getStatusSeverity = (status: string) => {

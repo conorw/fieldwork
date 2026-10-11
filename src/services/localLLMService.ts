@@ -25,6 +25,7 @@ interface ModelState {
   loadProgress: number;
   error: string | null;
   modelUrl: string | null;
+  revision: string | null;
   backend: InferenceBackend | null;
 }
 
@@ -35,6 +36,7 @@ class LocalLLMService {
     loadProgress: 0,
     error: null,
     modelUrl: null,
+    revision: null,
     backend: null,
   };
 
@@ -53,12 +55,15 @@ class LocalLLMService {
     modelUrl?: string;
     locationId?: string;
     adapterVersion?: string;
+    revision?: string;
   }): Promise<void> {
     const modelUrl = options?.modelUrl || DEFAULT_ONNX_MODEL_ID;
+    const revision = options?.revision || null;
 
     if (
       this.modelState.isLoaded &&
       this.modelState.modelUrl === modelUrl &&
+      this.modelState.revision === revision &&
       !this.modelState.error
     ) {
       return;
@@ -106,6 +111,7 @@ class LocalLLMService {
         type: "initialize",
         modelUrl,
         device,
+        revision: revision || undefined,
       });
     } catch (err) {
       this.modelState.isLoading = false;
@@ -124,6 +130,7 @@ class LocalLLMService {
       modelUrl?: string;
       locationId?: string;
       adapterVersion?: string;
+      revision?: string;
     },
   ) {
     const msg = event.data;
@@ -147,6 +154,7 @@ class LocalLLMService {
         this.modelState.isLoading = false;
         this.modelState.loadProgress = 100;
         this.modelState.modelUrl = msg.modelUrl || options?.modelUrl || DEFAULT_ONNX_MODEL_ID;
+        this.modelState.revision = options?.revision || null;
         void markModelReady({
           modelUrl: this.modelState.modelUrl!,
           locationId: options?.locationId,
@@ -301,12 +309,41 @@ class LocalLLMService {
     );
   }
 
-  isReadyFor(modelUrl: string): boolean {
-    return this.isReady() && this.modelState.modelUrl === modelUrl;
+  isReadyFor(modelUrl: string, revision?: string): boolean {
+    return (
+      this.isReady() &&
+      this.modelState.modelUrl === modelUrl &&
+      (revision == null || this.modelState.revision === revision)
+    );
   }
 
   isLoading(): boolean {
     return this.modelState.isLoading;
+  }
+
+  /** Stop a general-model download and record why the shared model is not in use. */
+  reportUnavailable(message: string): void {
+    const url = this.modelState.modelUrl;
+    if (url && url !== DEFAULT_ONNX_MODEL_ID && this.modelState.isLoaded) {
+      return;
+    }
+    this.worker?.terminate();
+    this.worker = null;
+    this.readyResolve = null;
+    this.readyReject = null;
+    this.readyPromise = null;
+    this.modelState = {
+      isLoaded: false,
+      isLoading: false,
+      loadProgress: 0,
+      error: message,
+      modelUrl: null,
+      revision: null,
+      backend: null,
+    };
+    window.dispatchEvent(
+      new CustomEvent("llm-load-error", { detail: { error: message } }),
+    );
   }
 
   reset(): void {
@@ -318,6 +355,7 @@ class LocalLLMService {
       loadProgress: 0,
       error: null,
       modelUrl: null,
+      revision: null,
       backend: null,
     };
     this.readyPromise = null;

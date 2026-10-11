@@ -4,6 +4,7 @@ import { usePowerSyncStore } from "./powersync";
 import { defineStore } from "pinia";
 import { useLocationsStore } from "./locations";
 import { usePersonsStore } from "./persons";
+import { Capacitor } from "@capacitor/core";
 import { CapacitorGeolocationService } from "../services/capacitorGeolocation";
 import { rewritePublicStorageUrl } from "../utils/storageUrl";
 
@@ -675,7 +676,6 @@ export const useMapStore = defineStore("map", () => {
           }
         }
 
-        // Get high accuracy position
         const location = await capacitorGeolocation.getCurrentPosition();
 
         const result = {
@@ -689,13 +689,21 @@ export const useMapStore = defineStore("map", () => {
         currentLocation.value = result;
         resolve(result);
       } catch (error) {
-        console.error("MapStore: Capacitor GPS location error:", error);
-
-        // Fallback to web geolocation API
-        if (!navigator.geolocation) {
-          reject(new Error("Geolocation not supported"));
+        // On the web, Capacitor already asked the browser. A second request
+        // waits out the same timeout. The native app can still fall back.
+        if (!Capacitor.isNativePlatform() || !navigator.geolocation) {
+          reject(
+            error instanceof Error
+              ? error
+              : new Error("Failed to get GPS position"),
+          );
           return;
         }
+
+        console.warn(
+          "MapStore: Device GPS unavailable, trying the browser location:",
+          error instanceof Error ? error.message : error,
+        );
 
         navigator.geolocation.getCurrentPosition(
           (position) => {
@@ -711,14 +719,24 @@ export const useMapStore = defineStore("map", () => {
             currentLocation.value = location;
             resolve(location);
           },
-          (error) => {
-            console.error("MapStore: Fallback GPS location error:", error);
-            reject(error);
+          (fallbackError) => {
+            const denied = fallbackError.code === 1;
+            console.warn(
+              "MapStore: Browser location unavailable:",
+              fallbackError.message,
+            );
+            reject(
+              new Error(
+                denied
+                  ? "Geolocation permission denied"
+                  : `Location unavailable: ${fallbackError.message}`,
+              ),
+            );
           },
           {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000, // 1 minute
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 300000,
           },
         );
       }
@@ -745,7 +763,10 @@ export const useMapStore = defineStore("map", () => {
       const location = await getGPSLocation();
       return location;
     } catch (error) {
-      console.error("Failed to get GPS location:", error);
+      console.warn(
+        "Failed to get GPS location:",
+        error instanceof Error ? error.message : error,
+      );
       // Return cached location if available, even if old
       if (currentLocation.value) {
         return currentLocation.value;

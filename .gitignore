@@ -84,9 +84,15 @@ worker-configuration.d.ts
 # Vite build artifacts with absolute paths
 vite.config.ts.timestamp-*.mjs
 
+# Local basemap extracts (UK/Ireland PMTiles from Protomaps)
+data/
+tools/
+*.pmtiles
+
 # Binaries
 
 # Bulk Wikimedia Commons downloads (regenerate via scripts/collect_headstone_samples.py)
 training/samples/commons/*
 !training/samples/commons/manifest.json
 !training/samples/commons/.gitkeep
+training/samples/commons-1k/

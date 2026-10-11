@@ -20,9 +20,20 @@
       "bucket_name": "fieldwork-storage"
     }
   ],
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "../../training/*.py",
+        "../../training/requirements.txt",
+        "../../scripts/export_browser_onnx.py"
+      ],
+      "fallthrough": true
+    }
+  ],
   "vars": {
     "SOURCE_PMTILES_KEY": "pmtiles/OUTPUT.pmtiles",
-    "SOURCE_PMTILES_URL": "https://build.protomaps.com/20260919.pmtiles",
+    "SOURCE_PMTILES_URL": "https://build.protomaps.com/{date}.pmtiles",
     "HF_NAMESPACE": "conorwoods",
     "HF_JOB_FLAVOR": "l4x1",
     "TRAIN_REPO_URL": "https://github.com/conorw/fieldwork.git",
