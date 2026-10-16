@@ -29,9 +29,9 @@ type CreateMapViewOptions = {
 export const createMapView = async (options: CreateMapViewOptions) => {
   const {
     center = [-6.238, 55.204], // Default to Ballycastle
-    zoom = 16,
+    zoom = 12,
     maxZoom = 23,
-    minZoom = 17,
+    minZoom = 8,
     isLatLng = true,
     extent = null,
     restrictExtent = true,

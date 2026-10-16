@@ -67,6 +67,7 @@ Desktop.ini
 public/sw.js
 public/workbox-*.js
 public/ocr/
+.svelte-kit/
 
 # Database files
 *.db

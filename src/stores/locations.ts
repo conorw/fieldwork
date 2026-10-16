@@ -3,7 +3,8 @@ import { defineStore } from "pinia";
 import { usePowerSyncStore } from "./powersync";
 import { useAuthStore } from "./auth";
 import type { LocationRecord } from "../powersync-schema";
-import { pmtilesService, type PMTilesLocation } from "../utils/pmtilesService";
+import { pmtilesService } from "../utils/pmtilesService";
+import type { PMTilesLocation } from "../utils/pmtilesService";
 import { useStorage } from "@vueuse/core";
 
 export interface LocationData {

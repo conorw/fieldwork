@@ -1,9 +1,7 @@
-import { createWorker, type Worker } from "tesseract.js";
-import {
-  mergeHeaderText,
-  parseInscription,
-  type InscriptionReading,
-} from "./inscriptionRead";
+import { createWorker } from "tesseract.js";
+import type { Worker } from "tesseract.js";
+import { mergeHeaderText, parseInscription } from "./inscriptionRead";
+import type { InscriptionReading } from "./inscriptionRead";
 import { headerBand, stoneBounds } from "./stoneCrop";
 
 const OCR_PARAMS = {

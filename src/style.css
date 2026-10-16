@@ -236,6 +236,19 @@ main {
   padding: 0;
 }
 
+/* Keep OpenLayers controls (z-index 1000) inside the map so they cannot
+   cover the Add plot button, which shares the bottom edge on a phone. */
+.map-component {
+  isolation: isolate;
+  z-index: 0;
+}
+
+.map-add-plot {
+  z-index: 5;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
 /* Fix for mobile viewport height issues */
 @supports (height: 100dvh) {
   .h-screen {
@@ -376,7 +389,11 @@ body {
 
 /* Make zoom controls slightly opaque */
 .ol-zoom {
-  opacity: 0.75;
+  top: 0.5em;
+  left: 0.5em;
+  z-index: 1001;
+  pointer-events: auto;
+  opacity: 0.9;
   transition: opacity 0.2s ease;
 }
 

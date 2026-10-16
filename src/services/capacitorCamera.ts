@@ -1,9 +1,5 @@
-import {
-  Camera,
-  CameraResultType,
-  CameraSource,
-  PermissionStatus,
-} from "@capacitor/camera";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import type { PermissionStatus } from "@capacitor/camera";
 import { Capacitor } from "@capacitor/core";
 
 export interface CameraOptions {

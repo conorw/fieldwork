@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function convertSvgToPng() {
-  const iconsDir = path.join(__dirname, "public", "icons");
+  const iconsDir = path.join(__dirname, "..", "public", "icons");
 
   // Convert 192x192 SVG to PNG
   try {

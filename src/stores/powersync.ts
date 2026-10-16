@@ -1,12 +1,9 @@
 import { defineStore } from "pinia";
-import { ref, computed, watch, type Ref, type ComputedRef, unref } from "vue";
+import { ref, computed, watch, unref } from "vue";
+import type { Ref, ComputedRef } from "vue";
 import { PowerSyncDatabase } from "@powersync/web";
-import {
-  AppSchema,
-  type PlotRecord,
-  type PlotImageRecord,
-  type LocationRecord,
-} from "../powersync-schema";
+import { AppSchema } from "../powersync-schema";
+import type { PlotRecord, PlotImageRecord, LocationRecord } from "../powersync-schema";
 import { SupabaseConnector } from "../connectors/SupabaseConnector";
 import { createBaseLogger, LogLevel } from "@powersync/web";
 import { useLocationsStore } from "./locations";
@@ -1564,7 +1561,8 @@ export const usePlots = () => {
   // Watch for location changes and PowerSync initialization
   watch(
     [selectedLocationId, () => powerSyncStore.isInitialized],
-    async ([newLocationId, initialized], [oldLocationId]) => {
+    async ([newLocationId, initialized], previous) => {
+      const oldLocationId = Array.isArray(previous) ? previous[0] : undefined;
       if (initialized && powerSyncStore.powerSync) {
         // Location changed or PowerSync just initialized - restart watch
         if (newLocationId !== oldLocationId || !watchIterator) {
@@ -1702,7 +1700,8 @@ export const usePlotImages = (
   // Watch for plotId changes and PowerSync initialization
   watch(
     [plotIdRef, () => powerSyncStore.isInitialized],
-    async ([newPlotId, initialized], [oldPlotId]) => {
+    async ([newPlotId, initialized], previous) => {
+      const oldPlotId = Array.isArray(previous) ? previous[0] : undefined;
       if (initialized && powerSyncStore.powerSync) {
         // Plot ID changed or PowerSync just initialized - restart watch
         if (newPlotId !== oldPlotId || !watchIterator) {

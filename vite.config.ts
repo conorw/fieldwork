@@ -1,15 +1,42 @@
-import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import adapter from "@sveltejs/adapter-static";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
+import { sveltekit } from "@sveltejs/kit/vite";
 import wasm from "vite-plugin-wasm";
-import topLevelAwait from "vite-plugin-top-level-await";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
+
+/** Wrangler keeps `dist` open locally; adapter-static cannot `rmSync` it. */
+function adapterWriteThroughDist(
+  options: Parameters<typeof adapter>[0],
+) {
+  const staging = resolve(projectRoot, ".svelte-kit/adapter-static");
+  const dest = resolve(projectRoot, "dist");
+  const inner = adapter({
+    ...options,
+    pages: staging,
+    assets: staging,
+  });
+  return {
+    name: inner.name,
+    async adapt(builder: Parameters<NonNullable<typeof inner.adapt>>[0]) {
+      await inner.adapt(builder);
+      mkdirSync(dest, { recursive: true });
+      for (const name of readdirSync(staging)) {
+        cpSync(join(staging, name), join(dest, name), {
+          recursive: true,
+          force: true,
+        });
+      }
+    },
+  };
+}
 
 /** Browser OCR files. Kept out of git; copied before Vite serves or builds. */
 function copyOcrAssets() {
@@ -83,20 +110,37 @@ function insecureContextPlugin() {
 
 export default defineConfig({
   plugins: [
+    sveltekit({
+      adapter: adapterWriteThroughDist({
+        pages: "dist",
+        assets: "dist",
+        fallback: "index.html",
+        strict: false,
+      }),
+      files: {
+        assets: "public",
+      },
+      alias: {
+        "@": "src",
+        $lib: "src/lib",
+      },
+      paths: {
+        relative: false,
+      },
+      preprocess: vitePreprocess(),
+    }),
     basicSsl({
       name: "fieldwork",
       domains: ["localhost", "127.0.0.1", "192.168.18.12"],
     }),
     ocrAssetsPlugin(),
     insecureContextPlugin(),
-    vue({
-      features: {
-        vapor: true, // Vue 3.6+: compile SFCs as Vapor unless they already have a vapor marker
-      },
-    }),
     tailwindcss(),
     wasm(),
     VitePWA({
+      // boot.ts registers the worker only on the production host.
+      // An injected registerSW.js was re-registering a stale precache on localhost.
+      injectRegister: null,
       registerType: "autoUpdate",
       includeAssets: ["icons/**/*", "fonts/**/*", "screenshots/**/*"],
       manifest: {
@@ -230,12 +274,6 @@ export default defineConfig({
         // The headstone worker and its ONNX runtime are larger than 5 MB.
         // Leave them out of the precache and an offline photo cannot start the model.
         maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
-        // Explicitly include screenshots in precache manifest
-        additionalManifestEntries: [
-          { url: "/screenshots/map-view-wide.png", revision: null },
-          { url: "/screenshots/settings-wide.png", revision: null },
-          { url: "/screenshots/plot-detail-narrow.png", revision: null },
-        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
@@ -263,7 +301,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": "/src",
-      // Polyfill for Node.js Buffer (required by PowerSync)
+      vue: resolve(projectRoot, "src/compat/vue.svelte.ts"),
+      pinia: resolve(projectRoot, "src/compat/pinia.svelte.ts"),
+      "vue-router": resolve(projectRoot, "src/compat/router.ts"),
+      "@vueuse/core": resolve(projectRoot, "src/compat/vueuse.svelte.ts"),
+      "primevue/usetoast": resolve(projectRoot, "src/compat/usetoast.ts"),
       buffer: "buffer",
     },
     // Handle CommonJS modules from event-iterator
@@ -276,7 +318,7 @@ export default defineConfig({
   build: {
     target: "esnext",
     chunkSizeWarningLimit: 2000, // Increase warning limit to 2MB (vendor chunk can be large)
-    minify: "esbuild", // Use esbuild for faster builds
+    minify: true,
   },
   optimizeDeps: {
     include: [
@@ -284,8 +326,6 @@ export default defineConfig({
       "ol-ext",
       "buffer",
       "event-iterator",
-      "primevue",
-      "@primeuix/themes",
     ],
     exclude: [
       "@journeyapps/wa-sqlite",
@@ -293,20 +333,10 @@ export default defineConfig({
       "@huggingface/transformers",
       "tesseract.js",
     ],
-    esbuildOptions: {
-      // Handle CommonJS modules from event-iterator
-      mainFields: ["browser", "module", "main"],
-    },
   },
   worker: {
     format: "es",
-    plugins: () => [insecureContextPlugin(), wasm(), topLevelAwait()],
-  },
-  esbuild: {
-    target: "esnext",
-    supported: {
-      "top-level-await": true,
-    },
+    plugins: () => [insecureContextPlugin(), wasm()],
   },
   server: {
     port: 3000,

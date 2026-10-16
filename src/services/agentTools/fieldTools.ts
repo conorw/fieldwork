@@ -1,5 +1,6 @@
 import { lifeAge } from "../agentReply";
-import { graveFootprint, type GraveSize } from "./graveFootprint";
+import { graveFootprint } from "./graveFootprint";
+import type { GraveSize } from "./graveFootprint";
 import type { AgentTool, AgentToolResult } from "./types";
 
 const PLOT_CAP = 25;

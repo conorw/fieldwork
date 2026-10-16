@@ -1,7 +1,5 @@
 import js from "@eslint/js";
-import prettier from "@vue/eslint-config-prettier";
-import vue from "eslint-plugin-vue";
-import vueParser from "vue-eslint-parser";
+import prettier from "eslint-config-prettier";
 import tsParser from "@typescript-eslint/parser";
 import globals from "globals";
 
@@ -25,25 +23,7 @@ export default [
     },
   },
   {
-    files: ["**/*.vue"],
-    languageOptions: {
-      parser: vueParser,
-      parserOptions: {
-        parser: tsParser,
-        ecmaVersion: "latest",
-        sourceType: "module",
-      },
-    },
-    plugins: {
-      vue,
-    },
-    rules: {
-      ...vue.configs["flat/essential"].rules,
-      "vue/multi-word-component-names": "off",
-    },
-  },
-  {
-    files: ["**/*.{js,mjs,cjs,ts,vue}"],
+    files: ["**/*.{js,mjs,cjs,ts}"],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -62,6 +42,7 @@ export default [
       "out/**",
       "coverage/**",
       ".cache/**",
+      ".svelte-kit/**",
       ".vite/**",
       "*.local",
       ".vercel/**",

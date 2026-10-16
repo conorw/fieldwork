@@ -14,10 +14,8 @@ import {
   reasoningToTranscription,
 } from "../utils/reasoningMapper";
 import { markModelReady } from "./modelCacheService";
-import {
-  detectDeviceAiCapabilities,
-  type InferenceBackend,
-} from "../utils/deviceAiCapabilities";
+import { detectDeviceAiCapabilities } from "../utils/deviceAiCapabilities";
+import type { InferenceBackend } from "../utils/deviceAiCapabilities";
 
 interface ModelState {
   isLoaded: boolean;

@@ -1,12 +1,14 @@
 import { CapacitorCameraService } from "../capacitorCamera";
 import { useLocationsStore } from "../../stores/locations";
 import { useMapStore } from "../../stores/map";
-import { usePersonsStore, type PersonData } from "../../stores/persons";
+import { usePersonsStore } from "../../stores/persons";
+import type { PersonData } from "../../stores/persons";
 import { usePowerSyncStore } from "../../stores/powersync";
 import type { PlotRecord } from "../../powersync-schema";
 import { headstoneAnalysisService } from "../../utils/headstoneAnalysisService";
 import { rewritePublicStorageUrl } from "../../utils/storageUrl";
-import { createFieldTools, type PersonSummary, type PlotSummary } from "./fieldTools";
+import { createFieldTools } from "./fieldTools";
+import type { PersonSummary, PlotSummary } from "./fieldTools";
 import type { AgentTool } from "./types";
 
 function asPlot(row: PlotRecord | null | undefined): PlotSummary | null {

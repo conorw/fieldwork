@@ -1,4 +1,5 @@
-import { pmtilesService, type PMTilesLocation } from "./pmtilesService.js";
+import { pmtilesService } from "./pmtilesService.js";
+import type { PMTilesLocation } from "./pmtilesService.js";
 import VectorTile from "ol/layer/VectorTile";
 import { PMTilesVectorSource } from "ol-pmtiles";
 import { Style, Stroke, Fill, Icon } from "ol/style";

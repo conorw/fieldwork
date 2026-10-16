@@ -1,13 +1,8 @@
-import {
-  AbstractPowerSyncDatabase,
-  BaseObserver,
-  CrudEntry,
-  PowerSyncBackendConnector,
-  UpdateType,
-  type PowerSyncCredentials,
-} from "@powersync/web";
+import { AbstractPowerSyncDatabase, BaseObserver, CrudEntry, UpdateType } from "@powersync/web";
+import type { PowerSyncBackendConnector, PowerSyncCredentials } from "@powersync/web";
 
-import { Session, SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 export type SupabaseConfig = {
