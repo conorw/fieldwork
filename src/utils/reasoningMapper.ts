@@ -480,11 +480,19 @@ function recoverMalformedPeople(text: string): any[] {
   return results;
 }
 
+const RELATIONSHIP_NAME =
+  /^(?:a\s+|an\s+|the\s+)?(?:dear\s+|beloved\s+)?(?:husband|wife|mother|father|son|daughter)(?:\s+and\s+(?:mother|father|son|daughter|husband|wife))?$/i;
+
 function normalizePersonTarget(p: any, index: number): HeadstonePersonTarget {
-  const full =
+  let full =
     p.full_name ||
     `${p.forename || ""} ${p.surname || ""}`.trim() ||
     "Unknown";
+  const relationships = Array.isArray(p.relationships) ? [...p.relationships] : [];
+  if (RELATIONSHIP_NAME.test(full.trim())) {
+    relationships.unshift(full.trim());
+    full = "Unknown";
+  }
   const split = splitName(full);
   return {
     full_name: full,
@@ -515,7 +523,7 @@ function normalizePersonTarget(p: any, index: number): HeadstonePersonTarget {
       ),
       aged: p.dates?.aged ?? p.age_at_death ?? null,
     },
-    relationships: Array.isArray(p.relationships) ? p.relationships : [],
+    relationships,
     occupation: p.occupation || "",
     veteran: !!p.veteran,
     evidence: p.evidence || p.notes || "",

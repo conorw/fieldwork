@@ -66,6 +66,7 @@ Desktop.ini
 # PWA assets (generated)
 public/sw.js
 public/workbox-*.js
+public/ocr/
 
 # Database files
 *.db

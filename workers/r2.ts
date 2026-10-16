@@ -42,6 +42,88 @@ function parseRange(
   return { offset: start, length: end - start + 1 };
 }
 
+function isLocalDevHost(hostname: string, port: string): boolean {
+  if (port === "8787") return true;
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  const octets = host.split(".").map(Number);
+  return (
+    octets.length === 4 &&
+    octets[0] === 172 &&
+    octets[1] >= 16 &&
+    octets[1] <= 31 &&
+    octets.every((part) => part >= 0 && part <= 255)
+  );
+}
+
+/** Local dev stores a relative /files path. Missing objects are read from the published bucket. */
+export function publishedFileFallbackUrl(
+  requestUrl: string,
+  storagePublicBase: string | undefined,
+  key: string,
+): string | null {
+  const base = storagePublicBase?.replace(/\/$/, "");
+  if (!base || !key || key.includes("..")) return null;
+  let remote: URL;
+  let here: URL;
+  try {
+    remote = new URL(base);
+    here = new URL(requestUrl);
+  } catch {
+    return null;
+  }
+  if (remote.host === here.host) return null;
+  if (!isLocalDevHost(here.hostname, here.port)) return null;
+  const path = key
+    .split("/")
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return `${base}/files/${path}`;
+}
+
+export async function proxyPublishedFile(
+  request: Request,
+  env: Env,
+  key: string,
+): Promise<Response | null> {
+  const upstream = publishedFileFallbackUrl(
+    request.url,
+    env.STORAGE_PUBLIC_BASE,
+    key,
+  );
+  if (!upstream) return null;
+  const range = request.headers.get("range");
+  const res = await fetch(upstream, {
+    method: request.method === "HEAD" ? "HEAD" : "GET",
+    headers: range ? { range } : {},
+  });
+  if (res.status === 404) return null;
+  if (!res.ok && res.status !== 206) {
+    return text(`Storage upstream ${res.status}`, 502, fileCorsHeaders());
+  }
+  const headers = new Headers(fileCorsHeaders());
+  for (const name of [
+    "content-type",
+    "content-length",
+    "content-range",
+    "etag",
+    "accept-ranges",
+  ]) {
+    const value = res.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  if (!headers.has("content-type")) {
+    headers.set("content-type", contentTypeForKey(key));
+  }
+  return new Response(request.method === "HEAD" ? null : res.body, {
+    status: res.status,
+    headers,
+  });
+}
+
 export async function serveFile(
   request: Request,
   env: Env,

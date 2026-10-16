@@ -241,7 +241,7 @@ Provide complete transcription of ALL text in full_text_transcription, preservin
             type: "image_url",
             image_url: {
               url: `data:${mimeType};base64,${imageData}`,
-              detail: "low",
+              detail: "high",
             },
           },
         ],

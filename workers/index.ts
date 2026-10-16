@@ -3,7 +3,7 @@ import { proxyHubFile, proxyOnnxRuntime } from "./hubProxy";
 import { proxyBasemap } from "./basemap";
 import { handleClip } from "./clip";
 import { bindProcessEnv, json, text, authorizeStorage, type Env } from "./env";
-import { handleFileOptions, serveFile } from "./r2";
+import { handleFileOptions, proxyPublishedFile, serveFile } from "./r2";
 import {
   handleImportBlob,
   handleStoragePut,
@@ -78,6 +78,10 @@ export default {
       const sourceKey = env.SOURCE_PMTILES_KEY || "pmtiles/OUTPUT.pmtiles";
       if (response.status === 404 && key === sourceKey) {
         return proxyBasemap(request, env, ctx);
+      }
+      if (response.status === 404) {
+        const published = await proxyPublishedFile(request, env, key);
+        if (published) return published;
       }
       return response;
     }

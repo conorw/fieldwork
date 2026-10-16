@@ -14,6 +14,42 @@ import { resolveLocalAnalysisRoute } from "./localAnalysisRoute";
 import type { HeadstonePhysicalAttrs } from "../types/headstoneTraining";
 import { normalizePhysicalAttrs } from "../types/headstoneTraining";
 import { normalizeDateToIso } from "./inscriptionDates";
+import { cropStoneFile, readHeadstoneInscription } from "./inscriptionOcr";
+import type { InscriptionReading } from "./inscriptionRead";
+import { reasoningTargetToPersons } from "./reasoningMapper";
+import { emptyPhysicalAttrs } from "../types/headstoneTraining";
+
+function inscriptionAnalysis(reading: InscriptionReading) {
+  const people = reading.people.map((person) => ({
+    full_name: person.full_name,
+    role_on_stone: person.role,
+    position: person.position,
+    dates: { birth: person.birth, death: person.death, aged: null },
+    relationships: person.relationships,
+    occupation: "",
+    veteran: false,
+    evidence: "Carved on the stone",
+  }));
+  const surname = people[0]?.full_name.split(" ").at(-1) || "";
+  const persons = reasoningTargetToPersons({
+    people,
+    shared: { surname, epitaph: reading.epitaph },
+    physical: emptyPhysicalAttrs(),
+    notes: reading.transcription,
+  });
+  return {
+    success: true,
+    persons,
+    full_text_transcription: reading.transcription,
+    shared_epitaph: reading.epitaph,
+    physical: emptyPhysicalAttrs(),
+    metadata: {
+      analysis_timestamp: new Date().toISOString(),
+      model_used: "local-inscription",
+      confidence_level: "high",
+    },
+  };
+}
 
 /** Fold API relationships / occupation into person.notes for storage */
 function composePersonNotes(apiPerson: {
@@ -213,9 +249,8 @@ export class HeadstoneAnalysisService {
   }
   /**
    * Analyze a headstone image and create person records.
-   * Uses the on-device model when it is already loaded. While online, a photo
-   * taken during the download uses the API. While offline, this waits for the
-   * cached model and does not call the API.
+   * The on-device reader transcribes the carving first. The vision model and
+   * the API are only used when that reading finds no dated name.
    */
   async analyzeHeadstoneImage(
     imageFile: File,
@@ -224,46 +259,50 @@ export class HeadstoneAnalysisService {
     try {
       console.log("HeadstoneAnalysisService: Starting headstone analysis...");
 
-      const { useLocal, reason } = await this.shouldUseLocalModel();
-      console.log("HeadstoneAnalysisService: routing", { useLocal, reason });
-
-      if (reason === "offline_model_unavailable") {
-        throw new Error(
-          "The on-device headstone model is not on this device yet. Connect once while the app is open so it can finish downloading, then try again.",
-        );
-      }
-
-      const base64Data = await this.fileToBase64(imageFile, true);
-
       let analysisData: any;
-
-      if (useLocal) {
-        try {
-          const localResult = await localLLMService.analyzeImage(
-            imageFile,
-            base64Data,
-          );
-          analysisData = {
-            success: localResult.success,
-            persons: localResult.persons,
-            full_text_transcription: localResult.full_text_transcription,
-            shared_epitaph: localResult.shared_epitaph || "",
-            physical: localResult.physical,
-            metadata: localResult.metadata,
-          };
-        } catch (localError) {
-          const errorMsg =
-            localError instanceof Error ? localError.message : "Unknown error";
-          throw new Error(
-            `On-device reading failed: ${errorMsg}. Check the names yourself or try again.`,
-          );
-        }
+      const inscribed = await readHeadstoneInscription(imageFile).catch((error) => {
+        console.warn("HeadstoneAnalysisService: inscription read failed", error);
+        return null;
+      });
+      if (inscribed && inscribed.people.length > 0) {
+        analysisData = inscriptionAnalysis(inscribed);
       } else {
-        const mimeType =
-          imageFile.size > 200 * 1024
-            ? "image/jpeg"
-            : imageFile.type || "image/jpeg";
-        analysisData = await this.analyzeWithOpenAI(base64Data, mimeType);
+        const { useLocal, reason } = await this.shouldUseLocalModel();
+        console.log("HeadstoneAnalysisService: routing", { useLocal, reason });
+        const base64Data = await this.fileToBase64(imageFile, true);
+        if (reason === "offline_model_unavailable") {
+          throw new Error(
+            "The on-device headstone reader is not on this device yet. Connect once while the app is open so it can finish downloading, then try again.",
+          );
+        } else if (useLocal) {
+          try {
+            const photo = await cropStoneFile(imageFile);
+            const localResult = await localLLMService.analyzeImage(
+              photo,
+              base64Data,
+            );
+            analysisData = {
+              success: localResult.success,
+              persons: localResult.persons,
+              full_text_transcription: localResult.full_text_transcription,
+              shared_epitaph: localResult.shared_epitaph || "",
+              physical: localResult.physical,
+              metadata: localResult.metadata,
+            };
+          } catch (localError) {
+            const errorMsg =
+              localError instanceof Error ? localError.message : "Unknown error";
+            throw new Error(
+              `On-device reading failed: ${errorMsg}. Check the names yourself or try again.`,
+            );
+          }
+        } else {
+          const mimeType =
+            imageFile.size > 200 * 1024
+              ? "image/jpeg"
+              : imageFile.type || "image/jpeg";
+          analysisData = await this.analyzeWithOpenAI(base64Data, mimeType);
+        }
       }
 
       // Validate response structure

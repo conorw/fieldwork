@@ -171,7 +171,7 @@ export const REASONING_PROMPT =
   '"shared":{"surname":"","epitaph":""},' +
   '"physical":{"material":"unknown","form":"unknown","condition":"unknown","detail":""},' +
   '"notes":""}. ' +
-  "Copy dates as yyyy-mm-dd (example: 1933-06-25). " +
+  "Copy dates as yyyy-mm-dd. Do not copy a date from these instructions. " +
   "Relationships such as dear husband, wife, mother, son or daughter belong in " +
   "relationships, never occupation. notes is a concise full transcription. " +
   "Valid role_on_stone values: primary, spouse, child, parent, other. " +

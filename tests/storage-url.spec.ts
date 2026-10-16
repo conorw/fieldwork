@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { rewritePublicStorageUrl } from "../src/utils/storageUrl";
+import { publishedFileFallbackUrl } from "../workers/r2";
 
 const CLIP =
   "https://fieldwork.conorw.workers.dev/files/pmtiles/clip-bc-1791724005822.pmtiles";
@@ -36,5 +37,32 @@ describe("rewritePublicStorageUrl", () => {
     expect(rewritePublicStorageUrl(CLIP)).toBe(
       "/files/pmtiles/clip-bc-1791724005822.pmtiles",
     );
+  });
+});
+
+describe("publishedFileFallbackUrl", () => {
+  const base = "https://fieldwork.conorw.workers.dev";
+  const key = "pmtiles/clip-home-1791925495508.pmtiles";
+
+  it("reads a missing local file from the published bucket", () => {
+    expect(
+      publishedFileFallbackUrl("http://127.0.0.1:8787/files/" + key, base, key),
+    ).toBe(`${base}/files/${key}`);
+  });
+
+  it("does not proxy a request that is already on the published host", () => {
+    expect(
+      publishedFileFallbackUrl(`https://fieldwork.conorw.workers.dev/files/${key}`, base, key),
+    ).toBeNull();
+  });
+
+  it("refuses a path escape", () => {
+    expect(
+      publishedFileFallbackUrl(
+        "http://127.0.0.1:8787/files/pmtiles/clip.pmtiles",
+        base,
+        "pmtiles/../secret",
+      ),
+    ).toBeNull();
   });
 });

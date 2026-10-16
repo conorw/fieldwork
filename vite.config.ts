@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import wasm from "vite-plugin-wasm";
@@ -6,6 +8,44 @@ import topLevelAwait from "vite-plugin-top-level-await";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import basicSsl from "@vitejs/plugin-basic-ssl";
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
+
+/** Browser OCR files. Kept out of git; copied before Vite serves or builds. */
+function copyOcrAssets() {
+  const dest = resolve(projectRoot, "public/ocr");
+  mkdirSync(dest, { recursive: true });
+  const worker = resolve(projectRoot, "node_modules/tesseract.js/dist/worker.min.js");
+  const coreDir = resolve(projectRoot, "node_modules/tesseract.js-core");
+  const trained = resolve(projectRoot, "eng.traineddata");
+  if (!existsSync(worker) || !existsSync(trained)) {
+    throw new Error("OCR assets missing. Install tesseract.js and keep eng.traineddata in the project root.");
+  }
+  cpSync(worker, resolve(dest, "worker.min.js"));
+  for (const name of [
+    "tesseract-core-lstm.wasm.js",
+    "tesseract-core-lstm.wasm",
+    "tesseract-core-simd-lstm.wasm.js",
+    "tesseract-core-simd-lstm.wasm",
+    "tesseract-core-relaxedsimd-lstm.wasm.js",
+    "tesseract-core-relaxedsimd-lstm.wasm",
+  ]) {
+    cpSync(resolve(coreDir, name), resolve(dest, name));
+  }
+  cpSync(trained, resolve(dest, "eng.traineddata"));
+}
+
+function ocrAssetsPlugin() {
+  return {
+    name: "fieldwork-ocr-assets",
+    buildStart() {
+      copyOcrAssets();
+    },
+    configureServer() {
+      copyOcrAssets();
+    },
+  };
+}
 
 const insecureContextSource = readFileSync(
   new URL("./src/utils/insecureContext.js", import.meta.url),
@@ -47,6 +87,7 @@ export default defineConfig({
       name: "fieldwork",
       domains: ["localhost", "127.0.0.1", "192.168.18.12"],
     }),
+    ocrAssetsPlugin(),
     insecureContextPlugin(),
     vue({
       features: {
@@ -185,6 +226,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        globIgnores: ["**/ocr/**"],
         // The headstone worker and its ONNX runtime are larger than 5 MB.
         // Leave them out of the precache and an offline photo cannot start the model.
         maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
@@ -249,6 +291,7 @@ export default defineConfig({
       "@journeyapps/wa-sqlite",
       "@powersync/web",
       "@huggingface/transformers",
+      "tesseract.js",
     ],
     esbuildOptions: {
       // Handle CommonJS modules from event-iterator

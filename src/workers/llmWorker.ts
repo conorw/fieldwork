@@ -157,8 +157,8 @@ type WorkerMessage =
  * so this only avoids decoding a multi-megapixel camera image first.
  */
 const MAX_IMAGE_SIDE = 1024;
-/** Worst case if the model never closes its JSON. A normal stone stops sooner. */
-const MAX_NEW_TOKENS = 192;
+/** A couple stone with a full transcription needs more than a short JSON stub. */
+const MAX_NEW_TOKENS = 512;
 /** First WebGPU compile + WASM decode can take well over 60s. */
 const INFERENCE_TIMEOUT_MS = 180_000;
 
